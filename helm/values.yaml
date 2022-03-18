@@ -1,0 +1,6 @@
+global:
+  registry: ghcr.io/osstotalsoft
+  tag: "0.0.1"
+  imagePullPolicy: IfNotPresent
+  imagePullSecrets: "registrykey"
+  logLevel: 4

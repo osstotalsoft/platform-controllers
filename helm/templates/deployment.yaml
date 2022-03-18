@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provisioning-controller
+  labels:
+    app: provisioning-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provisioning-controller
+  template:
+    metadata:
+      labels:
+        app: provisioning-controller
+        app.kubernetes.io/name: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Values.global.tag }}
+        app.kubernetes.io/managed-by: "helm"
+    spec:
+      containers:
+      - name: provisioning-controller
+        image: "{{ .Values.global.registry }}/provisioning-controller:{{ .Values.global.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: azure-secret
+              key: clientSecret
+        - name: AZURE_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: clientId
+        - name: AZURE_LOCATION
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: location
+        - name: AZURE_SUBSCRIPTION_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: subscriptionId
+        - name: AZURE_TENANT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: tenantId
+        - name: PULUMI_ACCESS_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: pulumi-api-secret
+              key: accessToken
+        args:
+        - "--v"
+        - "{{ .Values.global.logLevel }}"
+      serviceAccountName: provisioning-controller
+{{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.global.imagePullSecrets }}
+{{- end }}
