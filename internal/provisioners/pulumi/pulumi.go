@@ -48,8 +48,8 @@ func deployFunc(platform string, tenant *provisioningv1.Tenant, dbList []*provis
 				return err
 			}
 
-			// export the db name
-			ctx.Export(fmt.Sprintf("azureDatabase_%s", dbSpec.Spec.Name), db.Name)
+			ctx.Export(fmt.Sprintf("azureDb_%s", dbSpec.Spec.Name), db.Name)
+			//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 		}
 
 		return nil
@@ -60,7 +60,9 @@ func Create(platform string, tenant *provisioningv1.Tenant, dbList []*provisioni
 	ctx := context.Background()
 
 	stackName := fmt.Sprintf("tenant_%s", tenant.Spec.Code)
-	s, err := auto.UpsertStackInlineSource(ctx, stackName, platform, deployFunc(platform, tenant, dbList))
+	s, err := auto.UpsertStackInlineSource(ctx, stackName, platform,
+		deployFunc(platform, tenant, dbList),
+		auto.SecretsProvider("hashivault://pulumi_kv"))
 	//auto.WorkDir(fmt.Sprintf("~/pulumi_ws/workspace_%s", platform)),
 	//auto.EnvVars(map[string]string{})
 
@@ -73,7 +75,7 @@ func Create(platform string, tenant *provisioningv1.Tenant, dbList []*provisioni
 	w := s.Workspace()
 
 	// for inline source programs, we must manage plugins ourselves
-	err = w.InstallPlugin(ctx, "azure-native", "v1.60.0")
+	err = w.InstallPlugin(ctx, "azure-native", "v1.61.0")
 	if err != nil {
 		klog.Errorf("Failed to install program plugins: %v", err)
 		return err

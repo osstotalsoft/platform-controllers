@@ -3,8 +3,8 @@ module totalsoft.ro/platform-controllers
 go 1.17
 
 require (
-	github.com/pulumi/pulumi-azure-native/sdk v1.60.0
-	github.com/pulumi/pulumi/sdk/v3 v3.26.1
+	github.com/pulumi/pulumi-azure-native/sdk v1.61.0
+	github.com/pulumi/pulumi/sdk/v3 v3.28.0
 	k8s.io/api v0.23.3
 	k8s.io/apimachinery v0.23.3
 	k8s.io/client-go v0.23.3
@@ -50,7 +50,7 @@ require (
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20180611051255-d3107576ba94 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
-	github.com/spf13/cobra v1.0.0 // indirect
+	github.com/spf13/cobra v1.4.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/src-d/gcfg v1.4.0 // indirect
 	github.com/texttheater/golang-levenshtein v0.0.0-20191208221605-eb6844b05fc6 // indirect
