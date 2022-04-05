@@ -20,6 +20,8 @@ package v1alpha1
 
 type AzureDatabaseExpansion interface{}
 
+type AzureManagedDatabaseExpansion interface{}
+
 type PlatformExpansion interface{}
 
 type TenantExpansion interface{}

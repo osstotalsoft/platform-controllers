@@ -29,6 +29,7 @@ import (
 type ProvisioningV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	AzureDatabasesGetter
+	AzureManagedDatabasesGetter
 	PlatformsGetter
 	TenantsGetter
 }
@@ -40,6 +41,10 @@ type ProvisioningV1alpha1Client struct {
 
 func (c *ProvisioningV1alpha1Client) AzureDatabases(namespace string) AzureDatabaseInterface {
 	return newAzureDatabases(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) AzureManagedDatabases(namespace string) AzureManagedDatabaseInterface {
+	return newAzureManagedDatabases(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) Platforms() PlatformInterface {
