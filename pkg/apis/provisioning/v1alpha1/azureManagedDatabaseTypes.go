@@ -16,9 +16,13 @@ type AzureManagedDatabase struct {
 }
 
 type AzureManagedDatabaseSpec struct {
-	PlatformRef string `json:"platformRef"`
-	DbName      string `json:"dbName"`
-	UserName    string `json:"userName"`
+	PlatformRef     string               `json:"platformRef"`
+	DbName          string               `json:"dbName"`
+	ManagedInstance AzureManagedInstance `json:"managedInstance"`
+}
+type AzureManagedInstance struct {
+	Name          string `json:"name"`
+	ResourceGroup string `json:"resourceGroup"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

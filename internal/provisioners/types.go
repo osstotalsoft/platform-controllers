@@ -4,4 +4,9 @@ import provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v
 
 type CreateInfrastructureFunc func(platform string,
 	tenant *provisioningv1.Tenant,
-	azureDbs []*provisioningv1.AzureDatabase) error
+	infra *InfrastructureManifests) error
+
+type InfrastructureManifests struct {
+	AzureDbs        []*provisioningv1.AzureDatabase
+	AzureManagedDbs []*provisioningv1.AzureManagedDatabase
+}

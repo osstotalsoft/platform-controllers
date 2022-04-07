@@ -35,14 +35,22 @@ spec:
             properties:
               dbName:
                 type: string
+              managedInstance:
+                properties:
+                  name:
+                    type: string
+                  resourceGroup:
+                    type: string
+                required:
+                - name
+                - resourceGroup
+                type: object
               platformRef:
-                type: string
-              userName:
                 type: string
             required:
             - dbName
+            - managedInstance
             - platformRef
-            - userName
             type: object
         type: object
     served: true
