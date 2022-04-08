@@ -37,7 +37,7 @@ upgrade-all:
 	go mod tidy
 
 test:
-	go test -v `go list ./... | grep -v 'platform-controllers/pkg/generated'`
+	CGO_ENABLED=0 go test -v `go list ./... | grep -v 'platform-controllers/pkg/generated'`
 
 include hack/generate_kube_crd.mk
 include docker/docker.mk
