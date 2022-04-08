@@ -34,18 +34,24 @@ spec:
           spec:
             properties:
               dbName:
+                description: Managed database name prefix. Will have platform and
+                  tenant suffix.
                 type: string
               managedInstance:
+                description: Target managed instance spec
                 properties:
                   name:
+                    description: Managed instance name
                     type: string
                   resourceGroup:
+                    description: Managed instance ressource group
                     type: string
                 required:
                 - name
                 - resourceGroup
                 type: object
               platformRef:
+                description: Target platform (custom resource name).
                 type: string
             required:
             - dbName

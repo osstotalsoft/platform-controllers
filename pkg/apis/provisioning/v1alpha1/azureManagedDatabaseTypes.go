@@ -16,12 +16,17 @@ type AzureManagedDatabase struct {
 }
 
 type AzureManagedDatabaseSpec struct {
-	PlatformRef     string               `json:"platformRef"`
-	DbName          string               `json:"dbName"`
+	// Target platform (custom resource name).
+	PlatformRef string `json:"platformRef"`
+	// Managed database name prefix. Will have platform and tenant suffix.
+	DbName string `json:"dbName"`
+	// Target managed instance spec
 	ManagedInstance AzureManagedInstance `json:"managedInstance"`
 }
 type AzureManagedInstance struct {
-	Name          string `json:"name"`
+	// Managed instance name
+	Name string `json:"name"`
+	// Managed instance ressource group
 	ResourceGroup string `json:"resourceGroup"`
 }
 
