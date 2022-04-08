@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// AzureDatabases returns a AzureDatabaseInformer.
 	AzureDatabases() AzureDatabaseInformer
+	// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
+	AzureManagedDatabases() AzureManagedDatabaseInformer
 	// Platforms returns a PlatformInformer.
 	Platforms() PlatformInformer
 	// Tenants returns a TenantInformer.
@@ -46,6 +48,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // AzureDatabases returns a AzureDatabaseInformer.
 func (v *version) AzureDatabases() AzureDatabaseInformer {
 	return &azureDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
+func (v *version) AzureManagedDatabases() AzureManagedDatabaseInformer {
+	return &azureManagedDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Platforms returns a PlatformInformer.

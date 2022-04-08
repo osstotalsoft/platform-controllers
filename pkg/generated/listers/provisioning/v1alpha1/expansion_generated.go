@@ -26,6 +26,14 @@ type AzureDatabaseListerExpansion interface{}
 // AzureDatabaseNamespaceLister.
 type AzureDatabaseNamespaceListerExpansion interface{}
 
+// AzureManagedDatabaseListerExpansion allows custom methods to be added to
+// AzureManagedDatabaseLister.
+type AzureManagedDatabaseListerExpansion interface{}
+
+// AzureManagedDatabaseNamespaceListerExpansion allows custom methods to be added to
+// AzureManagedDatabaseNamespaceLister.
+type AzureManagedDatabaseNamespaceListerExpansion interface{}
+
 // PlatformListerExpansion allows custom methods to be added to
 // PlatformLister.
 type PlatformListerExpansion interface{}

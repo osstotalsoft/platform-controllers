@@ -5,17 +5,19 @@ package pulumi
 import (
 	"context"
 	"fmt"
+	"os"
+
 	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"k8s.io/klog/v2"
-	"os"
+	"totalsoft.ro/platform-controllers/internal/provisioners"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func deployFunc(platform string, tenant *provisioningv1.Tenant, dbList []*provisioningv1.AzureDatabase) pulumi.RunFunc {
+func deployFunc(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) pulumi.RunFunc {
 	const pwd = "sqlPasswo234@#$@#$@#$44rd"
 	const username = "pulumi"
 
@@ -36,7 +38,7 @@ func deployFunc(platform string, tenant *provisioningv1.Tenant, dbList []*provis
 			return err
 		}
 
-		for _, dbSpec := range dbList {
+		for _, dbSpec := range infra.AzureDbs {
 			db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.Name, &azureSql.DatabaseArgs{
 				ResourceGroupName: resourceGroup.Name,
 				ServerName:        server.Name,
@@ -48,20 +50,33 @@ func deployFunc(platform string, tenant *provisioningv1.Tenant, dbList []*provis
 				return err
 			}
 
-			ctx.Export(fmt.Sprintf("azureDb_%s", dbSpec.Spec.Name), db.Name)
+			ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.Name), db.Name)
 			//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
+		}
+
+		for _, dbSpec := range infra.AzureManagedDbs {
+			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Spec.Code)
+			db, err := azureSql.NewManagedDatabase(ctx, dbName, &azureSql.ManagedDatabaseArgs{
+				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
+				ResourceGroupName:   pulumi.String(dbSpec.Spec.ManagedInstance.ResourceGroup),
+			})
+			if err != nil {
+				return err
+			}
+
+			ctx.Export(fmt.Sprintf("azureManagedDb:%s:%s", dbSpec.Spec.DbName, tenant.Spec.Code), db.Name)
 		}
 
 		return nil
 	}
 }
 
-func Create(platform string, tenant *provisioningv1.Tenant, dbList []*provisioningv1.AzureDatabase) error {
+func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 	ctx := context.Background()
 
 	stackName := fmt.Sprintf("tenant_%s", tenant.Spec.Code)
 	s, err := auto.UpsertStackInlineSource(ctx, stackName, platform,
-		deployFunc(platform, tenant, dbList),
+		deployFunc(platform, tenant, infra),
 		auto.SecretsProvider("hashivault://pulumi_kv"))
 	//auto.WorkDir(fmt.Sprintf("~/pulumi_ws/workspace_%s", platform)),
 	//auto.EnvVars(map[string]string{})

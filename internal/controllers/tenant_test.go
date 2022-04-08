@@ -1,11 +1,13 @@
 package controllers
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"sync"
 	"testing"
 	"time"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"totalsoft.ro/platform-controllers/internal/provisioners"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
 )
@@ -14,7 +16,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	type result struct {
 		platform string
 		tenant   *provisioningv1.Tenant
-		azureDbs []*provisioningv1.AzureDatabase
+		infra    *provisioners.InfrastructureManifests
 	}
 
 	t.Run("add three tenants", func(t *testing.T) {
@@ -25,8 +27,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newTenant("dev3", "qa"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) error {
-			outputs = append(outputs, result{platform, tenant, azureDbs})
+		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil)
@@ -70,8 +72,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		clientset := fakeClientset.NewSimpleClientset(tenant)
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) error {
-			outputs = append(outputs, result{platform, tenant, azureDbs})
+		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+			outputs = append(outputs, result{platform, tenant, infra})
 			wg.Wait()
 			return nil
 		}
@@ -108,11 +110,12 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		var outputs []result
 		objects := []runtime.Object{
 			newTenant("dev1", "dev"),
-			newDb("db1", "dev"),
+			newAzureDb("db1", "dev"),
+			newAzureManagedDb("db1", "dev"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) error {
-			outputs = append(outputs, result{platform, tenant, azureDbs})
+		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil)
@@ -138,19 +141,23 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected 1 output, got", len(outputs))
 			return
 		}
-		if len(outputs[0].azureDbs) != 1 {
-			t.Error("expected one db, got", len(outputs[0].azureDbs))
+		if len(outputs[0].infra.AzureDbs) != 1 {
+			t.Error("expected one db, got", len(outputs[0].infra.AzureDbs))
+		}
+		if len(outputs[0].infra.AzureManagedDbs) != 1 {
+			t.Error("expected one managed db, got", len(outputs[0].infra.AzureManagedDbs))
 		}
 	})
 	t.Run("add one tenant and one database different platforms", func(t *testing.T) {
 		var outputs []result
 		objects := []runtime.Object{
 			newTenant("dev1", "dev"),
-			newDb("db1", "dev2"),
+			newAzureDb("db1", "dev2"),
+			newAzureManagedDb("db1", "dev2"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) error {
-			outputs = append(outputs, result{platform, tenant, azureDbs})
+		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil)
@@ -176,8 +183,11 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected 1 output, got", len(outputs))
 			return
 		}
-		if len(outputs[0].azureDbs) != 0 {
-			t.Error("expected no db, got", len(outputs[0].azureDbs))
+		if len(outputs[0].infra.AzureDbs) != 0 {
+			t.Error("expected no db, got", len(outputs[0].infra.AzureDbs))
+		}
+		if len(outputs[0].infra.AzureManagedDbs) != 0 {
+			t.Error("expected no managed db, got", len(outputs[0].infra.AzureManagedDbs))
 		}
 	})
 }
@@ -196,7 +206,7 @@ func newTenant(name, platform string) *provisioningv1.Tenant {
 	}
 }
 
-func newDb(name, platform string) *provisioningv1.AzureDatabase {
+func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
 	return &provisioningv1.AzureDatabase{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -206,6 +216,20 @@ func newDb(name, platform string) *provisioningv1.AzureDatabase {
 		Spec: provisioningv1.AzureDatabaseSpec{
 			PlatformRef: platform,
 			Name:        name,
+		},
+	}
+}
+
+func newAzureManagedDb(dbName, platform string) *provisioningv1.AzureManagedDatabase {
+	return &provisioningv1.AzureManagedDatabase{
+		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dbName,
+			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: provisioningv1.AzureManagedDatabaseSpec{
+			PlatformRef: platform,
+			DbName:      dbName,
 		},
 	}
 }

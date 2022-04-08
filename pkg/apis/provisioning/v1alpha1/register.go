@@ -35,6 +35,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PlatformList{},
 		&AzureDatabase{},
 		&AzureDatabaseList{},
+		&AzureManagedDatabase{},
+		&AzureManagedDatabaseList{},
 		&metav1.Status{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

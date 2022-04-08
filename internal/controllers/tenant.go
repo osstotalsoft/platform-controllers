@@ -3,6 +3,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,8 +17,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	"strings"
-	"time"
 	"totalsoft.ro/platform-controllers/internal/provisioners"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -47,9 +48,10 @@ type ProvisioningController struct {
 
 	infraCreator provisioners.CreateInfrastructureFunc
 
-	platformInformer informersv1.PlatformInformer
-	infraInformer    informersv1.AzureDatabaseInformer
-	tenantInformer   informersv1.TenantInformer
+	platformInformer       informersv1.PlatformInformer
+	tenantInformer         informersv1.TenantInformer
+	azureDbInformer        informersv1.AzureDatabaseInformer
+	azureManagedDbInformer informersv1.AzureManagedDatabaseInformer
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
@@ -69,9 +71,10 @@ func NewProvisioningController(clientSet clientset.Interface,
 		recorder:  &record.FakeRecorder{},
 		factory:   factory,
 
-		platformInformer: factory.Provisioning().V1alpha1().Platforms(),
-		infraInformer:    factory.Provisioning().V1alpha1().AzureDatabases(),
-		tenantInformer:   factory.Provisioning().V1alpha1().Tenants(),
+		platformInformer:       factory.Provisioning().V1alpha1().Platforms(),
+		tenantInformer:         factory.Provisioning().V1alpha1().Tenants(),
+		azureDbInformer:        factory.Provisioning().V1alpha1().AzureDatabases(),
+		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 
 		infraCreator: infraCreator,
 		clientset:    clientSet,
@@ -83,7 +86,8 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 	addTenantHandlers(c.tenantInformer, c.enqueueTenant)
 	//addPlatformHandlers(c.platformInformer)
-	addInfraHandlers(c.infraInformer, c.enqueueAllTenant)
+	addAzureDbHandlers(c.azureDbInformer, c.enqueueAllTenant)
+	addAzureManagedDbHandlers(c.azureManagedDbInformer, c.enqueueAllTenant)
 
 	return c
 }
@@ -195,7 +199,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 
-	azureDbs, err := c.infraInformer.Lister().List(labels.Everything())
+	azureDbs, err := c.azureDbInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
@@ -209,7 +213,24 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureDbs = azureDbs[:n]
 
-	err = c.infraCreator(platform, tenant, azureDbs)
+	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	n = 0
+	for _, db := range azureManagedDbs {
+		if db.Spec.PlatformRef == platform {
+			azureManagedDbs[n] = db
+			n++
+		}
+	}
+	azureManagedDbs = azureManagedDbs[:n]
+
+	err = c.infraCreator(platform, tenant, &provisioners.InfrastructureManifests{
+		AzureDbs:        azureDbs,
+		AzureManagedDbs: azureManagedDbs,
+	})
 	if err == nil {
 		c.recorder.Event(tenant, corev1.EventTypeNormal, SuccessSynced, SuccessSynced)
 	} else {
@@ -316,7 +337,7 @@ func addPlatformHandlers(informer informersv1.PlatformInformer) {
 	})
 }
 
-func addInfraHandlers(informer informersv1.AzureDatabaseInformer, handler func(platform string)) {
+func addAzureDbHandlers(informer informersv1.AzureDatabaseInformer, handler func(platform string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureDatabase)
@@ -331,6 +352,26 @@ func addInfraHandlers(informer informersv1.AzureDatabaseInformer, handler func(p
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureDatabase)
 			klog.V(4).InfoS("Azure database deleted", "name", comp.Name, "namespace", comp.Namespace)
+			handler(comp.Spec.PlatformRef)
+		},
+	})
+}
+
+func addAzureManagedDbHandlers(informer informersv1.AzureManagedDatabaseInformer, handler func(platform string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.AzureManagedDatabase)
+			klog.V(4).InfoS("Azure managed database added", "name", comp.Name, "namespace", comp.Namespace)
+			handler(comp.Spec.PlatformRef)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			comp := newObj.(*provisioningv1.AzureManagedDatabase)
+			klog.V(4).InfoS("Azure managed database updated", "name", comp.Name, "namespace", comp.Namespace)
+			handler(comp.Spec.PlatformRef)
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.AzureManagedDatabase)
+			klog.V(4).InfoS("Azure managed database deleted", "name", comp.Name, "namespace", comp.Namespace)
 			handler(comp.Spec.PlatformRef)
 		},
 	})

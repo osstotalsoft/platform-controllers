@@ -32,6 +32,10 @@ func (c *FakeProvisioningV1alpha1) AzureDatabases(namespace string) v1alpha1.Azu
 	return &FakeAzureDatabases{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) AzureManagedDatabases(namespace string) v1alpha1.AzureManagedDatabaseInterface {
+	return &FakeAzureManagedDatabases{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) Platforms() v1alpha1.PlatformInterface {
 	return &FakePlatforms{c}
 }
