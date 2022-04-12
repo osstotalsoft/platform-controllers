@@ -70,7 +70,7 @@ func createAzureDatabases(ctx *pulumi.Context, platform string,
 		const pwdKey = "pass"
 		const userKey = "user"
 		adminPwd := generatePassword()
-		adminUser := azureDbs[0].Spec.UserName
+		adminUser := fmt.Sprintf("sqlUser%s", tenant.Spec.Code)
 		secretPath := fmt.Sprintf("%s/%s/azure-databases/server", platform, tenant.Spec.Code)
 		secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
 		if secret != nil && secret.Data[pwdKey] != nil {
@@ -98,7 +98,7 @@ func createAzureDatabases(ctx *pulumi.Context, platform string,
 		//}
 
 		for _, dbSpec := range azureDbs {
-			db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.Name, &azureSql.DatabaseArgs{
+			db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName, &azureSql.DatabaseArgs{
 				ResourceGroupName: resourceGroup.Name,
 				ServerName:        server.Name,
 				Sku: &azureSql.SkuArgs{
@@ -109,10 +109,10 @@ func createAzureDatabases(ctx *pulumi.Context, platform string,
 				return err
 			}
 
-			ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.Name), db.Name)
+			ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
 			//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
-			dbSecretPath := fmt.Sprintf("%s/%s/azure-databases/%s", platform, tenant.Spec.Code, dbSpec.Spec.Name)
+			dbSecretPath := fmt.Sprintf("%s/%s/azure-databases/%s", platform, tenant.Spec.Code, dbSpec.Spec.DbName)
 			_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
 				DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
 				Path:     pulumi.String(dbSecretPath),

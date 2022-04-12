@@ -33,16 +33,13 @@ spec:
             type: object
           spec:
             properties:
-              name:
+              dbName:
                 type: string
               platformRef:
                 type: string
-              userName:
-                type: string
             required:
-            - name
+            - dbName
             - platformRef
-            - userName
             type: object
         type: object
     served: true

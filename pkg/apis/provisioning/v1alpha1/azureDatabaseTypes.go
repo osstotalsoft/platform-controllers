@@ -17,8 +17,7 @@ type AzureDatabase struct {
 
 type AzureDatabaseSpec struct {
 	PlatformRef string `json:"platformRef"`
-	Name        string `json:"name"`
-	UserName    string `json:"userName"`
+	DbName      string `json:"dbName"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
