@@ -6,9 +6,12 @@ monitors infrastructure manifests and provisions the desired infrastructure for 
 
 ## Configuration
 ### Env
-- AZURE_LOCATION=West Europe
-- VAULT_ADDR=http://localhost:8200
-- VAULT_TOKEN={token}
+| Variable       | example value         | details                                            |
+|----------------|-----------------------|----------------------------------------------------|
+| AZURE_LOCATION | West Europe           | default location used to deploy resources in azure |
+| VAULT_ADDR     | http://localhost:8200 | address to vault server                            |
+| VAULT_TOKEN    | {token}               | vault token                                        |
+
 
 ### Kubernetes CRD
 #### AzureDatabase
