@@ -215,7 +215,7 @@ func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
 		},
 		Spec: provisioningv1.AzureDatabaseSpec{
 			PlatformRef: platform,
-			Name:        name,
+			DbName:      name,
 		},
 	}
 }
