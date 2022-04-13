@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strconv"
 	"time"
 
 	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
@@ -23,127 +24,173 @@ import (
 const (
 	PULUMI_AZURE_PLUGIN_VERSION = "PULUMI_AZURE_PLUGIN_VERSION"
 	PULUMI_VAULT_PLUGIN_VERSION = "PULUMI_VAULT_PLUGIN_VERSION"
+
+	PULUMI_SKIP_AZURE_MANAGED_DB = "PULUMI_SKIP_AZURE_MANAGED_DB"
+	PULUMI_SKIP_AZURE_DB         = "PULUMI_SKIP_AZURE_DB"
 )
 
-func deployFunc(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) pulumi.RunFunc {
+func azureRGDeployFunc(platform string, tenant *provisioningv1.Tenant) pulumi.RunFunc {
 	return func(ctx *pulumi.Context) error {
-		resourceGroup, err := azureResources.NewResourceGroup(ctx, fmt.Sprintf("%s_tenant_%s_RG", platform, tenant.Spec.Code), nil)
+		resourceGroup, err := azureResources.NewResourceGroup(ctx, fmt.Sprintf("%s_%s_RG", platform, tenant.Spec.Code), nil)
 		if err != nil {
 			return err
 		}
 
-		if err = createAzureDatabases(ctx, platform, tenant, resourceGroup, infra.AzureDbs); err != nil {
-			return err
-		}
+		ctx.Export("azureRGName", resourceGroup.Name)
 
-		if err = createAzureManagedDatabases(ctx, platform, tenant, infra.AzureManagedDbs); err != nil {
-			return err
+		return nil
+	}
+}
+
+func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
+	return func(ctx *pulumi.Context) error {
+		if len(azureDbs) > 0 {
+			const pwdKey = "pass"
+			const userKey = "user"
+			adminPwd := generatePassword()
+			adminUser := fmt.Sprintf("sqlUser%s", tenant.Spec.Code)
+			secretPath := fmt.Sprintf("%s/%s/azure-databases/server", platform, tenant.Spec.Code)
+			secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
+			if secret != nil && secret.Data[pwdKey] != nil {
+				adminPwd = secret.Data[pwdKey].(string)
+			}
+
+			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.Spec.Code),
+				&azureSql.ServerArgs{
+					ResourceGroupName:          pulumi.String(resourceGroupName),
+					AdministratorLogin:         pulumi.String(adminUser),
+					AdministratorLoginPassword: pulumi.String(adminPwd),
+					Version:                    pulumi.String("12.0"),
+				})
+			if err != nil {
+				return err
+			}
+
+			//pool, err := azureSql.NewElasticPool(ctx, fmt.Sprintf("%s-sqlserver-pool", tenant.Spec.Code),
+			//	&azureSql.ElasticPoolArgs{
+			//		ResourceGroupName: resourceGroup.Name,
+			//		ServerName:        server.Name,
+			//	})
+			//if err != nil {
+			//	return err
+			//}
+
+			for _, dbSpec := range azureDbs {
+				db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName, &azureSql.DatabaseArgs{
+					ResourceGroupName: pulumi.String(resourceGroupName),
+					ServerName:        server.Name,
+					Sku: &azureSql.SkuArgs{
+						Name: pulumi.String("S0"),
+					},
+				})
+				if err != nil {
+					return err
+				}
+
+				ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
+				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
+
+				dbSecretPath := fmt.Sprintf("%s/%s/azure-databases/%s", platform, tenant.Spec.Code, dbSpec.Spec.DbName)
+				_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
+					DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
+					Path:     pulumi.String(dbSecretPath),
+				})
+				if err != nil {
+					return err
+				}
+			}
+
+			_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
+				DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
+				Path:     pulumi.String(secretPath),
+			})
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 }
-func createAzureManagedDatabases(ctx *pulumi.Context, platform string,
-	tenant *provisioningv1.Tenant,
-	azureDbs []*provisioningv1.AzureManagedDatabase) error {
 
-	for _, dbSpec := range azureDbs {
-		dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Spec.Code)
-		db, err := azureSql.NewManagedDatabase(ctx, dbName, &azureSql.ManagedDatabaseArgs{
-			ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
-			ResourceGroupName:   pulumi.String(dbSpec.Spec.ManagedInstance.ResourceGroup),
-		})
-		if err != nil {
-			return err
-		}
-
-		ctx.Export(fmt.Sprintf("azureManagedDb:%s:%s", dbSpec.Spec.DbName, tenant.Spec.Code), db.Name)
-	}
-	return nil
-}
-
-func createAzureDatabases(ctx *pulumi.Context, platform string,
-	tenant *provisioningv1.Tenant,
-	resourceGroup *azureResources.ResourceGroup,
-	azureDbs []*provisioningv1.AzureDatabase) error {
-
-	if len(azureDbs) > 0 {
-		const pwdKey = "pass"
-		const userKey = "user"
-		adminPwd := generatePassword()
-		adminUser := fmt.Sprintf("sqlUser%s", tenant.Spec.Code)
-		secretPath := fmt.Sprintf("%s/%s/azure-databases/server", platform, tenant.Spec.Code)
-		secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
-		if secret != nil && secret.Data[pwdKey] != nil {
-			adminPwd = secret.Data[pwdKey].(string)
-		}
-
-		server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.Spec.Code),
-			&azureSql.ServerArgs{
-				ResourceGroupName:          resourceGroup.Name,
-				AdministratorLogin:         pulumi.String(adminUser),
-				AdministratorLoginPassword: pulumi.String(adminPwd),
-				Version:                    pulumi.String("12.0"),
-			})
-		if err != nil {
-			return err
-		}
-
-		//pool, err := azureSql.NewElasticPool(ctx, fmt.Sprintf("%s-sqlserver-pool", tenant.Spec.Code),
-		//	&azureSql.ElasticPoolArgs{
-		//		ResourceGroupName: resourceGroup.Name,
-		//		ServerName:        server.Name,
-		//	})
-		//if err != nil {
-		//	return err
-		//}
-
+func azureManagedDbDeployFunc(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
+	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
-			db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName, &azureSql.DatabaseArgs{
-				ResourceGroupName: resourceGroup.Name,
-				ServerName:        server.Name,
-				Sku: &azureSql.SkuArgs{
-					Name: pulumi.String("S0"),
-				},
+			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Spec.Code)
+			db, err := azureSql.NewManagedDatabase(ctx, dbName, &azureSql.ManagedDatabaseArgs{
+				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
+				ResourceGroupName:   pulumi.String(dbSpec.Spec.ManagedInstance.ResourceGroup),
 			})
 			if err != nil {
 				return err
 			}
 
-			ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
-			//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
-
-			dbSecretPath := fmt.Sprintf("%s/%s/azure-databases/%s", platform, tenant.Spec.Code, dbSpec.Spec.DbName)
-			_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
-				DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
-				Path:     pulumi.String(dbSecretPath),
-			})
-			if err != nil {
-				return err
-			}
+			ctx.Export(fmt.Sprintf("azureManagedDb:%s:%s", dbSpec.Spec.DbName, tenant.Spec.Code), db.Name)
 		}
-
-		_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
-			DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
-			Path:     pulumi.String(secretPath),
-		})
-		if err != nil {
-			return err
-		}
+		return nil
 	}
-	return nil
 }
 
 func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+
+	azureRGStackName := fmt.Sprintf("%s_rg", tenant.Spec.Code)
+	res, err := updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))
+	if err != nil {
+		return err
+	}
+
+	azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Spec.Code)
+	azureRGName, ok := res.Outputs["azureRGName"].Value.(string)
+	if !ok {
+		klog.Errorf("Failed to get azureRGName: %v", err)
+		return err
+	}
+
+	if s, _ := strconv.ParseBool(os.Getenv(PULUMI_SKIP_AZURE_DB)); !s {
+		res, err = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, azureRGName, tenant, infra.AzureDbs))
+		if err != nil {
+			return err
+		}
+	}
+
+	if s, _ := strconv.ParseBool(os.Getenv(PULUMI_SKIP_AZURE_MANAGED_DB)); !s {
+		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Spec.Code)
+		res, err = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func updateStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
 	ctx := context.Background()
 
-	stackName := fmt.Sprintf("tenant_%s", tenant.Spec.Code)
-	s, err := auto.UpsertStackInlineSource(ctx, stackName, platform, deployFunc(platform, tenant, infra))
-	//auto.WorkDir(fmt.Sprintf("~/pulumi_ws/workspace_%s", platform)),
-	//auto.EnvVars(map[string]string{})
+	s, err := createOrSelectStack(ctx, stackName, projectName, deployFunc)
+	if err != nil {
+		klog.ErrorS(err, "Failed to create or select stack", "name", stackName)
+		return auto.UpResult{}, err
+	}
+	klog.V(4).InfoS("Starting stack update", "name", stackName)
 
+	// wire up our update to stream progress to stdout
+	stdoutStreamer := optup.ProgressStreams(os.Stdout)
+	res, err := s.Up(ctx, stdoutStreamer)
+	if err != nil {
+		klog.ErrorS(err, "Failed to update stack", "name", stackName)
+		return auto.UpResult{}, err
+	}
+	klog.V(4).InfoS("Stack update succeeded!", "name", stackName)
+	klog.V(4).InfoS("Stack results", "name", stackName, "Outputs", res.Outputs)
+
+	return res, err
+}
+
+func createOrSelectStack(ctx context.Context, stackName, projectName string, deployFunc pulumi.RunFunc) (auto.Stack, error) {
+	s, err := auto.UpsertStackInlineSource(ctx, stackName, projectName, deployFunc)
+	//auto.EnvVars(map[string]string{})
 	if err != nil {
 		klog.Errorf("Failed to create or select stack: %v", err)
-		return err
+		return auto.Stack{}, err
 	}
 
 	klog.V(4).Info("Installing plugins")
@@ -157,7 +204,7 @@ func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.
 	err = w.InstallPlugin(ctx, "azure-native", v)
 	if err != nil {
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
-		return err
+		return auto.Stack{}, err
 	}
 	v = os.Getenv(PULUMI_VAULT_PLUGIN_VERSION)
 	if v == "" {
@@ -166,7 +213,7 @@ func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.
 	err = w.InstallPlugin(ctx, "vault", v)
 	if err != nil {
 		klog.Errorf("Failed to install vault plugin: %v", err)
-		return err
+		return auto.Stack{}, err
 	}
 	klog.V(4).Info("Successfully installed plugins")
 
@@ -180,33 +227,15 @@ func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.
 
 	klog.V(4).Info("Successfully set config")
 	klog.V(4).Info("Starting refresh")
+
 	_, err = s.Refresh(ctx)
 	if err != nil {
 		klog.Errorf("Failed to refresh stack: %v", err)
-		return err
+		return auto.Stack{}, err
 	}
 
 	klog.V(4).Info("Refresh succeeded!")
-	klog.V(4).Info("Starting update")
-
-	// wire up our update to stream progress to stdout
-	stdoutStreamer := optup.ProgressStreams(os.Stdout)
-
-	// run the update to deploy our fargate web service
-	res, err := s.Up(ctx, stdoutStreamer)
-	if err != nil {
-		klog.Errorf("Failed to update stack: %v", err)
-		return err
-	}
-
-	klog.V(4).Info("Update succeeded!")
-	klog.V(4).Info("Stack results", "Outputs", res.Outputs)
-
-	return nil
-}
-
-func getConfigValueFromEnv(key string, secret bool) auto.ConfigValue {
-	return auto.ConfigValue{Value: os.Getenv(key), Secret: secret}
+	return s, nil
 }
 
 func generatePassword() string {
