@@ -39,5 +39,10 @@ spec:
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
+  restoreFrom:
+    backupFileName: origination_test_backup_2022_04_13_154723.bak
+    storageContainer:
+      uri: https://my-blobstorage.blob.core.windows.net/backup-repository
+      sasToken: my-saas-token
   platformRef: charismaonline.qa
 ```
