@@ -38,13 +38,13 @@ spec:
                   tenant suffix.
                 type: string
               managedInstance:
-                description: Target managed instance spec
+                description: Target managed instance spec.
                 properties:
                   name:
-                    description: Managed instance name
+                    description: Managed instance name.
                     type: string
                   resourceGroup:
-                    description: Managed instance ressource group
+                    description: Managed instance resource group.
                     type: string
                 required:
                 - name
@@ -53,6 +53,31 @@ spec:
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
+              restoreFrom:
+                description: Restore from external backup. Leave empty for a new empty
+                  database.
+                properties:
+                  backupFileName:
+                    description: The backup file to restore from.
+                    type: string
+                  storageContainer:
+                    description: Azure storage container spec.
+                    properties:
+                      sasToken:
+                        description: The storage container shared access signature
+                          token.
+                        type: string
+                      uri:
+                        description: The storage container uri.
+                        type: string
+                    required:
+                    - sasToken
+                    - uri
+                    type: object
+                required:
+                - backupFileName
+                - storageContainer
+                type: object
             required:
             - dbName
             - managedInstance
