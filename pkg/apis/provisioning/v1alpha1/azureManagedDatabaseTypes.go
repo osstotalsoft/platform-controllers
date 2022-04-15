@@ -20,14 +20,31 @@ type AzureManagedDatabaseSpec struct {
 	PlatformRef string `json:"platformRef"`
 	// Managed database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
-	// Target managed instance spec
-	ManagedInstance AzureManagedInstance `json:"managedInstance"`
+	// Target managed instance spec.
+	ManagedInstance AzureManagedInstanceSpec `json:"managedInstance"`
+	// Restore from external backup. Leave empty for a new empty database.
+	// +optional
+	RestoreFrom AzureManagedDatabaseRestoreSpec `json:"restoreFrom,omitempty"`
 }
-type AzureManagedInstance struct {
-	// Managed instance name
+type AzureManagedInstanceSpec struct {
+	// Managed instance name.
 	Name string `json:"name"`
-	// Managed instance ressource group
+	// Managed instance resource group.
 	ResourceGroup string `json:"resourceGroup"`
+}
+
+type AzureManagedDatabaseRestoreSpec struct {
+	//The backup file to restore from.
+	BackupFileName string `json:"backupFileName"`
+	//Azure storage container spec.
+	StorageContainer AzureStorageContainerSpec `json:"storageContainer"`
+}
+
+type AzureStorageContainerSpec struct {
+	// The storage container shared access signature token.
+	SasToken string `json:"sasToken"`
+	// The storage container uri.
+	Uri string `json:"uri"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
