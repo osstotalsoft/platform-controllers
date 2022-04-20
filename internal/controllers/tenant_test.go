@@ -31,7 +31,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
-		c := NewProvisioningController(clientset, infraCreator, nil)
+		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
 		c.factory.WaitForCacheSync(nil)
 
@@ -77,7 +77,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			wg.Wait()
 			return nil
 		}
-		c := NewProvisioningController(clientset, infraCreator, nil)
+		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
 		c.factory.WaitForCacheSync(nil)
 
@@ -118,7 +118,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
-		c := NewProvisioningController(clientset, infraCreator, nil)
+		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
 		c.factory.WaitForCacheSync(nil)
 
@@ -160,7 +160,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
-		c := NewProvisioningController(clientset, infraCreator, nil)
+		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
 		c.factory.WaitForCacheSync(nil)
 

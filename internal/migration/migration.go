@@ -16,7 +16,7 @@ const (
 	JobLabelSelector = "provisioning/job-template=true"
 )
 
-func KubeJobsMigrationForTenant(kubeClient *kubernetes.Clientset) func(platform string, tenant *provisioningv1.Tenant) error {
+func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface) func(platform string, tenant *provisioningv1.Tenant) error {
 	namer := func(jName, tenant string) string {
 		return fmt.Sprintf("%s-%s-%d", jName, tenant, time.Now().Unix())
 	}
