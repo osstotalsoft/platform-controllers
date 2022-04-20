@@ -36,6 +36,8 @@ const (
 type ProvisioningController struct {
 	factory   informers.SharedInformerFactory
 	clientset clientset.Interface
+	migrator  func(platform string, tenant *provisioningv1.Tenant) error
+
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
 	// means we can ensure we only process a fixed amount of resources at a
@@ -56,6 +58,7 @@ type ProvisioningController struct {
 
 func NewProvisioningController(clientSet clientset.Interface,
 	infraCreator provisioners.CreateInfrastructureFunc,
+	migrator func(platform string, tenant *provisioningv1.Tenant) error,
 	eventBroadcaster record.EventBroadcaster) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
@@ -78,6 +81,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 		infraCreator: infraCreator,
 		clientset:    clientSet,
+		migrator:     migrator,
 	}
 
 	if eventBroadcaster != nil {
@@ -231,6 +235,15 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		AzureDbs:        azureDbs,
 		AzureManagedDbs: azureManagedDbs,
 	})
+
+	if err == nil {
+		//TODO write outputs to configMap
+
+		//TODO check if new resources were created
+		//schedule migrations after provisioning new resources
+		err = c.migrator(platform, tenant)
+	}
+
 	if err == nil {
 		c.recorder.Event(tenant, corev1.EventTypeNormal, SuccessSynced, SuccessSynced)
 	} else {
