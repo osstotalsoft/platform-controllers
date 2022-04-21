@@ -35,12 +35,49 @@ spec:
             properties:
               dbName:
                 type: string
+              exports:
+                properties:
+                  password:
+                    properties:
+                      toVault:
+                        properties:
+                          keyTemplate:
+                            type: string
+                          secretPathTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        - secretPathTemplate
+                        type: object
+                    required:
+                    - toVault
+                    type: object
+                  userName:
+                    properties:
+                      toConfigMap:
+                        properties:
+                          keyTemplate:
+                            type: string
+                          nameTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        - nameTemplate
+                        type: object
+                    required:
+                    - toConfigMap
+                    type: object
+                type: object
               platformRef:
+                type: string
+              sku:
                 type: string
             required:
             - dbName
             - platformRef
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

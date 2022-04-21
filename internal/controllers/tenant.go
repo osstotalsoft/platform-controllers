@@ -237,8 +237,6 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	})
 
 	if err == nil {
-		//TODO write outputs to configMap
-
 		if c.migrator != nil {
 			//TODO check if new resources were created
 			//schedule migrations after provisioning new resources

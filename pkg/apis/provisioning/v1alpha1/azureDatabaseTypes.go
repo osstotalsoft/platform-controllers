@@ -12,12 +12,41 @@ type AzureDatabase struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec AzureDatabaseSpec `json:"spec,omitempty"`
+	Spec AzureDatabaseSpec `json:"spec"`
 }
 
 type AzureDatabaseSpec struct {
 	PlatformRef string `json:"platformRef"`
 	DbName      string `json:"dbName"`
+	// +optional
+	Sku string `json:"sku,omitempty"`
+	// +optional
+	Exports ExportsSpec `json:"exports,omitempty"`
+}
+
+type ExportsSpec struct {
+	// +optional
+	UserName LiteralExport `json:"userName,omitempty"`
+	// +optional
+	Password SecretExport `json:"password,omitempty"`
+}
+
+type LiteralExport struct {
+	ToConfigMap ConfigMapTemplate `json:"toConfigMap"`
+}
+
+type SecretExport struct {
+	ToVault VaultSecretTemplate `json:"toVault"`
+}
+
+type ConfigMapTemplate struct {
+	NameTemplate string `json:"nameTemplate"`
+	KeyTemplate  string `json:"keyTemplate"`
+}
+
+type VaultSecretTemplate struct {
+	SecretPathTemplate string `json:"secretPathTemplate"`
+	KeyTemplate        string `json:"keyTemplate"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

@@ -5,6 +5,7 @@ go 1.17
 require (
 	github.com/pulumi/pulumi-azure-native/sdk v1.62.0
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.4.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.18.2
 	github.com/pulumi/pulumi/sdk/v3 v3.29.1
 	k8s.io/api v0.23.3
 	k8s.io/apimachinery v0.23.3

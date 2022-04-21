@@ -5,13 +5,19 @@ package pulumi
 import (
 	"context"
 	"fmt"
+
 	"math/rand"
 	"os"
 	"strconv"
 	"time"
+	"totalsoft.ro/platform-controllers/internal/template"
 
 	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
+
+	pulumiKube "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/core/v1"
+	pulumiKubeMetav1 "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/meta/v1"
+
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
@@ -22,8 +28,9 @@ import (
 )
 
 const (
-	PULUMI_AZURE_PLUGIN_VERSION = "PULUMI_AZURE_PLUGIN_VERSION"
-	PULUMI_VAULT_PLUGIN_VERSION = "PULUMI_VAULT_PLUGIN_VERSION"
+	PULUMI_AZURE_PLUGIN_VERSION      = "PULUMI_AZURE_PLUGIN_VERSION"
+	PULUMI_VAULT_PLUGIN_VERSION      = "PULUMI_VAULT_PLUGIN_VERSION"
+	PULUMI_KUBERNETES_PLUGIN_VERSION = "PULUMI_KUBERNETES_PLUGIN_VERSION"
 
 	PULUMI_SKIP_AZURE_MANAGED_DB = "PULUMI_SKIP_AZURE_MANAGED_DB"
 	PULUMI_SKIP_AZURE_DB         = "PULUMI_SKIP_AZURE_DB"
@@ -76,11 +83,15 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 			//}
 
 			for _, dbSpec := range azureDbs {
+				sku := "S0"
+				if dbSpec.Spec.Sku != "" {
+					sku = dbSpec.Spec.Sku
+				}
 				db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName, &azureSql.DatabaseArgs{
 					ResourceGroupName: pulumi.String(resourceGroupName),
 					ServerName:        server.Name,
 					Sku: &azureSql.SkuArgs{
-						Name: pulumi.String("S0"),
+						Name: pulumi.String(sku),
 					},
 				})
 				if err != nil {
@@ -90,13 +101,25 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 				ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
-				dbSecretPath := fmt.Sprintf("%s/%s/azure-databases/%s", platform, tenant.Spec.Code, dbSpec.Spec.DbName)
-				_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
-					DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
-					Path:     pulumi.String(dbSecretPath),
-				})
-				if err != nil {
-					return err
+				data := struct {
+					Tenant   provisioningv1.TenantSpec
+					Platform string
+				}{tenant.Spec, platform}
+
+				if dbSpec.Spec.Exports.Password != (provisioningv1.SecretExport{}) {
+					err = exportToVault(ctx, dbSpec.Spec.Exports.Password.ToVault.SecretPathTemplate,
+						dbSpec.Spec.Exports.Password.ToVault.KeyTemplate, data, adminPwd)
+					if err != nil {
+						return err
+					}
+				}
+
+				if dbSpec.Spec.Exports.UserName != (provisioningv1.LiteralExport{}) {
+					err = exportToConfigMap(ctx, dbSpec.Spec.Exports.UserName.ToConfigMap.NameTemplate,
+						dbSpec.Spec.Exports.UserName.ToConfigMap.KeyTemplate, data, dbSpec.Namespace, adminUser)
+					if err != nil {
+						return err
+					}
 				}
 			}
 
@@ -110,6 +133,43 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 		}
 		return nil
 	}
+}
+func exportToVault(ctx *pulumi.Context, secretPathTemplate, keyTemplate string,
+	templateContext interface{}, value string) error {
+	dbSecretPath, err := template.ParseTemplate(secretPathTemplate, templateContext)
+	if err != nil {
+		return err
+	}
+	dbSecretKey, err := template.ParseTemplate(keyTemplate, templateContext)
+	if err != nil {
+		return err
+	}
+	_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
+		DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s"}`, dbSecretKey, value)),
+		Path:     pulumi.String(dbSecretPath),
+	})
+	return err
+}
+
+func exportToConfigMap(ctx *pulumi.Context, nameTemplate, keyTemplate string,
+	templateContext interface{}, namespace, value string) error {
+	configMapName, err := template.ParseTemplate(nameTemplate, templateContext)
+	if err != nil {
+		return err
+	}
+	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
+	if err != nil {
+		return err
+	}
+	_, err = pulumiKube.NewConfigMap(ctx, configMapName, &pulumiKube.ConfigMapArgs{
+		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
+			Name:      pulumi.String(configMapName),
+			Namespace: pulumi.String(namespace),
+		},
+		//Immutable: pulumi.Bool(true),
+		Data: pulumi.ToStringMap(map[string]string{configMapKey: value}),
+	})
+	return err
 }
 
 func azureManagedDbDeployFunc(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
@@ -222,6 +282,15 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	err = w.InstallPlugin(ctx, "vault", v)
 	if err != nil {
 		klog.Errorf("Failed to install vault plugin: %v", err)
+		return auto.Stack{}, err
+	}
+	v = os.Getenv(PULUMI_KUBERNETES_PLUGIN_VERSION)
+	if v == "" {
+		v = "v3.18.2"
+	}
+	err = w.InstallPlugin(ctx, "kubernetes", v)
+	if err != nil {
+		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
 	klog.V(4).Info("Successfully installed plugins")
