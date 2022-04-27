@@ -36,7 +36,7 @@ const (
 type ProvisioningController struct {
 	factory   informers.SharedInformerFactory
 	clientset clientset.Interface
-	migrator  func(platform string, tenant *provisioningv1.Tenant) error
+	migrater  func(platform string, tenant *provisioningv1.Tenant) error
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -48,7 +48,7 @@ type ProvisioningController struct {
 	// Kubernetes API.
 	recorder record.EventRecorder
 
-	infraCreator provisioners.CreateInfrastructureFunc
+	provisioner provisioners.CreateInfrastructureFunc
 
 	platformInformer       informersv1.PlatformInformer
 	tenantInformer         informersv1.TenantInformer
@@ -57,8 +57,8 @@ type ProvisioningController struct {
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
-	infraCreator provisioners.CreateInfrastructureFunc,
-	migrator func(platform string, tenant *provisioningv1.Tenant) error,
+	provisioner provisioners.CreateInfrastructureFunc,
+	migrater func(platform string, tenant *provisioningv1.Tenant) error,
 	eventBroadcaster record.EventBroadcaster) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
@@ -79,9 +79,9 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureDbInformer:        factory.Provisioning().V1alpha1().AzureDatabases(),
 		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 
-		infraCreator: infraCreator,
-		clientset:    clientSet,
-		migrator:     migrator,
+		provisioner: provisioner,
+		clientset:   clientSet,
+		migrater:    migrater,
 	}
 
 	if eventBroadcaster != nil {
@@ -231,16 +231,16 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureManagedDbs = azureManagedDbs[:n]
 
-	err = c.infraCreator(platform, tenant, &provisioners.InfrastructureManifests{
+	err = c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
 		AzureDbs:        azureDbs,
 		AzureManagedDbs: azureManagedDbs,
 	})
 
 	if err == nil {
-		if c.migrator != nil {
+		if c.migrater != nil {
 			//TODO check if new resources were created
 			//schedule migrations after provisioning new resources
-			err = c.migrator(platform, tenant)
+			err = c.migrater(platform, tenant)
 		}
 	}
 

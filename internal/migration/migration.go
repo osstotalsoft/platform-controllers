@@ -16,7 +16,8 @@ const (
 	JobLabelSelector = "provisioning/job-template=true"
 )
 
-func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface) func(platform string, tenant *provisioningv1.Tenant) error {
+func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
+	nsFilter func(string, string) bool) func(platform string, tenant *provisioningv1.Tenant) error {
 	namer := func(jName, tenant string) string {
 		return fmt.Sprintf("%s-%s-%d", jName, tenant, time.Now().Unix())
 	}
@@ -29,6 +30,9 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface) func(platform s
 			return err
 		}
 		for _, job := range jobs.Items {
+			if !nsFilter(job.Namespace, platform) {
+				continue
+			}
 			j := &v1.Job{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      namer(job.Name, tenant.Spec.Code),

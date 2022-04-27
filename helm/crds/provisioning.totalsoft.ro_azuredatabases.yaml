@@ -35,22 +35,26 @@ spec:
             properties:
               dbName:
                 type: string
+              domain:
+                type: string
               exports:
                 properties:
                   password:
                     properties:
+                      toConfigMap:
+                        properties:
+                          keyTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        type: object
                       toVault:
                         properties:
                           keyTemplate:
                             type: string
-                          secretPathTemplate:
-                            type: string
                         required:
                         - keyTemplate
-                        - secretPathTemplate
                         type: object
-                    required:
-                    - toVault
                     type: object
                   userName:
                     properties:
@@ -58,14 +62,16 @@ spec:
                         properties:
                           keyTemplate:
                             type: string
-                          nameTemplate:
+                        required:
+                        - keyTemplate
+                        type: object
+                      toVault:
+                        properties:
+                          keyTemplate:
                             type: string
                         required:
                         - keyTemplate
-                        - nameTemplate
                         type: object
-                    required:
-                    - toConfigMap
                     type: object
                 type: object
               platformRef:
@@ -74,6 +80,7 @@ spec:
                 type: string
             required:
             - dbName
+            - domain
             - platformRef
             type: object
         required:

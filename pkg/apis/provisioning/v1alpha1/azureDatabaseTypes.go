@@ -17,6 +17,7 @@ type AzureDatabase struct {
 
 type AzureDatabaseSpec struct {
 	PlatformRef string `json:"platformRef"`
+	Domain      string `json:"domain"`
 	DbName      string `json:"dbName"`
 	// +optional
 	Sku string `json:"sku,omitempty"`
@@ -26,27 +27,24 @@ type AzureDatabaseSpec struct {
 
 type ExportsSpec struct {
 	// +optional
-	UserName LiteralExport `json:"userName,omitempty"`
+	UserName ValueExport `json:"userName,omitempty"`
 	// +optional
-	Password SecretExport `json:"password,omitempty"`
+	Password ValueExport `json:"password,omitempty"`
 }
 
-type LiteralExport struct {
-	ToConfigMap ConfigMapTemplate `json:"toConfigMap"`
-}
-
-type SecretExport struct {
-	ToVault VaultSecretTemplate `json:"toVault"`
+type ValueExport struct {
+	// +optional
+	ToConfigMap ConfigMapTemplate `json:"toConfigMap,omitempty"`
+	// +optional
+	ToVault VaultSecretTemplate `json:"toVault,omitempty"`
 }
 
 type ConfigMapTemplate struct {
-	NameTemplate string `json:"nameTemplate"`
-	KeyTemplate  string `json:"keyTemplate"`
+	KeyTemplate string `json:"keyTemplate"`
 }
 
 type VaultSecretTemplate struct {
-	SecretPathTemplate string `json:"secretPathTemplate"`
-	KeyTemplate        string `json:"keyTemplate"`
+	KeyTemplate string `json:"keyTemplate"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

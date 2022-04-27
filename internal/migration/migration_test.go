@@ -17,7 +17,9 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 		newJob("dev3", false),
 	}
 	kubeClient := fake.NewSimpleClientset(objects...)
-	migrator := KubeJobsMigrationForTenant(kubeClient)
+	migrator := KubeJobsMigrationForTenant(kubeClient, func(s string, s2 string) bool {
+		return true
+	})
 	t.Run("test job selection by label", func(t *testing.T) {
 		migrator("test", newTenant("qa", "qa"))
 		jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})

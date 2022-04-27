@@ -5,6 +5,7 @@ package pulumi
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"math/rand"
 	"os"
@@ -101,28 +102,17 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 				ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
-				data := struct {
-					Tenant   provisioningv1.TenantSpec
-					Platform string
-				}{tenant.Spec, platform}
-
-				if dbSpec.Spec.Exports.Password != (provisioningv1.SecretExport{}) {
-					err = exportToVault(ctx, dbSpec.Spec.Exports.Password.ToVault.SecretPathTemplate,
-						dbSpec.Spec.Exports.Password.ToVault.KeyTemplate, data, adminPwd)
-					if err != nil {
-						return err
-					}
+				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
+					dbSpec.Spec.Exports.UserName, dbSpec.Namespace, adminUser)
+				if err != nil {
+					return err
 				}
-
-				if dbSpec.Spec.Exports.UserName != (provisioningv1.LiteralExport{}) {
-					err = exportToConfigMap(ctx, dbSpec.Spec.Exports.UserName.ToConfigMap.NameTemplate,
-						dbSpec.Spec.Exports.UserName.ToConfigMap.KeyTemplate, data, dbSpec.Namespace, adminUser)
-					if err != nil {
-						return err
-					}
+				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
+					dbSpec.Spec.Exports.Password, dbSpec.Namespace, adminPwd)
+				if err != nil {
+					return err
 				}
 			}
-
 			_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
 				DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
 				Path:     pulumi.String(secretPath),
@@ -134,29 +124,41 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 		return nil
 	}
 }
-func exportToVault(ctx *pulumi.Context, secretPathTemplate, keyTemplate string,
+
+func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string, tenant *provisioningv1.Tenant,
+	exportTemplate provisioningv1.ValueExport, namespace, value string) error {
+	data := struct {
+		Tenant   provisioningv1.TenantSpec
+		Platform string
+	}{tenant.Spec, platform}
+
+	if exportTemplate.ToVault != (provisioningv1.VaultSecretTemplate{}) {
+		name := objectNamingConvention(platform, domain, tenant.Spec.Code, objectName, "/")
+		return exportToVault(ctx, name, exportTemplate.ToVault.KeyTemplate, data, value)
+	}
+
+	if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
+		name := objectNamingConvention(platform, domain, tenant.Spec.Code, objectName, "-")
+		return exportToConfigMap(ctx, name, exportTemplate.ToConfigMap.KeyTemplate, data, namespace, value)
+	}
+	return nil
+}
+
+func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
 	templateContext interface{}, value string) error {
-	dbSecretPath, err := template.ParseTemplate(secretPathTemplate, templateContext)
+	secretKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
 	}
-	dbSecretKey, err := template.ParseTemplate(keyTemplate, templateContext)
-	if err != nil {
-		return err
-	}
-	_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
-		DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s"}`, dbSecretKey, value)),
-		Path:     pulumi.String(dbSecretPath),
+	_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
+		DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s"}`, secretKey, value)),
+		Path:     pulumi.String(secretPath),
 	})
 	return err
 }
 
-func exportToConfigMap(ctx *pulumi.Context, nameTemplate, keyTemplate string,
+func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 	templateContext interface{}, namespace, value string) error {
-	configMapName, err := template.ParseTemplate(nameTemplate, templateContext)
-	if err != nil {
-		return err
-	}
 	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
@@ -334,4 +336,8 @@ func generatePassword() string {
 		buf[i], buf[j] = buf[j], buf[i]
 	})
 	return string(buf)
+}
+
+func objectNamingConvention(platform, domain, tenant, object, separator string) string {
+	return strings.Join([]string{platform, domain, tenant, object}, separator)
 }
