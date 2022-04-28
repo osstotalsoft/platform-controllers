@@ -5,13 +5,20 @@ package pulumi
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"math/rand"
 	"os"
 	"strconv"
 	"time"
+	"totalsoft.ro/platform-controllers/internal/template"
 
 	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
+
+	pulumiKube "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/core/v1"
+	pulumiKubeMetav1 "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/meta/v1"
+
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
@@ -22,11 +29,14 @@ import (
 )
 
 const (
-	PULUMI_AZURE_PLUGIN_VERSION = "PULUMI_AZURE_PLUGIN_VERSION"
-	PULUMI_VAULT_PLUGIN_VERSION = "PULUMI_VAULT_PLUGIN_VERSION"
+	PulumiAzurePluginVersion      = "PULUMI_AZURE_PLUGIN_VERSION"
+	PulumiVaultPluginVersion      = "PULUMI_VAULT_PLUGIN_VERSION"
+	PulumiKubernetesPluginVersion = "PULUMI_KUBERNETES_PLUGIN_VERSION"
 
-	PULUMI_SKIP_AZURE_MANAGED_DB = "PULUMI_SKIP_AZURE_MANAGED_DB"
-	PULUMI_SKIP_AZURE_DB         = "PULUMI_SKIP_AZURE_DB"
+	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
+	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
+
+	ConfigMapDomainLabelKey = "provisioning.totalsoft.ro/domain"
 )
 
 func azureRGDeployFunc(platform string, tenant *provisioningv1.Tenant) pulumi.RunFunc {
@@ -76,11 +86,15 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 			//}
 
 			for _, dbSpec := range azureDbs {
+				sku := "S0"
+				if dbSpec.Spec.Sku != "" {
+					sku = dbSpec.Spec.Sku
+				}
 				db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName, &azureSql.DatabaseArgs{
 					ResourceGroupName: pulumi.String(resourceGroupName),
 					ServerName:        server.Name,
 					Sku: &azureSql.SkuArgs{
-						Name: pulumi.String("S0"),
+						Name: pulumi.String(sku),
 					},
 				})
 				if err != nil {
@@ -90,16 +104,17 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 				ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
-				dbSecretPath := fmt.Sprintf("%s/%s/azure-databases/%s", platform, tenant.Spec.Code, dbSpec.Spec.DbName)
-				_, err = vault.NewSecret(ctx, dbSecretPath, &vault.SecretArgs{
-					DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
-					Path:     pulumi.String(dbSecretPath),
-				})
+				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
+					dbSpec.Spec.Exports.UserName, dbSpec.Namespace, adminUser)
+				if err != nil {
+					return err
+				}
+				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
+					dbSpec.Spec.Exports.Password, dbSpec.Namespace, adminPwd)
 				if err != nil {
 					return err
 				}
 			}
-
 			_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
 				DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
 				Path:     pulumi.String(secretPath),
@@ -110,6 +125,56 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 		}
 		return nil
 	}
+}
+
+func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string, tenant *provisioningv1.Tenant,
+	exportTemplate provisioningv1.ValueExport, namespace, value string) error {
+	data := struct {
+		Tenant   provisioningv1.TenantSpec
+		Platform string
+	}{tenant.Spec, platform}
+
+	if exportTemplate.ToVault != (provisioningv1.VaultSecretTemplate{}) {
+		name := objectNamingConvention(platform, domain, tenant.Spec.Code, objectName, "/")
+		return exportToVault(ctx, name, exportTemplate.ToVault.KeyTemplate, data, value)
+	}
+
+	if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
+		name := objectNamingConvention(platform, domain, tenant.Spec.Code, objectName, "-")
+		return exportToConfigMap(ctx, name, exportTemplate.ToConfigMap.KeyTemplate, data, namespace, domain, value)
+	}
+	return nil
+}
+
+func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
+	templateContext interface{}, value string) error {
+	secretKey, err := template.ParseTemplate(keyTemplate, templateContext)
+	if err != nil {
+		return err
+	}
+	_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
+		DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s"}`, secretKey, value)),
+		Path:     pulumi.String(secretPath),
+	})
+	return err
+}
+
+func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
+	templateContext interface{}, namespace, domain, value string) error {
+	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
+	if err != nil {
+		return err
+	}
+	_, err = pulumiKube.NewConfigMap(ctx, configMapName, &pulumiKube.ConfigMapArgs{
+		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
+			Name:      pulumi.String(configMapName),
+			Namespace: pulumi.String(namespace),
+			Labels:    pulumi.ToStringMap(map[string]string{ConfigMapDomainLabelKey: domain}),
+		},
+		Immutable: pulumi.Bool(true),
+		Data:      pulumi.ToStringMap(map[string]string{configMapKey: value}),
+	})
+	return err
 }
 
 func azureManagedDbDeployFunc(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
@@ -154,14 +219,14 @@ func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.
 		return err
 	}
 
-	if s, _ := strconv.ParseBool(os.Getenv(PULUMI_SKIP_AZURE_DB)); !s {
+	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureDb)); !s {
 		res, err = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, azureRGName, tenant, infra.AzureDbs))
 		if err != nil {
 			return err
 		}
 	}
 
-	if s, _ := strconv.ParseBool(os.Getenv(PULUMI_SKIP_AZURE_MANAGED_DB)); !s {
+	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb)); !s {
 		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Spec.Code)
 		res, err = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
 		if err != nil {
@@ -206,7 +271,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	w := s.Workspace()
 
 	// for inline source programs, we must manage plugins ourselves
-	v := os.Getenv(PULUMI_AZURE_PLUGIN_VERSION)
+	v := os.Getenv(PulumiAzurePluginVersion)
 	if v == "" {
 		v = "v1.62.0"
 	}
@@ -215,13 +280,22 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	v = os.Getenv(PULUMI_VAULT_PLUGIN_VERSION)
+	v = os.Getenv(PulumiVaultPluginVersion)
 	if v == "" {
 		v = "v5.4.0"
 	}
 	err = w.InstallPlugin(ctx, "vault", v)
 	if err != nil {
 		klog.Errorf("Failed to install vault plugin: %v", err)
+		return auto.Stack{}, err
+	}
+	v = os.Getenv(PulumiKubernetesPluginVersion)
+	if v == "" {
+		v = "v3.18.2"
+	}
+	err = w.InstallPlugin(ctx, "kubernetes", v)
+	if err != nil {
+		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
 	klog.V(4).Info("Successfully installed plugins")
@@ -265,4 +339,8 @@ func generatePassword() string {
 		buf[i], buf[j] = buf[j], buf[i]
 	})
 	return string(buf)
+}
+
+func objectNamingConvention(platform, domain, tenant, object, separator string) string {
+	return strings.Join([]string{platform, domain, tenant, object}, separator)
 }
