@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	JobLabelSelector = "provisioning.totalsoft.ro/migration-job-template=true"
+	JobLabelSelectorKey = "provisioning.totalsoft.ro/migration-job-template"
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
@@ -24,7 +24,7 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 
 	return func(platform string, tenant *provisioningv1.Tenant) error {
 		jobs, err := kubeClient.BatchV1().Jobs("").List(context.TODO(), metav1.ListOptions{
-			LabelSelector: JobLabelSelector,
+			LabelSelector: JobLabelSelectorKey + "=true",
 		})
 		if err != nil {
 			return err

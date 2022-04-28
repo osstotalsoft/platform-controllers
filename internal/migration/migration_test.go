@@ -39,7 +39,7 @@ func newJob(name string, template bool) *v1.Job {
 		Spec: v1.JobSpec{},
 	}
 	if template {
-		j.SetLabels(map[string]string{"provisioning/job-template": "true"})
+		j.SetLabels(map[string]string{JobLabelSelectorKey: "true"})
 	}
 	return j
 }
