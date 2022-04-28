@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	JobLabelSelector = "provisioning/job-template=true"
+	JobLabelSelector = "provisioning.totalsoft.ro/migration-job-template=true"
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
