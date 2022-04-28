@@ -171,8 +171,8 @@ func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 			Namespace: pulumi.String(namespace),
 			Labels:    pulumi.ToStringMap(map[string]string{ConfigMapDomainLabelKey: domain}),
 		},
-		//Immutable: pulumi.Bool(true),
-		Data: pulumi.ToStringMap(map[string]string{configMapKey: value}),
+		Immutable: pulumi.Bool(true),
+		Data:      pulumi.ToStringMap(map[string]string{configMapKey: value}),
 	})
 	return err
 }
