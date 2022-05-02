@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+
 	"totalsoft.ro/platform-controllers/internal/template"
 
 	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
@@ -105,12 +106,12 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
 				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
-					dbSpec.Spec.Exports.UserName, dbSpec.Namespace, adminUser)
+					dbSpec.Spec.Exports.UserName, dbSpec.Namespace, pulumi.String(adminUser))
 				if err != nil {
 					return err
 				}
 				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
-					dbSpec.Spec.Exports.Password, dbSpec.Namespace, adminPwd)
+					dbSpec.Spec.Exports.Password, dbSpec.Namespace, pulumi.String(adminPwd))
 				if err != nil {
 					return err
 				}
@@ -128,7 +129,7 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 }
 
 func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string, tenant *provisioningv1.Tenant,
-	exportTemplate provisioningv1.ValueExport, namespace, value string) error {
+	exportTemplate provisioningv1.ValueExport, namespace string, value pulumi.StringInput) error {
 	data := struct {
 		Tenant   provisioningv1.TenantSpec
 		Platform string
@@ -147,24 +148,32 @@ func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string,
 }
 
 func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
-	templateContext interface{}, value string) error {
+	templateContext interface{}, value pulumi.StringInput) error {
 	secretKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
 	}
+
+	dataJson := value.ToStringOutput().ApplyT(func(v string) string {
+		return fmt.Sprintf(`{"%s":"%s"}`, secretKey, v)
+	}).(pulumi.StringOutput)
 	_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
-		DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s"}`, secretKey, value)),
+		DataJson: dataJson,
 		Path:     pulumi.String(secretPath),
 	})
 	return err
 }
 
 func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
-	templateContext interface{}, namespace, domain, value string) error {
+	templateContext interface{}, namespace, domain string, value pulumi.StringInput) error {
 	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
 	}
+	data := value.ToStringOutput().ApplyT(func(v string) map[string]string {
+		return map[string]string{configMapKey: v}
+	}).(pulumi.StringMapOutput)
+
 	_, err = pulumiKube.NewConfigMap(ctx, configMapName, &pulumiKube.ConfigMapArgs{
 		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
 			Name:      pulumi.String(configMapName),
@@ -172,7 +181,7 @@ func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 			Labels:    pulumi.ToStringMap(map[string]string{ConfigMapDomainLabelKey: domain}),
 		},
 		Immutable: pulumi.Bool(true),
-		Data:      pulumi.ToStringMap(map[string]string{configMapKey: value}),
+		Data:      data,
 	})
 	return err
 }
@@ -194,6 +203,12 @@ func azureManagedDbDeployFunc(platform string, tenant *provisioningv1.Tenant, az
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
 			db, err := azureSql.NewManagedDatabase(ctx, dbName, &args)
+			if err != nil {
+				return err
+			}
+
+			err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
+				dbSpec.Spec.Exports.DbName, dbSpec.Namespace, db.Name)
 			if err != nil {
 				return err
 			}

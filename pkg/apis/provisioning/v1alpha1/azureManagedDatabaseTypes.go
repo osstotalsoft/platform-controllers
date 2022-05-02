@@ -18,6 +18,8 @@ type AzureManagedDatabase struct {
 type AzureManagedDatabaseSpec struct {
 	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
+	// The domain or bounded-context in which this database will be used.
+	Domain string `json:"domain"`
 	// Managed database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Target managed instance spec.
@@ -25,6 +27,9 @@ type AzureManagedDatabaseSpec struct {
 	// Restore from external backup. Leave empty for a new empty database.
 	// +optional
 	RestoreFrom AzureManagedDatabaseRestoreSpec `json:"restoreFrom,omitempty"`
+	// Export provisioning values spec.
+	// +optional
+	Exports AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
 }
 type AzureManagedInstanceSpec struct {
 	// Managed instance name.
@@ -45,6 +50,11 @@ type AzureStorageContainerSpec struct {
 	SasToken string `json:"sasToken"`
 	// The storage container uri.
 	Uri string `json:"uri"`
+}
+
+type AzureManagedDatabaseExportsSpec struct {
+	// +optional
+	DbName ValueExport `json:"dbName,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

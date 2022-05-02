@@ -22,29 +22,14 @@ type AzureDatabaseSpec struct {
 	// +optional
 	Sku string `json:"sku,omitempty"`
 	// +optional
-	Exports ExportsSpec `json:"exports,omitempty"`
+	Exports AzureDatabaseExportsSpec `json:"exports,omitempty"`
 }
 
-type ExportsSpec struct {
+type AzureDatabaseExportsSpec struct {
 	// +optional
 	UserName ValueExport `json:"userName,omitempty"`
 	// +optional
 	Password ValueExport `json:"password,omitempty"`
-}
-
-type ValueExport struct {
-	// +optional
-	ToConfigMap ConfigMapTemplate `json:"toConfigMap,omitempty"`
-	// +optional
-	ToVault VaultSecretTemplate `json:"toVault,omitempty"`
-}
-
-type ConfigMapTemplate struct {
-	KeyTemplate string `json:"keyTemplate"`
-}
-
-type VaultSecretTemplate struct {
-	KeyTemplate string `json:"keyTemplate"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

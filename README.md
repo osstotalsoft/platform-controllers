@@ -36,6 +36,11 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
 spec:
   dbName: origination_db
+  domain: origination
+  exports:
+    dbName:
+      toConfigMap:
+        keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Leasing_Database__Database
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
