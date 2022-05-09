@@ -9,6 +9,13 @@ generate-apis:
        --output-base ./../.. \
        -h hack/boilerplate.go.txt
 
+generate-config-apis:
+	$(CODE_GENERATOR_DIR)/generate-groups.sh all \
+       totalsoft.ro/platform-controllers/pkg/generated totalsoft.ro/platform-controllers/pkg/apis \
+       configuration:v1alpha1 \
+       --output-base ./../.. \
+       -h hack/boilerplate.go.txt
+
 #https://book.kubebuilder.io/reference/controller-gen.html
 # go install sigs.k8s.io/controller-tools/cmd/controller-gen@latest
 generate-crd:
