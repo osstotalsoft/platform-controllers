@@ -37,6 +37,31 @@ spec:
                 description: Managed database name prefix. Will have platform and
                   tenant suffix.
                 type: string
+              domain:
+                description: The domain or bounded-context in which this database
+                  will be used.
+                type: string
+              exports:
+                description: Export provisioning values spec.
+                properties:
+                  dbName:
+                    properties:
+                      toConfigMap:
+                        properties:
+                          keyTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        type: object
+                      toVault:
+                        properties:
+                          keyTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        type: object
+                    type: object
+                type: object
               managedInstance:
                 description: Target managed instance spec.
                 properties:
@@ -80,6 +105,7 @@ spec:
                 type: object
             required:
             - dbName
+            - domain
             - managedInstance
             - platformRef
             type: object
