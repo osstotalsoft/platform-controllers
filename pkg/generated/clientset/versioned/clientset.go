@@ -25,11 +25,13 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
+	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/configuration/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/provisioning/v1alpha1"
 )
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	ConfigurationV1alpha1() configurationv1alpha1.ConfigurationV1alpha1Interface
 	ProvisioningV1alpha1() provisioningv1alpha1.ProvisioningV1alpha1Interface
 }
 
@@ -37,7 +39,13 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	provisioningV1alpha1 *provisioningv1alpha1.ProvisioningV1alpha1Client
+	configurationV1alpha1 *configurationv1alpha1.ConfigurationV1alpha1Client
+	provisioningV1alpha1  *provisioningv1alpha1.ProvisioningV1alpha1Client
+}
+
+// ConfigurationV1alpha1 retrieves the ConfigurationV1alpha1Client
+func (c *Clientset) ConfigurationV1alpha1() configurationv1alpha1.ConfigurationV1alpha1Interface {
+	return c.configurationV1alpha1
 }
 
 // ProvisioningV1alpha1 retrieves the ProvisioningV1alpha1Client
@@ -85,6 +93,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.configurationV1alpha1, err = configurationv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.provisioningV1alpha1, err = provisioningv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -110,6 +122,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.configurationV1alpha1 = configurationv1alpha1.New(c)
 	cs.provisioningV1alpha1 = provisioningv1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)

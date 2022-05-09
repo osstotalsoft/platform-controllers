@@ -24,6 +24,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
+	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -31,6 +32,7 @@ var scheme = runtime.NewScheme()
 var codecs = serializer.NewCodecFactory(scheme)
 
 var localSchemeBuilder = runtime.SchemeBuilder{
+	configurationv1alpha1.AddToScheme,
 	provisioningv1alpha1.AddToScheme,
 }
 
