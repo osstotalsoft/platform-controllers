@@ -1,10 +1,11 @@
 # platform-controllers
 Kubernetes first, multi-tenant infrastructure provisioning services
 
-## provisioning-controller 
+## Provisioning-controller 
 monitors infrastructure manifests and provisions the desired infrastructure for every platform tenant.
 
-## Configuration
+> *Note* You can skip provisioning for one tenant by adding the label `provisioning.totalsoft.ro/skip-provisioning`="true"
+
 ### Env
 | Variable       | example value         | details                                            |
 |----------------|-----------------------|----------------------------------------------------|
@@ -13,8 +14,7 @@ monitors infrastructure manifests and provisions the desired infrastructure for 
 | VAULT_TOKEN    | {token}               | vault token                                        |
 
 
-### Kubernetes CRD
-#### AzureDatabase
+### AzureDatabase
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuredatabases.yaml)
 
 Example:
@@ -25,6 +25,8 @@ spec:
   dbName: origination_db
   platformRef: charismaonline.qa
 ```
+
+> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 
 #### AzureManagedDatabase
@@ -51,3 +53,7 @@ spec:
       sasToken: my-saas-token
   platformRef: charismaonline.qa
 ```
+> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
+
+
+## Configuration-controller
