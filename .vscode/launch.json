@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Run provisioner",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "./cmd/tenant-provisioner",
+            "args": [
+                "--v",
+                "4"
+            ],
+            "env": {
+                "AZURE_LOCATION": "West Europe",
+                "VAULT_ADDR": "http://localhost:65455/",
+                "VAULT_TOKEN": "s.gM867gC8Hvhm1rSyU4xAM5MB"
+            }
+        }
+    ]
+}
