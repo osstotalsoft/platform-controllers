@@ -28,8 +28,10 @@ import (
 const (
 	controllerAgentName = "provisioning-controller"
 	// SuccessSynced is used as part of the Event 'reason' when a Resource is synced
-	SuccessSynced = "Synced successfully"
-	ErrorSynced   = "Error"
+	SuccessSynced         = "Synced successfully"
+	ErrorSynced           = "Error"
+	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
+	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 )
 
 // ProvisioningController is the controller implementation for Tenant resources
@@ -203,7 +205,13 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 
-	azureDbs, err := c.azureDbInformer.Lister().List(labels.Everything())
+	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Spec.Code)
+	skipTenantLabelSelector, err := labels.Parse(fmt.Sprintf("%s!=true", skipTenantLabel))
+	if err != nil {
+		return err
+	}
+
+	azureDbs, err := c.azureDbInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
@@ -217,7 +225,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureDbs = azureDbs[:n]
 
-	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(labels.Everything())
+	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
@@ -291,6 +299,10 @@ func (c *ProvisioningController) enqueueAllTenant(platform string) {
 func (c *ProvisioningController) enqueueTenant(tenant *provisioningv1.Tenant) {
 	var tenantKey string
 	var err error
+
+	if v, ok := tenant.Labels[SkipProvisioningLabel]; ok && v == "true" {
+		return
+	}
 
 	if tenantKey, err = cache.MetaNamespaceKeyFunc(tenant); err != nil {
 		utilruntime.HandleError(err)
