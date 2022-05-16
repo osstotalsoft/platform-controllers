@@ -23,7 +23,8 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
 // GenericInformer is type of SharedIndexInformer which will locate and delegate to other
@@ -52,15 +53,17 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=provisioning.totalsoft.ro, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("azuredatabases"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureDatabases().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("azuremanageddatabases"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureManagedDatabases().Informer()}, nil
+	// Group=platform.totalsoft.ro, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("platforms"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().Platforms().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Platform().V1alpha1().Platforms().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("tenants"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().Tenants().Informer()}, nil
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Platform().V1alpha1().Tenants().Informer()}, nil
+
+		// Group=provisioning.totalsoft.ro, Version=v1alpha1
+	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azuredatabases"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureDatabases().Informer()}, nil
+	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azuremanageddatabases"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureManagedDatabases().Informer()}, nil
 
 	}
 
