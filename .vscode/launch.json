@@ -13,7 +13,7 @@
             "env": {
                 "AZURE_LOCATION": "West Europe",
                 "VAULT_ADDR": "http://localhost:65455/",
-                "VAULT_TOKEN": "s.gM867gC8Hvhm1rSyU4xAM5MB"
+                // "VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN"
             }
         }
     ]
