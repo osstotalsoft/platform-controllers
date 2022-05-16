@@ -2,11 +2,14 @@ package main
 
 import (
 	"flag"
+	"path/filepath"
 	"time"
 
 	kubeinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
@@ -16,24 +19,23 @@ import (
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
 	"totalsoft.ro/platform-controllers/pkg/signals"
+
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/homedir"
 )
 
 var (
-	masterURL  string
-	kubeconfig string
+	kubeConfig     *rest.Config
+	kubeConfigPath string
 )
 
 func main() {
-	klog.InitFlags(nil)
-	flag.Parse()
+	InitFlags()
 
 	// set up signals so we handle the first shutdown signal gracefully
 	stopCh := signals.SetupSignalHandler()
 
-	cfg, err := clientcmd.BuildConfigFromFlags(masterURL, kubeconfig)
-	if err != nil {
-		klog.Fatalf("Error building kubeconfig: %s", err.Error())
-	}
+	cfg := getConfig()
 
 	kubeClient, err := kubernetes.NewForConfig(cfg)
 	if err != nil {
@@ -48,9 +50,14 @@ func main() {
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	platformInformerFactory := informers.NewSharedInformerFactory(platformClient, time.Second*30)
 
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartStructuredLogging(0)
+	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+
 	controller := controllers.NewConfigurationController(kubeClient, platformClient,
 		kubeInformerFactory.Core().V1().ConfigMaps(),
-		platformInformerFactory.Configuration().V1alpha1().ConfigurationAggregates())
+		platformInformerFactory.Configuration().V1alpha1().ConfigurationAggregates(),
+		eventBroadcaster)
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.
@@ -62,7 +69,33 @@ func main() {
 	}
 }
 
-func init() {
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to a kubeconfig. Only required if out-of-cluster.")
-	flag.StringVar(&masterURL, "master", "", "The address of the Kubernetes API server. Overrides any value in kubeconfig. Only required if out-of-cluster.")
+// InitFlags is for explicitly initializing the flags.
+func InitFlags() {
+	flag.Set("alsologtostderr", "true")
+	if home := homedir.HomeDir(); home != "" {
+		flag.StringVar(&kubeConfigPath, "kubeConfigPath", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+	} else {
+		flag.StringVar(&kubeConfigPath, "kubeConfigPath", "", "absolute path to the kubeconfig file")
+	}
+
+	klog.InitFlags(nil)
+
+	flag.Parse()
+}
+
+// GetConfig gets a kubernetes rest config.
+func getConfig() *rest.Config {
+	if kubeConfig != nil {
+		return kubeConfig
+	}
+
+	conf, err := rest.InClusterConfig()
+	if err != nil {
+		conf, err = clientcmd.BuildConfigFromFlags("", kubeConfigPath)
+		if err != nil {
+			klog.Fatalf("Error building provisioning clientset: %s", err)
+		}
+	}
+
+	return conf
 }

@@ -40,6 +40,7 @@ type ConfigurationAggregatesGetter interface {
 type ConfigurationAggregateInterface interface {
 	Create(ctx context.Context, configurationAggregate *v1alpha1.ConfigurationAggregate, opts v1.CreateOptions) (*v1alpha1.ConfigurationAggregate, error)
 	Update(ctx context.Context, configurationAggregate *v1alpha1.ConfigurationAggregate, opts v1.UpdateOptions) (*v1alpha1.ConfigurationAggregate, error)
+	UpdateStatus(ctx context.Context, configurationAggregate *v1alpha1.ConfigurationAggregate, opts v1.UpdateOptions) (*v1alpha1.ConfigurationAggregate, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.ConfigurationAggregate, error)
@@ -128,6 +129,22 @@ func (c *configurationAggregates) Update(ctx context.Context, configurationAggre
 		Namespace(c.ns).
 		Resource("configurationaggregates").
 		Name(configurationAggregate.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(configurationAggregate).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *configurationAggregates) UpdateStatus(ctx context.Context, configurationAggregate *v1alpha1.ConfigurationAggregate, opts v1.UpdateOptions) (result *v1alpha1.ConfigurationAggregate, err error) {
+	result = &v1alpha1.ConfigurationAggregate{}
+	err = c.client.Put().
+		Namespace(c.ns).
+		Resource("configurationaggregates").
+		Name(configurationAggregate.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(configurationAggregate).
 		Do(ctx).

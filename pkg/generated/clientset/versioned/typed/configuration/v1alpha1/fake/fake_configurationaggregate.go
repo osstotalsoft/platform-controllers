@@ -102,6 +102,18 @@ func (c *FakeConfigurationAggregates) Update(ctx context.Context, configurationA
 	return obj.(*v1alpha1.ConfigurationAggregate), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeConfigurationAggregates) UpdateStatus(ctx context.Context, configurationAggregate *v1alpha1.ConfigurationAggregate, opts v1.UpdateOptions) (*v1alpha1.ConfigurationAggregate, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewUpdateSubresourceAction(configurationaggregatesResource, "status", c.ns, configurationAggregate), &v1alpha1.ConfigurationAggregate{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.ConfigurationAggregate), err
+}
+
 // Delete takes name of the configurationAggregate and deletes it. Returns an error if one occurs.
 func (c *FakeConfigurationAggregates) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
