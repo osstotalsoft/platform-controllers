@@ -32,18 +32,21 @@ import (
 
 const (
 	domainLabelName           = "platform.totalsoft.ro/domain"
+	platformLabelName         = "platform.totalsoft.ro/platform"
 	configControllerAgentName = "configuration-controller"
 
-	// SuccessSynced is used as part of the Event 'reason' when a Foo is synced
-	//SuccessSynced = "Synced"
-	// ErrResourceExists is used as part of the Event 'reason' when a Foo fails
-	// to sync due to a Deployment of the same name already existing.
+	// SuccessSynced is used as part of the Event 'reason' when a ConfigurationAggregate is synced
+	SuccessConfigAggregateSynced = "Synced successfully"
+
+	// ErrResourceExists is used as part of the Event 'reason' when a ConfigurationAggregate fails
+	// to sync due to a ConfigMap of the same name already existing.
 	ErrResourceExists = "ErrResourceExists"
 
 	// MessageResourceExists is the message used for Events when a resource
-	// fails to sync due to a Deployment already existing
+	// fails to sync due to a ConfigMap already existing
 	MessageResourceExists = "Resource %q already exists and is not managed by Foo"
-	// MessageResourceSynced is the message used for an Event fired when a Foo
+
+	// MessageResourceSynced is the message used for an Event fired when a ConfigurationAggregate
 	// is synced successfully
 	MessageResourceSynced = "Synced successfully"
 
@@ -128,8 +131,6 @@ func NewConfigurationController(
 	klog.Info("Setting up event handlers")
 
 	// Set up an event handler for when ConfigAggregate resources change
-	// addConfigAggregateHandlers(configAggregateInformer, controller.enqueueConfigAggregate)
-	// addConfigMapHandlers(configMapInformer, controller.enqueueAllConfigAggregates)
 	addConfigAggregateHandlers(configAggregateInformer, controller.enqueueDomain)
 	addConfigMapHandlers(configMapInformer, controller.enqueueDomain)
 
@@ -234,7 +235,7 @@ func (c *ConfigurationController) processNextWorkItem() bool {
 // with the current status of the resource.
 func (c *ConfigurationController) syncHandler(key string) error {
 	// Convert the namespace::domain string into a distinct namespace and domain
-	namespace, domain, err := decodeDomainKey(key)
+	platform, domain, err := decodeDomainKey(key)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
 		return nil
@@ -246,28 +247,49 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return nil
 	}
 
-	// Get the ConfigAggregates resource with this namespace::domain
-	configAggregates, err := c.configAggregatesLister.ConfigurationAggregates(namespace).List(domainLabelSelector)
-	if err != nil {
-		return err
-	}
+	domainAndPlatformLabelSelector, err :=
+		labels.ValidatedSelectorFromSet(map[string]string{
+			domainLabelName:   domain,
+			platformLabelName: platform,
+		})
 
-	if len(configAggregates) != 1 {
-		utilruntime.HandleError(fmt.Errorf("there should be exactly one ConfigMapAggregate. Found: %s", key))
+	if err != nil {
+		utilruntime.HandleError(err)
 		return nil
 	}
 
-	configAggregate, err := c.resetStatus(configAggregates[0])
+	// Get the ConfigAggregates resource with this namespace::domain
+	configAggregates, err := c.configAggregatesLister.ConfigurationAggregates("").List(domainLabelSelector)
 	if err != nil {
 		return err
 	}
 
-	configMaps, err := c.configMapsLister.ConfigMaps(configAggregate.Namespace).List(domainLabelSelector)
+	n := 0
+	for _, db := range configAggregates {
+		if db.Spec.PlatformRef == platform {
+			configAggregates[n] = db
+			n++
+		}
+	}
+	configAggregates = configAggregates[:n]
+
+	if len(configAggregates) != 1 {
+		utilruntime.HandleError(fmt.Errorf("there should be exactly one ConfigMapAggregate for a platform %s and domain %s. Found: %d", platform, domain, len(configAggregates)))
+		return nil
+	}
+
+	configAggregate := configAggregates[0]
+	configAggregate, err = c.resetStatus(configAggregate)
 	if err != nil {
 		return err
 	}
-	outputConfigMapName := fmt.Sprintf("%s-%s-aggregate", configAggregate.Spec.PlatformRef, domain)
-	aggregatedConfigMap := aggregateConfigMaps(configAggregate, configMaps, outputConfigMapName, domain)
+
+	configMaps, err := c.configMapsLister.ConfigMaps("").List(domainAndPlatformLabelSelector)
+	if err != nil {
+		return err
+	}
+	outputConfigMapName := fmt.Sprintf("%s-%s-aggregate", platform, domain)
+	aggregatedConfigMap := c.aggregateConfigMaps(configAggregate, configMaps, outputConfigMapName)
 
 	// Get the output config map for this namespace::domain
 	outputConfigMap, err := c.configMapsLister.ConfigMaps(configAggregate.Namespace).Get(outputConfigMapName)
@@ -292,9 +314,8 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return nil
 	}
 
-	// If this number of the replicas on the Foo resource is specified, and the
-	// number does not equal the current desired replicas on the Deployment, we
-	// should update the Deployment resource.
+	// If the existing ConfigMap data differs from the aggregation result we
+	// should update the ConfigMap resource.
 	if !reflect.DeepEqual(aggregatedConfigMap.Data, outputConfigMap.Data) {
 		klog.V(4).Infof("Configuration values changed")
 		err = c.kubeClientset.CoreV1().ConfigMaps(configAggregate.Namespace).Delete(context.TODO(), aggregatedConfigMap.Name, metav1.DeleteOptions{})
@@ -311,10 +332,10 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return err
 	}
 
-	// Finally, we update the status block of the Foo resource to reflect the
+	// Finally, we update the status block of the ConfigurationAggregate resource to reflect the
 	// current state of the world
-	c.updateStatus(configAggregate, true, SuccessSynced)
-	c.recorder.Event(configAggregate, corev1.EventTypeNormal, SuccessSynced, MessageResourceSynced)
+	c.updateStatus(configAggregate, true, SuccessConfigAggregateSynced)
+	c.recorder.Event(configAggregate, corev1.EventTypeNormal, SuccessConfigAggregateSynced, MessageResourceSynced)
 	return nil
 }
 
@@ -364,27 +385,34 @@ func (c *ConfigurationController) updateStatus(configAggregate *v1alpha1.Configu
 	}
 }
 
-func (c *ConfigurationController) enqueueDomain(namespace string, domain string) {
-	key := encodeDomainKey(namespace, domain)
+func (c *ConfigurationController) enqueueDomain(platform string, domain string) {
+	key := encodeDomainKey(platform, domain)
 	c.workqueue.Add(key)
 }
 
-func aggregateConfigMaps(configMapAggregate *v1alpha1.ConfigurationAggregate, configMaps []*corev1.ConfigMap, name string, domain string) *corev1.ConfigMap {
+func (c *ConfigurationController) aggregateConfigMaps(configMapAggregate *v1alpha1.ConfigurationAggregate, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
 	mergedData := map[string]string{}
 	for _, configMap := range configMaps {
-		if configMap.Name == name {
+		if configMap.Name == outputName {
 			continue
 		}
 
 		for k, v := range configMap.Data {
+			if existingValue, ok := mergedData[k]; ok {
+				msg := fmt.Sprintf("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, configMap.Name, v)
+				c.recorder.Event(configMapAggregate, corev1.EventTypeWarning, ErrResourceExists, msg)
+			}
 			mergedData[k] = v
 		}
 	}
 
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Labels:    map[string]string{domainLabelName: domain},
+			Name: outputName,
+			Labels: map[string]string{
+				domainLabelName:   configMapAggregate.Labels[domainLabelName],
+				platformLabelName: configMapAggregate.Spec.PlatformRef,
+			},
 			Namespace: configMapAggregate.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(configMapAggregate, v1alpha1.SchemeGroupVersion.WithKind("ConfigurationAggregate")),
@@ -395,11 +423,11 @@ func aggregateConfigMaps(configMapAggregate *v1alpha1.ConfigurationAggregate, co
 	}
 }
 
-func encodeDomainKey(namespace string, domain string) (key string) {
-	return fmt.Sprintf("%s::%s", namespace, domain)
+func encodeDomainKey(platform string, domain string) (key string) {
+	return fmt.Sprintf("%s::%s", platform, domain)
 }
 
-func decodeDomainKey(key string) (namespace string, domain string, err error) {
+func decodeDomainKey(key string) (platform string, domain string, err error) {
 	res := strings.Split(key, "::")
 	if len(res) == 2 {
 		return res[0], res[1], nil
@@ -407,77 +435,137 @@ func decodeDomainKey(key string) (namespace string, domain string, err error) {
 	return "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
-func addConfigAggregateHandlers(informer informers.ConfigurationAggregateInformer, handler func(namespace string, domain string)) {
+func addConfigAggregateHandlers(informer informers.ConfigurationAggregateInformer, handler func(platform string, domain string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*v1alpha1.ConfigurationAggregate)
-			if domain, ok := comp.Labels[domainLabelName]; ok {
-				klog.V(4).InfoS("ConfigMapAggregate added", "name", comp.Name, "namespace", comp.Namespace, "domain", domain)
-				handler(comp.Namespace, domain)
+			if platform, domain, ok := getAggregateConfigPlatformAndDomain(comp); ok {
+				klog.V(4).InfoS("ConfigMapAggregate added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
+				handler(platform, domain)
 			}
-
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldComp := oldObj.(*v1alpha1.ConfigurationAggregate)
 			newComp := newObj.(*v1alpha1.ConfigurationAggregate)
-			if domain, ok := newComp.Labels[domainLabelName]; ok {
+			oldPlatform, oldDomain, oldOk := getAggregateConfigPlatformAndDomain(oldComp)
+			newPlatform, newDomain, newOk := getAggregateConfigPlatformAndDomain(newComp)
+
+			if !oldOk && !newOk {
+				return
+			}
+
+			if oldOk && !newOk {
+				klog.V(4).InfoS("ConfigMapAggregate invalidated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
+				// TODO: handle invalidation
+				//handler(oldPlatform, oldDomain)
+				return
+			}
+
+			if oldOk && newOk {
 				if oldComp.Spec == newComp.Spec && reflect.DeepEqual(oldComp.Labels, newComp.Labels) {
 					return
 				}
 
-				klog.V(4).InfoS("ConfigMapAggregate updated", "name", newComp.Name, "namespace", newComp.Namespace, "domain", domain)
-				handler(newComp.Namespace, domain)
+				klog.V(4).InfoS("ConfigMapAggregate updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", newDomain)
+				handler(newPlatform, newDomain)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*v1alpha1.ConfigurationAggregate)
-			if domain, ok := comp.Labels[domainLabelName]; ok {
-				klog.V(4).InfoS("ConfigMapAggregate deleted", "name", comp.Name, "namespace", comp.Namespace, "domain", domain)
+			if platform, domain, ok := getAggregateConfigPlatformAndDomain(comp); ok {
+				klog.V(4).InfoS("ConfigMapAggregate deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
+				// Output configmap automatically deleted because it is controlled
 			}
 		},
 	})
 }
 
-func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func(namespace string, domain string)) {
+func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func(platform string, domain string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*corev1.ConfigMap)
 
-			if domain, ok := comp.Labels[domainLabelName]; ok {
-				owner := metav1.GetControllerOf(comp)
-				if owner != nil && owner.Kind == "ConfigurationAggregate" && owner.APIVersion == "configuration.totalsoft.ro/v1alpha1" {
+			if platform, domain, ok := getConfigMapPlatformAndDomain(comp); ok {
+				if isControlledByConfigAggregate(comp) {
 					return
 				}
 
-				klog.V(4).InfoS("Config map added", "name", comp.Name, "namespace", comp.Namespace, "domain", domain)
-				handler(comp.Namespace, domain)
+				klog.V(4).InfoS("Config map added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
+				handler(platform, domain)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldComp := oldObj.(*corev1.ConfigMap)
 			newComp := newObj.(*corev1.ConfigMap)
 
-			if domain, ok := newComp.Labels[domainLabelName]; ok {
+			oldPlatform, oldDomain, oldOk := getConfigMapPlatformAndDomain(oldComp)
+			newPlatform, newDomain, newOk := getConfigMapPlatformAndDomain(newComp)
+			targetChanged := oldPlatform != newPlatform || oldDomain != newDomain
+
+			if !oldOk && !newOk {
+				return
+			}
+
+			if oldOk && (!newOk || targetChanged) {
+				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
+				handler(oldPlatform, oldDomain)
+			}
+
+			if newOk {
 				if reflect.DeepEqual(oldComp.Data, newComp.Data) && reflect.DeepEqual(oldComp.Labels, newComp.Labels) {
 					return
 				}
 
-				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", newComp.Namespace, "domain", domain)
-				handler(newComp.Namespace, domain)
+				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform, "domain", newDomain)
+				handler(newPlatform, newDomain)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*corev1.ConfigMap)
 
-			if domain, ok := comp.Labels[domainLabelName]; ok {
-				owner := metav1.GetControllerOf(comp)
-				if owner != nil && owner.Kind == "ConfigurationAggregate" && owner.APIVersion == "configuration.totalsoft.ro/v1alpha1" {
+			if platform, domain, ok := getConfigMapPlatformAndDomain(comp); ok {
+				if isControlledByConfigAggregate(comp) {
 					return
 				}
 
-				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", comp.Namespace, "domain", domain)
-				handler(comp.Namespace, domain)
+				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
+				handler(platform, domain)
 			}
 		},
 	})
+}
+
+func getAggregateConfigPlatformAndDomain(configAggregate *v1alpha1.ConfigurationAggregate) (platform string, domain string, ok bool) {
+	domain, domainlabelExists := configAggregate.Labels[domainLabelName]
+	if !domainlabelExists || len(domain) == 0 {
+		return "", domain, false
+	}
+
+	platform = configAggregate.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, domain, false
+	}
+
+	return platform, domain, true
+}
+
+func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
+	domain, domainlabelExists := configMap.Labels[domainLabelName]
+	if !domainlabelExists || len(domain) == 0 {
+		return "", domain, false
+	}
+
+	platform, platformLabelExists := configMap.Labels[platformLabelName]
+	if !platformLabelExists || len(platform) == 0 {
+		return platform, domain, false
+	}
+
+	return platform, domain, true
+}
+
+func isControlledByConfigAggregate(configMap *corev1.ConfigMap) bool {
+	owner := metav1.GetControllerOf(configMap)
+	return (owner != nil &&
+		owner.Kind == "ConfigurationAggregate" &&
+		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
 }
