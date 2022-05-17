@@ -34,10 +34,6 @@ const (
 	SuccessSynced = "Synced successfully"
 	ErrorSynced   = "Error"
 
-	SucceededReason   string = "Succeeded"
-	FailedReason      string = "Failed"
-	ProgressingReason string = "Progressing"
-
 	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 )

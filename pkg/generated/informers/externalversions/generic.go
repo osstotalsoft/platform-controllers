@@ -23,7 +23,8 @@ import (
 
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
+	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -53,10 +54,14 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=platform.totalsoft.ro, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("platforms"):
+	// Group=configuration.totalsoft.ro, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("configurationaggregates"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Configuration().V1alpha1().ConfigurationAggregates().Informer()}, nil
+
+		// Group=platform.totalsoft.ro, Version=v1alpha1
+	case platformv1alpha1.SchemeGroupVersion.WithResource("platforms"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Platform().V1alpha1().Platforms().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("tenants"):
+	case platformv1alpha1.SchemeGroupVersion.WithResource("tenants"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Platform().V1alpha1().Tenants().Informer()}, nil
 
 		// Group=provisioning.totalsoft.ro, Version=v1alpha1

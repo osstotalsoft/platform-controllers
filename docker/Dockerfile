@@ -10,4 +10,3 @@ COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=alpine /root/.pulumi/ /nonroot/.pulumi/
 COPY /$PKG_FILES /
 ENV PATH="/nonroot/.pulumi/bin:${PATH}"
-ENTRYPOINT ["/tenant-provisioner"]

@@ -56,6 +56,8 @@ spec:
             secretKeyRef:
               name: pulumi-api-secret
               key: accessToken
+        command:
+        - "/tenant-provisioner"
         args:
         - "--v"
         - "{{ .Values.global.logLevel }}"

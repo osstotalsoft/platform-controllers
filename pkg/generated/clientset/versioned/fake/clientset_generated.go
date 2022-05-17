@@ -25,6 +25,8 @@ import (
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	"k8s.io/client-go/testing"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
+	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/configuration/v1alpha1"
+	fakeconfigurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/configuration/v1alpha1/fake"
 	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/platform/v1alpha1"
 	fakeplatformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/platform/v1alpha1/fake"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/provisioning/v1alpha1"
@@ -80,6 +82,11 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
+
+// ConfigurationV1alpha1 retrieves the ConfigurationV1alpha1Client
+func (c *Clientset) ConfigurationV1alpha1() configurationv1alpha1.ConfigurationV1alpha1Interface {
+	return &fakeconfigurationv1alpha1.FakeConfigurationV1alpha1{Fake: &c.Fake}
+}
 
 // PlatformV1alpha1 retrieves the PlatformV1alpha1Client
 func (c *Clientset) PlatformV1alpha1() platformv1alpha1.PlatformV1alpha1Interface {
