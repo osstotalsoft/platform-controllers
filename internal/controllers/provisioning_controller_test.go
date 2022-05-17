@@ -77,7 +77,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			aSkipProvisioningTenant,
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
@@ -230,7 +230,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			azureDb,
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
