@@ -26,7 +26,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -57,7 +57,7 @@ type tenants struct {
 }
 
 // newTenants returns a Tenants
-func newTenants(c *ProvisioningV1alpha1Client, namespace string) *tenants {
+func newTenants(c *PlatformV1alpha1Client, namespace string) *tenants {
 	return &tenants{
 		client: c.RESTClient(),
 		ns:     namespace,

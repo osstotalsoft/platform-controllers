@@ -54,29 +54,6 @@ const (
 	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
 	// representation of actual state.
 	ReadyCondition string = "Ready"
-
-	// SucceededReason indicates a condition or event observed a success, for example when declared desired state
-	// matches actual state, or a performed action succeeded.
-	//
-	// More information about the reason of success MAY be available as additional metadata in an attached message.
-	SucceededReason string = "Succeeded"
-
-	// FailedReason indicates a condition or event observed a failure, for example when declared state does not match
-	// actual state, or a performed action failed.
-	//
-	// More information about the reason of failure MAY be available as additional metadata in an attached message.
-	FailedReason string = "Failed"
-
-	// ProgressingReason indicates a condition or event observed progression, for example when the reconciliation of a
-	// resource or an action has started.
-	//
-	// When this reason is given, other conditions and types MAY no longer be considered as an up-to-date observation.
-	// Producers of the specific condition type or event SHOULD provide more information about the expectations and
-	// precise meaning in their API specification.
-	//
-	// More information about the reason or the current state of the progression MAY be available as additional metadata
-	// in an attached message.
-	ProgressingReason string = "Progressing"
 )
 
 type ConfigurationController struct {

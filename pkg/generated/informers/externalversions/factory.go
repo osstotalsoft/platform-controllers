@@ -30,6 +30,7 @@ import (
 	versioned "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	configuration "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/configuration"
 	internalinterfaces "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/internalinterfaces"
+	platform "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/platform"
 	provisioning "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning"
 )
 
@@ -174,11 +175,16 @@ type SharedInformerFactory interface {
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
 	Configuration() configuration.Interface
+	Platform() platform.Interface
 	Provisioning() provisioning.Interface
 }
 
 func (f *sharedInformerFactory) Configuration() configuration.Interface {
 	return configuration.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Platform() platform.Interface {
+	return platform.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Provisioning() provisioning.Interface {

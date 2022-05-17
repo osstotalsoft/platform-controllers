@@ -18,6 +18,6 @@ limitations under the License.
 
 package v1alpha1
 
-type AzureDatabaseExpansion interface{}
+type PlatformExpansion interface{}
 
-type AzureManagedDatabaseExpansion interface{}
+type TenantExpansion interface{}

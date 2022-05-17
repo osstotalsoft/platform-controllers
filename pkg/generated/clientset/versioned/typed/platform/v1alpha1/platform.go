@@ -26,7 +26,7 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -55,7 +55,7 @@ type platforms struct {
 }
 
 // newPlatforms returns a Platforms
-func newPlatforms(c *ProvisioningV1alpha1Client) *platforms {
+func newPlatforms(c *PlatformV1alpha1Client) *platforms {
 	return &platforms{
 		client: c.RESTClient(),
 	}

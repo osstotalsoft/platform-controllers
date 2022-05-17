@@ -26,6 +26,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"k8s.io/klog/v2"
 	"totalsoft.ro/platform-controllers/internal/provisioners"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -37,10 +38,11 @@ const (
 	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
 	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
 
-	ConfigMapDomainLabelKey = "provisioning.totalsoft.ro/domain"
+	ConfigMapDomainLabel   = "platform.totalsoft.ro/domain"
+	ConfigMapPlatformLabel = "platform.totalsoft.ro/platform"
 )
 
-func azureRGDeployFunc(platform string, tenant *provisioningv1.Tenant) pulumi.RunFunc {
+func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFunc {
 	return func(ctx *pulumi.Context) error {
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, fmt.Sprintf("%s_%s_RG", platform, tenant.Spec.Code), nil)
 		if err != nil {
@@ -53,14 +55,14 @@ func azureRGDeployFunc(platform string, tenant *provisioningv1.Tenant) pulumi.Ru
 	}
 }
 
-func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
+func azureDbDeployFunc(platform, resourceGroupName string, tenant *platformv1.Tenant, azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
 	return func(ctx *pulumi.Context) error {
 		if len(azureDbs) > 0 {
 			const pwdKey = "pass"
 			const userKey = "user"
 			adminPwd := generatePassword()
 			adminUser := fmt.Sprintf("sqlUser%s", tenant.Spec.Code)
-			secretPath := fmt.Sprintf("%s/%s/azure-databases/server", platform, tenant.Spec.Code)
+			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.Spec.Code)
 			secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
 			if secret != nil && secret.Data[pwdKey] != nil {
 				adminPwd = secret.Data[pwdKey].(string)
@@ -128,10 +130,10 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *provisioningv
 	}
 }
 
-func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string, tenant *provisioningv1.Tenant,
+func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string, tenant *platformv1.Tenant,
 	exportTemplate provisioningv1.ValueExport, namespace string, value pulumi.StringInput) error {
 	data := struct {
-		Tenant   provisioningv1.TenantSpec
+		Tenant   platformv1.TenantSpec
 		Platform string
 	}{tenant.Spec, platform}
 
@@ -142,7 +144,7 @@ func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string,
 
 	if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
 		name := objectNamingConvention(platform, domain, tenant.Spec.Code, objectName, "-")
-		return exportToConfigMap(ctx, name, exportTemplate.ToConfigMap.KeyTemplate, data, namespace, domain, value)
+		return exportToConfigMap(ctx, name, exportTemplate.ToConfigMap.KeyTemplate, data, namespace, domain, platform, value)
 	}
 	return nil
 }
@@ -165,7 +167,7 @@ func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
 }
 
 func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
-	templateContext interface{}, namespace, domain string, value pulumi.StringInput) error {
+	templateContext interface{}, namespace, domain, platform string, value pulumi.StringInput) error {
 	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
@@ -178,7 +180,10 @@ func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
 			Name:      pulumi.String(configMapName),
 			Namespace: pulumi.String(namespace),
-			Labels:    pulumi.ToStringMap(map[string]string{ConfigMapDomainLabelKey: domain}),
+			Labels: pulumi.ToStringMap(map[string]string{
+				ConfigMapDomainLabel:   domain,
+				ConfigMapPlatformLabel: platform,
+			}),
 		},
 		Immutable: pulumi.Bool(true),
 		Data:      data,
@@ -186,7 +191,7 @@ func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 	return err
 }
 
-func azureManagedDbDeployFunc(platform string, tenant *provisioningv1.Tenant, azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
+func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant, azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
 			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Spec.Code)
@@ -219,7 +224,7 @@ func azureManagedDbDeployFunc(platform string, tenant *provisioningv1.Tenant, az
 	}
 }
 
-func Create(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 
 	azureRGStackName := fmt.Sprintf("%s_rg", tenant.Spec.Code)
 	res, err := updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))

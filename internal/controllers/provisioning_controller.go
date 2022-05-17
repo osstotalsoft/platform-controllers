@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -18,11 +19,13 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"totalsoft.ro/platform-controllers/internal/provisioners"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	clientsetScheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
-	informersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning/v1alpha1"
+	platformInformersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/platform/v1alpha1"
+	provisioningInformersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning/v1alpha1"
 )
 
 const (
@@ -30,13 +33,16 @@ const (
 	// SuccessSynced is used as part of the Event 'reason' when a Resource is synced
 	SuccessSynced = "Synced successfully"
 	ErrorSynced   = "Error"
+
+	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
+	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 )
 
 // ProvisioningController is the controller implementation for Tenant resources
 type ProvisioningController struct {
 	factory   informers.SharedInformerFactory
 	clientset clientset.Interface
-	migrater  func(platform string, tenant *provisioningv1.Tenant) error
+	migrater  func(platform string, tenant *platformv1.Tenant) error
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -50,15 +56,15 @@ type ProvisioningController struct {
 
 	provisioner provisioners.CreateInfrastructureFunc
 
-	platformInformer       informersv1.PlatformInformer
-	tenantInformer         informersv1.TenantInformer
-	azureDbInformer        informersv1.AzureDatabaseInformer
-	azureManagedDbInformer informersv1.AzureManagedDatabaseInformer
+	platformInformer       platformInformersv1.PlatformInformer
+	tenantInformer         platformInformersv1.TenantInformer
+	azureDbInformer        provisioningInformersv1.AzureDatabaseInformer
+	azureManagedDbInformer provisioningInformersv1.AzureManagedDatabaseInformer
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
 	provisioner provisioners.CreateInfrastructureFunc,
-	migrater func(platform string, tenant *provisioningv1.Tenant) error,
+	migrater func(platform string, tenant *platformv1.Tenant) error,
 	eventBroadcaster record.EventBroadcaster) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
@@ -74,8 +80,8 @@ func NewProvisioningController(clientSet clientset.Interface,
 		recorder:  &record.FakeRecorder{},
 		factory:   factory,
 
-		platformInformer:       factory.Provisioning().V1alpha1().Platforms(),
-		tenantInformer:         factory.Provisioning().V1alpha1().Tenants(),
+		platformInformer:       factory.Platform().V1alpha1().Platforms(),
+		tenantInformer:         factory.Platform().V1alpha1().Tenants(),
 		azureDbInformer:        factory.Provisioning().V1alpha1().AzureDatabases(),
 		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 
@@ -193,7 +199,8 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	// Get the Tenant resource with this namespace/name
-	tenant, err := c.tenantInformer.Lister().Tenants(namespace).Get(name)
+	// use the live query API, to get the latest version instead of listers which are cached
+	tenant, err := c.clientset.PlatformV1alpha1().Tenants(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		// The tenant resource may no longer exist, in which case we stop processing.
 		if errors.IsNotFound(err) {
@@ -203,7 +210,13 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 
-	azureDbs, err := c.azureDbInformer.Lister().List(labels.Everything())
+	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Spec.Code)
+	skipTenantLabelSelector, err := labels.Parse(fmt.Sprintf("%s!=true", skipTenantLabel))
+	if err != nil {
+		return err
+	}
+
+	azureDbs, err := c.azureDbInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
@@ -217,7 +230,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureDbs = azureDbs[:n]
 
-	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(labels.Everything())
+	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
@@ -249,30 +262,43 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	} else {
 		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, err.Error())
 	}
-	c.updateTenantStatus(tenant, err)
+	_, e := c.updateTenantStatus(tenant, err)
+	if e != nil {
+		//just log this error, don't propagate
+		utilruntime.HandleError(e)
+	}
 
 	return err
 }
 
-func (c *ProvisioningController) updateTenantStatus(tenant *provisioningv1.Tenant, err error) {
+func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) (*platformv1.Tenant, error) {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
 	tenantCopy := tenant.DeepCopy()
 	tenantCopy.Status.LastResyncTime = metav1.Now()
-	tenantCopy.Status.State = SuccessSynced
+
 	if err != nil {
-		tenantCopy.Status.State = ErrorSynced
+		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  FailedReason,
+			Message: err.Error(),
+		})
+	} else {
+		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionTrue,
+			Reason:  SucceededReason,
+			Message: SuccessSynced,
+		})
 	}
 
 	// If the CustomResourceSubresources feature gate is not enabled,
 	// we must use Update instead of UpdateStatus to update the Status block of the resource.
 	// UpdateStatus will not allow changes to the Spec of the resource,
 	// which is ideal for ensuring nothing other than resource status has been updated.
-	_, err = c.clientset.ProvisioningV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
-	if err != nil {
-		utilruntime.HandleError(err)
-	}
+	return c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
 }
 
 func (c *ProvisioningController) enqueueAllTenant(platform string) {
@@ -288,9 +314,13 @@ func (c *ProvisioningController) enqueueAllTenant(platform string) {
 	}
 }
 
-func (c *ProvisioningController) enqueueTenant(tenant *provisioningv1.Tenant) {
+func (c *ProvisioningController) enqueueTenant(tenant *platformv1.Tenant) {
 	var tenantKey string
 	var err error
+
+	if v, ok := tenant.Labels[SkipProvisioningLabel]; ok && v == "true" {
+		return
+	}
 
 	if tenantKey, err = cache.MetaNamespaceKeyFunc(tenant); err != nil {
 		utilruntime.HandleError(err)
@@ -311,46 +341,29 @@ func decodeKey(key string) (platformKey, tenantKey string, err error) {
 	return "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
-func addTenantHandlers(informer informersv1.TenantInformer, handler func(*provisioningv1.Tenant)) {
+func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func(*platformv1.Tenant)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Tenant)
+			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant added", "name", comp.Name, "namespace", comp.Namespace)
 			handler(comp)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldT := oldObj.(*provisioningv1.Tenant)
-			newT := newObj.(*provisioningv1.Tenant)
+			oldT := oldObj.(*platformv1.Tenant)
+			newT := newObj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
 			if oldT.Spec != newT.Spec {
 				handler(newT)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Tenant)
+			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
 		},
 	})
 }
 
-func addPlatformHandlers(informer informersv1.PlatformInformer) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Platform)
-			klog.V(4).InfoS("platform added", "name", comp.Name, "namespace", comp.Namespace)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			comp := newObj.(*provisioningv1.Platform)
-			klog.V(4).InfoS("platform updated - do nothing", "name", comp.Name, "namespace", comp.Namespace)
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Platform)
-			klog.V(4).InfoS("platform deleted  - do nothing", "name", comp.Name, "namespace", comp.Namespace)
-		},
-	})
-}
-
-func addAzureDbHandlers(informer informersv1.AzureDatabaseInformer, handler func(platform string)) {
+func addAzureDbHandlers(informer provisioningInformersv1.AzureDatabaseInformer, handler func(platform string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureDatabase)
@@ -370,7 +383,7 @@ func addAzureDbHandlers(informer informersv1.AzureDatabaseInformer, handler func
 	})
 }
 
-func addAzureManagedDbHandlers(informer informersv1.AzureManagedDatabaseInformer, handler func(platform string)) {
+func addAzureManagedDbHandlers(informer provisioningInformersv1.AzureManagedDatabaseInformer, handler func(platform string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureManagedDatabase)

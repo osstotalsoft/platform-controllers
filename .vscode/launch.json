@@ -5,12 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Launch config controller",
+            "name": "Run config controller",
             "type": "go",
             "request": "launch",
             "mode": "auto",
             "program": "./cmd/configuration",
             "args": ["-v", "4"]
+        },
+        {
+            "name": "Run provisioner",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "./cmd/tenant-provisioner",
+            "args": [
+                "--v",
+                "4"
+            ],
+            "env": {
+                "AZURE_LOCATION": "West Europe",
+                "VAULT_ADDR": "http://localhost:65455/",
+                // "VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN"
+            }
         }
     ]
 }

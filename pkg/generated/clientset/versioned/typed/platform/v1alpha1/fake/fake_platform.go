@@ -27,17 +27,17 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 // FakePlatforms implements PlatformInterface
 type FakePlatforms struct {
-	Fake *FakeProvisioningV1alpha1
+	Fake *FakePlatformV1alpha1
 }
 
-var platformsResource = schema.GroupVersionResource{Group: "provisioning.totalsoft.ro", Version: "v1alpha1", Resource: "platforms"}
+var platformsResource = schema.GroupVersionResource{Group: "platform.totalsoft.ro", Version: "v1alpha1", Resource: "platforms"}
 
-var platformsKind = schema.GroupVersionKind{Group: "provisioning.totalsoft.ro", Version: "v1alpha1", Kind: "Platform"}
+var platformsKind = schema.GroupVersionKind{Group: "platform.totalsoft.ro", Version: "v1alpha1", Kind: "Platform"}
 
 // Get takes name of the platform, and returns the corresponding platform object, and an error if there is any.
 func (c *FakePlatforms) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Platform, err error) {

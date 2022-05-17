@@ -1,9 +1,12 @@
 package provisioners
 
-import provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+import (
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+)
 
 type CreateInfrastructureFunc func(platform string,
-	tenant *provisioningv1.Tenant,
+	tenant *platformv1.Tenant,
 	infra *InfrastructureManifests) error
 
 type InfrastructureManifests struct {
