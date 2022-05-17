@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"totalsoft.ro/platform-controllers/internal/provisioners"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
 )
@@ -15,7 +16,7 @@ import (
 func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	type result struct {
 		platform string
-		tenant   *provisioningv1.Tenant
+		tenant   *platformv1.Tenant
 		infra    *provisioners.InfrastructureManifests
 	}
 
@@ -27,7 +28,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newTenant("dev3", "qa"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
@@ -96,7 +97,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		clientset := fakeClientset.NewSimpleClientset(tenant)
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 			outputs = append(outputs, result{platform, tenant, infra})
 			wg.Wait()
 			return nil
@@ -110,8 +111,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		}
 
 		go c.processNextWorkItem(1)
-		go c.factory.Provisioning().V1alpha1().Tenants().Informer().GetIndexer().Update(tenant)
-		go c.factory.Provisioning().V1alpha1().Tenants().Informer().GetIndexer().Update(tenant)
+		go c.factory.Platform().V1alpha1().Tenants().Informer().GetIndexer().Update(tenant)
+		go c.factory.Platform().V1alpha1().Tenants().Informer().GetIndexer().Update(tenant)
 		time.Sleep(time.Second)
 		wg.Done()
 
@@ -138,7 +139,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newAzureManagedDb("db1", "dev"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
@@ -181,7 +182,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newAzureManagedDb("db1", "dev2"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *provisioningv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
 			outputs = append(outputs, result{platform, tenant, infra})
 			return nil
 		}
@@ -260,14 +261,14 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 }
 
-func newTenant(name, platform string) *provisioningv1.Tenant {
-	return &provisioningv1.Tenant{
+func newTenant(name, platform string) *platformv1.Tenant {
+	return &platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
 		},
-		Spec: provisioningv1.TenantSpec{
+		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
 			Code:        name,
 		},

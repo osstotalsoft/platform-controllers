@@ -33,15 +33,3 @@ type AzureManagedDatabaseListerExpansion interface{}
 // AzureManagedDatabaseNamespaceListerExpansion allows custom methods to be added to
 // AzureManagedDatabaseNamespaceLister.
 type AzureManagedDatabaseNamespaceListerExpansion interface{}
-
-// PlatformListerExpansion allows custom methods to be added to
-// PlatformLister.
-type PlatformListerExpansion interface{}
-
-// TenantListerExpansion allows custom methods to be added to
-// TenantLister.
-type TenantListerExpansion interface{}
-
-// TenantNamespaceListerExpansion allows custom methods to be added to
-// TenantNamespaceLister.
-type TenantNamespaceListerExpansion interface{}

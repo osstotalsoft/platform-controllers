@@ -21,24 +21,24 @@ package fake
 import (
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/platform/v1alpha1"
 )
 
-type FakeProvisioningV1alpha1 struct {
+type FakePlatformV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeProvisioningV1alpha1) AzureDatabases(namespace string) v1alpha1.AzureDatabaseInterface {
-	return &FakeAzureDatabases{c, namespace}
+func (c *FakePlatformV1alpha1) Platforms() v1alpha1.PlatformInterface {
+	return &FakePlatforms{c}
 }
 
-func (c *FakeProvisioningV1alpha1) AzureManagedDatabases(namespace string) v1alpha1.AzureManagedDatabaseInterface {
-	return &FakeAzureManagedDatabases{c, namespace}
+func (c *FakePlatformV1alpha1) Tenants(namespace string) v1alpha1.TenantInterface {
+	return &FakeTenants{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeProvisioningV1alpha1) RESTClient() rest.Interface {
+func (c *FakePlatformV1alpha1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

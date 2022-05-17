@@ -1,7 +1,36 @@
 # platform-controllers
 Kubernetes first, multi-tenant infrastructure provisioning services
 
-## Provisioning-controller 
+## platform.totalsoft.ro
+Custom platform resources
+### Platform
+Definition can be found [here](./helm/crds/platform.totalsoft.ro_platforms.yaml)
+Example:
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: Platform
+metadata:
+  name: charismaonline.qa
+spec:
+  code: qa
+```
+
+### Tenant
+Definition can be found [here](./helm/crds/platform.totalsoft.ro_tenants.yaml)
+Example:
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: Tenant
+metadata:
+  name: tenant1
+  namespace: qa
+spec:
+  code: tenant1
+  id: cbb451f2-a7c0-430a-949c-54d576c77b8d
+  platformRef: charismaonline.qa
+```
+
+## provisioning.totalsoft.ro
 monitors infrastructure manifests and provisions the desired infrastructure for every platform tenant.
 
 > *Note* You can skip provisioning for one tenant by adding the label `provisioning.totalsoft.ro/skip-provisioning`="true"
@@ -56,4 +85,4 @@ spec:
 > *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 
-## Configuration-controller
+## configuration.totalsoft.ro

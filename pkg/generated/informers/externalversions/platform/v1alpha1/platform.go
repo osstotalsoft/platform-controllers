@@ -26,65 +26,64 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
 	cache "k8s.io/client-go/tools/cache"
-	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	versioned "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	internalinterfaces "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/internalinterfaces"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/listers/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/listers/platform/v1alpha1"
 )
 
-// TenantInformer provides access to a shared informer and lister for
-// Tenants.
-type TenantInformer interface {
+// PlatformInformer provides access to a shared informer and lister for
+// Platforms.
+type PlatformInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1alpha1.TenantLister
+	Lister() v1alpha1.PlatformLister
 }
 
-type tenantInformer struct {
+type platformInformer struct {
 	factory          internalinterfaces.SharedInformerFactory
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
-	namespace        string
 }
 
-// NewTenantInformer constructs a new informer for Tenant type.
+// NewPlatformInformer constructs a new informer for Platform type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewTenantInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
-	return NewFilteredTenantInformer(client, namespace, resyncPeriod, indexers, nil)
+func NewPlatformInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers) cache.SharedIndexInformer {
+	return NewFilteredPlatformInformer(client, resyncPeriod, indexers, nil)
 }
 
-// NewFilteredTenantInformer constructs a new informer for Tenant type.
+// NewFilteredPlatformInformer constructs a new informer for Platform type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredTenantInformer(client versioned.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredPlatformInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ProvisioningV1alpha1().Tenants(namespace).List(context.TODO(), options)
+				return client.PlatformV1alpha1().Platforms().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.ProvisioningV1alpha1().Tenants(namespace).Watch(context.TODO(), options)
+				return client.PlatformV1alpha1().Platforms().Watch(context.TODO(), options)
 			},
 		},
-		&provisioningv1alpha1.Tenant{},
+		&platformv1alpha1.Platform{},
 		resyncPeriod,
 		indexers,
 	)
 }
 
-func (f *tenantInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
-	return NewFilteredTenantInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
+func (f *platformInformer) defaultInformer(client versioned.Interface, resyncPeriod time.Duration) cache.SharedIndexInformer {
+	return NewFilteredPlatformInformer(client, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
-func (f *tenantInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&provisioningv1alpha1.Tenant{}, f.defaultInformer)
+func (f *platformInformer) Informer() cache.SharedIndexInformer {
+	return f.factory.InformerFor(&platformv1alpha1.Platform{}, f.defaultInformer)
 }
 
-func (f *tenantInformer) Lister() v1alpha1.TenantLister {
-	return v1alpha1.NewTenantLister(f.Informer().GetIndexer())
+func (f *platformInformer) Lister() v1alpha1.PlatformLister {
+	return v1alpha1.NewPlatformLister(f.Informer().GetIndexer())
 }

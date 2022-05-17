@@ -18,11 +18,13 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"totalsoft.ro/platform-controllers/internal/provisioners"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	clientsetScheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
-	informersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning/v1alpha1"
+	platformInformersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/platform/v1alpha1"
+	provisioningInformersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning/v1alpha1"
 )
 
 const (
@@ -38,7 +40,7 @@ const (
 type ProvisioningController struct {
 	factory   informers.SharedInformerFactory
 	clientset clientset.Interface
-	migrater  func(platform string, tenant *provisioningv1.Tenant) error
+	migrater  func(platform string, tenant *platformv1.Tenant) error
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -52,15 +54,15 @@ type ProvisioningController struct {
 
 	provisioner provisioners.CreateInfrastructureFunc
 
-	platformInformer       informersv1.PlatformInformer
-	tenantInformer         informersv1.TenantInformer
-	azureDbInformer        informersv1.AzureDatabaseInformer
-	azureManagedDbInformer informersv1.AzureManagedDatabaseInformer
+	platformInformer       platformInformersv1.PlatformInformer
+	tenantInformer         platformInformersv1.TenantInformer
+	azureDbInformer        provisioningInformersv1.AzureDatabaseInformer
+	azureManagedDbInformer provisioningInformersv1.AzureManagedDatabaseInformer
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
 	provisioner provisioners.CreateInfrastructureFunc,
-	migrater func(platform string, tenant *provisioningv1.Tenant) error,
+	migrater func(platform string, tenant *platformv1.Tenant) error,
 	eventBroadcaster record.EventBroadcaster) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
@@ -76,8 +78,8 @@ func NewProvisioningController(clientSet clientset.Interface,
 		recorder:  &record.FakeRecorder{},
 		factory:   factory,
 
-		platformInformer:       factory.Provisioning().V1alpha1().Platforms(),
-		tenantInformer:         factory.Provisioning().V1alpha1().Tenants(),
+		platformInformer:       factory.Platform().V1alpha1().Platforms(),
+		tenantInformer:         factory.Platform().V1alpha1().Tenants(),
 		azureDbInformer:        factory.Provisioning().V1alpha1().AzureDatabases(),
 		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 
@@ -262,7 +264,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	return err
 }
 
-func (c *ProvisioningController) updateTenantStatus(tenant *provisioningv1.Tenant, err error) {
+func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
@@ -277,7 +279,7 @@ func (c *ProvisioningController) updateTenantStatus(tenant *provisioningv1.Tenan
 	// we must use Update instead of UpdateStatus to update the Status block of the resource.
 	// UpdateStatus will not allow changes to the Spec of the resource,
 	// which is ideal for ensuring nothing other than resource status has been updated.
-	_, err = c.clientset.ProvisioningV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
+	_, err = c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
 	if err != nil {
 		utilruntime.HandleError(err)
 	}
@@ -296,7 +298,7 @@ func (c *ProvisioningController) enqueueAllTenant(platform string) {
 	}
 }
 
-func (c *ProvisioningController) enqueueTenant(tenant *provisioningv1.Tenant) {
+func (c *ProvisioningController) enqueueTenant(tenant *platformv1.Tenant) {
 	var tenantKey string
 	var err error
 
@@ -323,46 +325,46 @@ func decodeKey(key string) (platformKey, tenantKey string, err error) {
 	return "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
-func addTenantHandlers(informer informersv1.TenantInformer, handler func(*provisioningv1.Tenant)) {
+func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func(*platformv1.Tenant)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Tenant)
+			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant added", "name", comp.Name, "namespace", comp.Namespace)
 			handler(comp)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldT := oldObj.(*provisioningv1.Tenant)
-			newT := newObj.(*provisioningv1.Tenant)
+			oldT := oldObj.(*platformv1.Tenant)
+			newT := newObj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
 			if oldT.Spec != newT.Spec {
 				handler(newT)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Tenant)
+			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
 		},
 	})
 }
 
-func addPlatformHandlers(informer informersv1.PlatformInformer) {
+func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Platform)
+			comp := obj.(*platformv1.Platform)
 			klog.V(4).InfoS("platform added", "name", comp.Name, "namespace", comp.Namespace)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			comp := newObj.(*provisioningv1.Platform)
+			comp := newObj.(*platformv1.Platform)
 			klog.V(4).InfoS("platform updated - do nothing", "name", comp.Name, "namespace", comp.Namespace)
 		},
 		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.Platform)
+			comp := obj.(*platformv1.Platform)
 			klog.V(4).InfoS("platform deleted  - do nothing", "name", comp.Name, "namespace", comp.Namespace)
 		},
 	})
 }
 
-func addAzureDbHandlers(informer informersv1.AzureDatabaseInformer, handler func(platform string)) {
+func addAzureDbHandlers(informer provisioningInformersv1.AzureDatabaseInformer, handler func(platform string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureDatabase)
@@ -382,7 +384,7 @@ func addAzureDbHandlers(informer informersv1.AzureDatabaseInformer, handler func
 	})
 }
 
-func addAzureManagedDbHandlers(informer informersv1.AzureManagedDatabaseInformer, handler func(platform string)) {
+func addAzureManagedDbHandlers(informer provisioningInformersv1.AzureManagedDatabaseInformer, handler func(platform string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureManagedDatabase)

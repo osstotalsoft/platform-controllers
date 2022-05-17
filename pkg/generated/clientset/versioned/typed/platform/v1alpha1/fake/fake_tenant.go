@@ -27,18 +27,18 @@ import (
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 // FakeTenants implements TenantInterface
 type FakeTenants struct {
-	Fake *FakeProvisioningV1alpha1
+	Fake *FakePlatformV1alpha1
 	ns   string
 }
 
-var tenantsResource = schema.GroupVersionResource{Group: "provisioning.totalsoft.ro", Version: "v1alpha1", Resource: "tenants"}
+var tenantsResource = schema.GroupVersionResource{Group: "platform.totalsoft.ro", Version: "v1alpha1", Resource: "tenants"}
 
-var tenantsKind = schema.GroupVersionKind{Group: "provisioning.totalsoft.ro", Version: "v1alpha1", Kind: "Tenant"}
+var tenantsKind = schema.GroupVersionKind{Group: "platform.totalsoft.ro", Version: "v1alpha1", Kind: "Tenant"}
 
 // Get takes name of the tenant, and returns the corresponding tenant object, and an error if there is any.
 func (c *FakeTenants) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Tenant, err error) {
