@@ -1,5 +1,5 @@
 global:
-  registry: ghcr.io/osstotalsoft
+  registry: ghcr.io/osstotalsoft/platform-controllers
   tag: "0.0.1"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: "registrykey"

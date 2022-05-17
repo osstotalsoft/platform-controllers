@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: configuration-controller
-        image: "{{ .Values.global.registry }}/configuration-controller:{{ .Values.global.tag }}"
+        image: "{{ .Values.global.registry }}/platform-controllers:{{ .Values.global.tag }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         env:
         - name: NAMESPACE

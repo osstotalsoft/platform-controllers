@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: provisioning-controller
-        image: "{{ .Values.global.registry }}/provisioning-controller:{{ .Values.global.tag }}"
+        image: "{{ .Values.global.registry }}/platform-controllers:{{ .Values.global.tag }}"
         imagePullPolicy: {{ .Values.global.imagePullPolicy }}
         env:
         - name: NAMESPACE
