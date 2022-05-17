@@ -67,6 +67,30 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 
 	})
 
+	t.Run("skip tenant provisioning", func(t *testing.T) {
+		var outputs []result
+		aSkipProvisioningTenant := newTenant("dev1", "dev")
+		aSkipProvisioningTenant.ObjectMeta.Labels = map[string]string{
+			SkipProvisioningLabel: "true",
+		}
+		objects := []runtime.Object{
+			aSkipProvisioningTenant,
+		}
+		clientset := fakeClientset.NewSimpleClientset(objects...)
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+			outputs = append(outputs, result{platform, tenant, infra})
+			return nil
+		}
+		c := NewProvisioningController(clientset, infraCreator, nil, nil)
+		c.factory.Start(nil)
+		c.factory.WaitForCacheSync(nil)
+
+		if c.workqueue.Len() != 0 {
+			t.Error("queue should have only 0 items, but it has", c.workqueue.Len())
+		}
+
+	})
+
 	t.Run("add same tenant multiple times", func(t *testing.T) {
 		var outputs []result
 		tenant := newTenant("dev1", "dev")
@@ -149,6 +173,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected one managed db, got", len(outputs[0].infra.AzureManagedDbs))
 		}
 	})
+
 	t.Run("add one tenant and one database different platforms", func(t *testing.T) {
 		var outputs []result
 		objects := []runtime.Object{
@@ -189,6 +214,49 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		}
 		if len(outputs[0].infra.AzureManagedDbs) != 0 {
 			t.Error("expected no managed db, got", len(outputs[0].infra.AzureManagedDbs))
+		}
+	})
+
+	t.Run("skip tenant resource provisioning", func(t *testing.T) {
+		var outputs []result
+
+		tenant := newTenant("dev1", "dev")
+		azureDb := newAzureDb("db1", "dev")
+		azureDb.ObjectMeta.Labels = map[string]string{
+			"provisioning.totalsoft.ro/skip-tenant-dev1": "true",
+		}
+		objects := []runtime.Object{
+			tenant,
+			azureDb,
+		}
+		clientset := fakeClientset.NewSimpleClientset(objects...)
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+			outputs = append(outputs, result{platform, tenant, infra})
+			return nil
+		}
+		c := NewProvisioningController(clientset, infraCreator, nil, nil)
+		c.factory.Start(nil)
+		c.factory.WaitForCacheSync(nil)
+
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		if result := c.processNextWorkItem(1); !result {
+			t.Error("processing failed")
+		}
+
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		if len(outputs) != 1 {
+			t.Error("expected 1 output, got", len(outputs))
+			return
+		}
+		if len(outputs[0].infra.AzureDbs) != 0 {
+			t.Error("expected zero dbs, got", len(outputs[0].infra.AzureDbs))
 		}
 	})
 }
