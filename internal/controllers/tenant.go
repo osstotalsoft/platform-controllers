@@ -200,7 +200,8 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	// Get the Tenant resource with this namespace/name
-	tenant, err := c.tenantInformer.Lister().Tenants(namespace).Get(name)
+	// use the live query API, to get the latest version instead of listers which are cached
+	tenant, err := c.clientset.PlatformV1alpha1().Tenants(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		// The tenant resource may no longer exist, in which case we stop processing.
 		if errors.IsNotFound(err) {
@@ -256,18 +257,22 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	} else {
 		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, err.Error())
 	}
-	c.updateTenantStatus(tenant, err)
+	_, e := c.updateTenantStatus(tenant, err)
+	if e != nil {
+		//just log this error, don't propagate
+		utilruntime.HandleError(e)
+	}
 
 	return err
 }
 
-func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) *platformv1.Tenant {
+func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) (*platformv1.Tenant, error) {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
 	// get the latest tenant version when updating statuses
-	t, _ := c.tenantInformer.Lister().Tenants(tenant.Namespace).Get(tenant.Name)
-	tenantCopy := t.DeepCopy()
+	//t, _ := c.tenantInformer.Lister().Tenants(tenant.Namespace).Get(tenant.Name)
+	tenantCopy := tenant.DeepCopy()
 	tenantCopy.Status.LastResyncTime = metav1.Now()
 
 	if err != nil {
@@ -290,11 +295,7 @@ func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, e
 	// we must use Update instead of UpdateStatus to update the Status block of the resource.
 	// UpdateStatus will not allow changes to the Spec of the resource,
 	// which is ideal for ensuring nothing other than resource status has been updated.
-	t, err = c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
-	if err != nil {
-		utilruntime.HandleError(err)
-	}
-	return t
+	return c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
 }
 
 func (c *ProvisioningController) enqueueAllTenant(platform string) {
