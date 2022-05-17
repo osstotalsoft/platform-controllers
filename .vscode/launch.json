@@ -9,7 +9,7 @@
             "type": "go",
             "request": "launch",
             "mode": "auto",
-            "program": "./cmd/configuration",
+            "program": "./cmd/configuration-controller",
             "args": ["-v", "4"]
         },
         {
