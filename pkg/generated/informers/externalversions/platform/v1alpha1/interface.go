@@ -24,10 +24,10 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// AzureDatabases returns a AzureDatabaseInformer.
-	AzureDatabases() AzureDatabaseInformer
-	// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
-	AzureManagedDatabases() AzureManagedDatabaseInformer
+	// Platforms returns a PlatformInformer.
+	Platforms() PlatformInformer
+	// Tenants returns a TenantInformer.
+	Tenants() TenantInformer
 }
 
 type version struct {
@@ -41,12 +41,12 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// AzureDatabases returns a AzureDatabaseInformer.
-func (v *version) AzureDatabases() AzureDatabaseInformer {
-	return &azureDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// Platforms returns a PlatformInformer.
+func (v *version) Platforms() PlatformInformer {
+	return &platformInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
-func (v *version) AzureManagedDatabases() AzureManagedDatabaseInformer {
-	return &azureManagedDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// Tenants returns a TenantInformer.
+func (v *version) Tenants() TenantInformer {
+	return &tenantInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

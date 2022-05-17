@@ -3,13 +3,14 @@ package migration
 import (
 	"context"
 	"fmt"
+	"time"
+
 	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
-	"time"
-	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 const (
@@ -17,12 +18,12 @@ const (
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
-	nsFilter func(string, string) bool) func(platform string, tenant *provisioningv1.Tenant) error {
+	nsFilter func(string, string) bool) func(platform string, tenant *platformv1.Tenant) error {
 	namer := func(jName, tenant string) string {
 		return fmt.Sprintf("%s-%s-%d", jName, tenant, time.Now().Unix())
 	}
 
-	return func(platform string, tenant *provisioningv1.Tenant) error {
+	return func(platform string, tenant *platformv1.Tenant) error {
 		jobs, err := kubeClient.BatchV1().Jobs("").List(context.TODO(), metav1.ListOptions{
 			LabelSelector: JobLabelSelectorKey + "=true",
 		})

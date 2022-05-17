@@ -5,20 +5,19 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: tenants.provisioning.totalsoft.ro
+  name: platforms.platform.totalsoft.ro
 spec:
-  group: provisioning.totalsoft.ro
+  group: platform.totalsoft.ro
   names:
-    kind: Tenant
-    listKind: TenantList
-    plural: tenants
-    singular: tenant
-  scope: Namespaced
+    kind: Platform
+    listKind: PlatformList
+    plural: platforms
+    singular: platform
+  scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Tenant describes an Rusi component type.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,31 +32,11 @@ spec:
           metadata:
             type: object
           spec:
-            description: TenantSpec is the spec for a tenant.
             properties:
               code:
                 type: string
-              id:
-                type: string
-              platformRef:
-                type: string
             required:
             - code
-            - id
-            - platformRef
-            type: object
-          status:
-            description: TenantStatus is the status for a tenant.
-            properties:
-              lastResyncTime:
-                description: LastResyncTime contains a timestamp for the last time
-                  a resync of the tenant took place.
-                format: date-time
-                type: string
-              state:
-                description: State is the state of the tenant update - one of `succeeded`
-                  or `failed`
-                type: string
             type: object
         type: object
     served: true
