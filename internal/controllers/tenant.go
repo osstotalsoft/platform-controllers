@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -32,6 +33,10 @@ const (
 	// SuccessSynced is used as part of the Event 'reason' when a Resource is synced
 	SuccessSynced = "Synced successfully"
 	ErrorSynced   = "Error"
+
+	SucceededReason   string = "Succeeded"
+	FailedReason      string = "Failed"
+	ProgressingReason string = "Progressing"
 )
 
 // ProvisioningController is the controller implementation for Tenant resources
@@ -256,25 +261,40 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	return err
 }
 
-func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) {
+func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) *platformv1.Tenant {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
-	tenantCopy := tenant.DeepCopy()
+	// get the latest tenant version when updating statuses
+	t, _ := c.tenantInformer.Lister().Tenants(tenant.Namespace).Get(tenant.Name)
+	tenantCopy := t.DeepCopy()
 	tenantCopy.Status.LastResyncTime = metav1.Now()
-	tenantCopy.Status.State = SuccessSynced
+
 	if err != nil {
-		tenantCopy.Status.State = ErrorSynced
+		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  FailedReason,
+			Message: err.Error(),
+		})
+	} else {
+		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionTrue,
+			Reason:  SucceededReason,
+			Message: SuccessSynced,
+		})
 	}
 
 	// If the CustomResourceSubresources feature gate is not enabled,
 	// we must use Update instead of UpdateStatus to update the Status block of the resource.
 	// UpdateStatus will not allow changes to the Spec of the resource,
 	// which is ideal for ensuring nothing other than resource status has been updated.
-	_, err = c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
+	t, err = c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
 	if err != nil {
 		utilruntime.HandleError(err)
 	}
+	return t
 }
 
 func (c *ProvisioningController) enqueueAllTenant(platform string) {
@@ -331,23 +351,6 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
-		},
-	})
-}
-
-func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.Platform)
-			klog.V(4).InfoS("platform added", "name", comp.Name, "namespace", comp.Namespace)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			comp := newObj.(*platformv1.Platform)
-			klog.V(4).InfoS("platform updated - do nothing", "name", comp.Name, "namespace", comp.Namespace)
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.Platform)
-			klog.V(4).InfoS("platform deleted  - do nothing", "name", comp.Name, "namespace", comp.Namespace)
 		},
 	})
 }
