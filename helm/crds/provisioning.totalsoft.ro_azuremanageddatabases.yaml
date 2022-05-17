@@ -15,7 +15,14 @@ spec:
     singular: azuremanageddatabase
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.platformRef
+      name: Platform
+      type: string
+    - jsonPath: .spec.domain
+      name: Domain
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         properties:
@@ -112,6 +119,7 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
 status:
   acceptedNames:
     kind: ""

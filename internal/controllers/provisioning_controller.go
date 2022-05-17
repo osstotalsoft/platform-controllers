@@ -8,6 +8,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -30,8 +31,13 @@ import (
 const (
 	controllerAgentName = "provisioning-controller"
 	// SuccessSynced is used as part of the Event 'reason' when a Resource is synced
-	SuccessSynced         = "Synced successfully"
-	ErrorSynced           = "Error"
+	SuccessSynced = "Synced successfully"
+	ErrorSynced   = "Error"
+
+	SucceededReason   string = "Succeeded"
+	FailedReason      string = "Failed"
+	ProgressingReason string = "Progressing"
+
 	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 )
@@ -197,7 +203,8 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	// Get the Tenant resource with this namespace/name
-	tenant, err := c.tenantInformer.Lister().Tenants(namespace).Get(name)
+	// use the live query API, to get the latest version instead of listers which are cached
+	tenant, err := c.clientset.PlatformV1alpha1().Tenants(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
 		// The tenant resource may no longer exist, in which case we stop processing.
 		if errors.IsNotFound(err) {
@@ -259,30 +266,43 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	} else {
 		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, err.Error())
 	}
-	c.updateTenantStatus(tenant, err)
+	_, e := c.updateTenantStatus(tenant, err)
+	if e != nil {
+		//just log this error, don't propagate
+		utilruntime.HandleError(e)
+	}
 
 	return err
 }
 
-func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) {
+func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) (*platformv1.Tenant, error) {
 	// NEVER modify objects from the store. It's a read-only, local cache.
 	// You can use DeepCopy() to make a deep copy of original object and modify this copy
 	// Or create a copy manually for better performance
 	tenantCopy := tenant.DeepCopy()
 	tenantCopy.Status.LastResyncTime = metav1.Now()
-	tenantCopy.Status.State = SuccessSynced
+
 	if err != nil {
-		tenantCopy.Status.State = ErrorSynced
+		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionFalse,
+			Reason:  FailedReason,
+			Message: err.Error(),
+		})
+	} else {
+		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
+			Type:    "Ready",
+			Status:  metav1.ConditionTrue,
+			Reason:  SucceededReason,
+			Message: SuccessSynced,
+		})
 	}
 
 	// If the CustomResourceSubresources feature gate is not enabled,
 	// we must use Update instead of UpdateStatus to update the Status block of the resource.
 	// UpdateStatus will not allow changes to the Spec of the resource,
 	// which is ideal for ensuring nothing other than resource status has been updated.
-	_, err = c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
-	if err != nil {
-		utilruntime.HandleError(err)
-	}
+	return c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
 }
 
 func (c *ProvisioningController) enqueueAllTenant(platform string) {
@@ -343,23 +363,6 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
-		},
-	})
-}
-
-func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.Platform)
-			klog.V(4).InfoS("platform added", "name", comp.Name, "namespace", comp.Namespace)
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			comp := newObj.(*platformv1.Platform)
-			klog.V(4).InfoS("platform updated - do nothing", "name", comp.Name, "namespace", comp.Namespace)
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.Platform)
-			klog.V(4).InfoS("platform deleted  - do nothing", "name", comp.Name, "namespace", comp.Namespace)
 		},
 	})
 }

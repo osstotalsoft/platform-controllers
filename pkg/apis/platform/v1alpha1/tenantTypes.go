@@ -7,8 +7,12 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
+// +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",description=""
+// +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
 
-// Tenant describes an Rusi component type.
+// Tenant describes an Application tenant component type.
 type Tenant struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
@@ -32,9 +36,13 @@ type TenantStatus struct {
 	// +optional
 	LastResyncTime metav1.Time `json:"lastResyncTime,omitempty"`
 
-	// State is the state of the tenant update - one of `succeeded` or `failed`
+	// Condition contains details for one aspect of the current state of this API Resource
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	// +listType=map
+	// +listMapKey=type
 	// +optional
-	State string `json:"state,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
