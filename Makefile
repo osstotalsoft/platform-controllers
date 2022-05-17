@@ -9,7 +9,7 @@ VERSION ?= edge
 
 # Helm template and install setting
 HELM:=helm
-RELEASE_NAME?=provisioning-controller
+RELEASE_NAME?=platform-controllers
 HELM_NAMESPACE?=default
 HELM_CHART_ROOT:=./helm
 
