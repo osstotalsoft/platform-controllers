@@ -38,7 +38,8 @@ const (
 	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
 	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
 
-	ConfigMapDomainLabelKey = "provisioning.totalsoft.ro/domain"
+	ConfigMapDomainLabel   = "platform.totalsoft.ro/domain"
+	ConfigMapPlatformLabel = "platform.totalsoft.ro/platform"
 )
 
 func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFunc {
@@ -61,7 +62,7 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *platformv1.Te
 			const userKey = "user"
 			adminPwd := generatePassword()
 			adminUser := fmt.Sprintf("sqlUser%s", tenant.Spec.Code)
-			secretPath := fmt.Sprintf("%s/%s/azure-databases/server", platform, tenant.Spec.Code)
+			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.Spec.Code)
 			secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
 			if secret != nil && secret.Data[pwdKey] != nil {
 				adminPwd = secret.Data[pwdKey].(string)
@@ -143,7 +144,7 @@ func handleValueExport(ctx *pulumi.Context, platform, domain, objectName string,
 
 	if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
 		name := objectNamingConvention(platform, domain, tenant.Spec.Code, objectName, "-")
-		return exportToConfigMap(ctx, name, exportTemplate.ToConfigMap.KeyTemplate, data, namespace, domain, value)
+		return exportToConfigMap(ctx, name, exportTemplate.ToConfigMap.KeyTemplate, data, namespace, domain, platform, value)
 	}
 	return nil
 }
@@ -166,7 +167,7 @@ func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
 }
 
 func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
-	templateContext interface{}, namespace, domain string, value pulumi.StringInput) error {
+	templateContext interface{}, namespace, domain, platform string, value pulumi.StringInput) error {
 	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
@@ -179,7 +180,10 @@ func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
 			Name:      pulumi.String(configMapName),
 			Namespace: pulumi.String(namespace),
-			Labels:    pulumi.ToStringMap(map[string]string{ConfigMapDomainLabelKey: domain}),
+			Labels: pulumi.ToStringMap(map[string]string{
+				ConfigMapDomainLabel:   domain,
+				ConfigMapPlatformLabel: platform,
+			}),
 		},
 		Immutable: pulumi.Bool(true),
 		Data:      data,
