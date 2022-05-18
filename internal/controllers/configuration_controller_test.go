@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -56,7 +55,7 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		_, err := c.kubeClientset.CoreV1().ConfigMaps("").List(context.TODO(), metav1.ListOptions{})
+		kubeInformerFactory.WaitForCacheSync(nil)
 		output, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
 		if err != nil {
 			t.Error(err)
@@ -70,7 +69,7 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
-	t.Run("multiple configAggregates for the same platform/domain should throw error", func(t *testing.T) {
+	t.Run("multiple configAggregates for the same platform and domain should throw error", func(t *testing.T) {
 		// Arrange
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", "domain1", "dev", map[string]string{"k1": "v1"}),
@@ -110,7 +109,8 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("").List(context.TODO(), metav1.ListOptions{})
+		kubeInformerFactory.WaitForCacheSync(nil)
+		foundConfigMap, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
 		if foundConfigMap != nil || err == nil {
 			t.Error("output config map should not be generated ")
 		}
