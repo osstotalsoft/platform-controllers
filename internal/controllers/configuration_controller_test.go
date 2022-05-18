@@ -55,7 +55,7 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		kubeInformerFactory.WaitForCacheSync(nil)
+		time.Sleep(1 * time.Second)
 		output, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
 		if err != nil {
 			t.Error(err)
@@ -109,7 +109,7 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		kubeInformerFactory.WaitForCacheSync(nil)
+		time.Sleep(1 * time.Second)
 		foundConfigMap, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
 		if foundConfigMap != nil || err == nil {
 			t.Error("output config map should not be generated ")
