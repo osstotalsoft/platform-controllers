@@ -54,8 +54,17 @@ spec:
         - name: PULUMI_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
-              name: pulumi-api-secret
-              key: accessToken
+              name: provisioner-secrets
+              key: pulumiAccessToken
+        {{- if .Values.global.vault.enabled }}              
+        - name: VAULT_ADDR
+          value: "{{ .Values.global.vault.address }}"
+        - name: VAULT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name:  provisioner-secrets
+              key: vaultAccessToken
+        {{- end }}              
         command:
         - "/tenant-provisioner"
         args:

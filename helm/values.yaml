@@ -4,3 +4,6 @@ global:
   imagePullPolicy: IfNotPresent
   imagePullSecrets: "registrykey"
   logLevel: 4
+  vault:
+    enabled: true
+    address: http://vault.vault:8200
