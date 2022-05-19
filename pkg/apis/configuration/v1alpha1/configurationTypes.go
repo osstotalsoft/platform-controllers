@@ -11,7 +11,7 @@ import (
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].message`
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
-// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.metadata.labels["platform.totalsoft.ro/domain"]`
+// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domain`
 type ConfigurationAggregate struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
@@ -23,6 +23,7 @@ type ConfigurationAggregate struct {
 
 type ConfigurationAggregateSpec struct {
 	PlatformRef string `json:"platformRef"`
+	Domain      string `json:"domain"`
 }
 
 type ConfigurationAggregateStatus struct {

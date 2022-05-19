@@ -15,7 +15,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreInformers "k8s.io/client-go/informers/core/v1"
-	v1 "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	coreListers "k8s.io/client-go/listers/core/v1"
@@ -34,6 +33,7 @@ const (
 	domainLabelName           = "platform.totalsoft.ro/domain"
 	platformLabelName         = "platform.totalsoft.ro/platform"
 	configControllerAgentName = "configuration-controller"
+	allDomainsLabelValue      = "all"
 
 	// SuccessSynced is used as part of the Event 'reason' when a ConfigurationAggregate is synced
 	SuccessConfigAggregateSynced = "Synced successfully"
@@ -44,7 +44,7 @@ const (
 
 	// MessageResourceExists is the message used for Events when a resource
 	// fails to sync due to a ConfigMap already existing
-	MessageResourceExists = "Resource %q already exists and is not managed by Foo"
+	MessageResourceExists = "Resource %q already exists and is not managed by ConfigurationAggregate"
 
 	// MessageResourceSynced is the message used for an Event fired when a ConfigurationAggregate
 	// is synced successfully
@@ -59,7 +59,7 @@ const (
 type ConfigurationController struct {
 	kubeClientset           kubernetes.Interface
 	configurationClientset  clientset.Interface
-	configMapInformer       v1.ConfigMapInformer
+	configMapInformer       coreInformers.ConfigMapInformer
 	configAggregateInformer informers.ConfigurationAggregateInformer
 
 	configMapsLister       coreListers.ConfigMapLister
@@ -123,7 +123,7 @@ func (c *ConfigurationController) Run(workers int, stopCh <-chan struct{}) error
 	defer c.workqueue.ShutDown()
 
 	// Start the informer factories to begin populating the informer caches
-	klog.Info("Starting Foo controller")
+	klog.Info("Starting configuration controller")
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
@@ -132,7 +132,7 @@ func (c *ConfigurationController) Run(workers int, stopCh <-chan struct{}) error
 	}
 
 	klog.Info("Starting workers")
-	// Launch two workers to process Foo resources
+	// Launch two workers to process ConfigurationAggregate and ConfigMap resources
 	for i := 0; i < workers; i++ {
 		go wait.Until(c.runWorker, time.Second, stopCh)
 	}
@@ -218,12 +218,6 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return nil
 	}
 
-	domainLabelSelector, err := labels.ValidatedSelectorFromSet(map[string]string{domainLabelName: domain})
-	if err != nil {
-		utilruntime.HandleError(err)
-		return nil
-	}
-
 	domainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
 			domainLabelName:   domain,
@@ -235,15 +229,26 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return nil
 	}
 
+	allDomainsAndPlatformLabelSelector, err :=
+		labels.ValidatedSelectorFromSet(map[string]string{
+			domainLabelName:   allDomainsLabelValue,
+			platformLabelName: platform,
+		})
+
+	if err != nil {
+		utilruntime.HandleError(err)
+		return nil
+	}
+
 	// Get the ConfigAggregates resource with this namespace::domain
-	configAggregates, err := c.configAggregatesLister.ConfigurationAggregates("").List(domainLabelSelector)
+	configAggregates, err := c.configAggregatesLister.ConfigurationAggregates("").List(labels.Everything())
 	if err != nil {
 		return err
 	}
 
 	n := 0
 	for _, db := range configAggregates {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && db.Spec.Domain == domain {
 			configAggregates[n] = db
 			n++
 		}
@@ -261,10 +266,18 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return err
 	}
 
+	allDomainsConfigMaps, err := c.configMapsLister.ConfigMaps("").List(allDomainsAndPlatformLabelSelector)
+	if err != nil {
+		return err
+	}
+
 	configMaps, err := c.configMapsLister.ConfigMaps("").List(domainAndPlatformLabelSelector)
 	if err != nil {
 		return err
 	}
+
+	configMaps = append(allDomainsConfigMaps, configMaps...)
+
 	outputConfigMapName := fmt.Sprintf("%s-%s-aggregate", platform, domain)
 	aggregatedConfigMap := c.aggregateConfigMaps(configAggregate, configMaps, outputConfigMapName)
 
@@ -363,8 +376,22 @@ func (c *ConfigurationController) updateStatus(configAggregate *v1alpha1.Configu
 }
 
 func (c *ConfigurationController) enqueueDomain(platform string, domain string) {
-	key := encodeDomainKey(platform, domain)
-	c.workqueue.Add(key)
+	if domain == allDomainsLabelValue {
+		configAggregates, err := c.configAggregatesLister.ConfigurationAggregates("").List(labels.Everything())
+		if err != nil {
+			return
+		}
+		for _, configAggregate := range configAggregates {
+			if configAggregate.Spec.PlatformRef == platform {
+				key := encodeDomainKey(platform, configAggregate.Spec.Domain)
+				c.workqueue.Add(key)
+			}
+		}
+	} else {
+		key := encodeDomainKey(platform, domain)
+		c.workqueue.Add(key)
+	}
+
 }
 
 func (c *ConfigurationController) aggregateConfigMaps(configMapAggregate *v1alpha1.ConfigurationAggregate, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
@@ -426,12 +453,13 @@ func addConfigAggregateHandlers(informer informers.ConfigurationAggregateInforme
 			newComp := newObj.(*v1alpha1.ConfigurationAggregate)
 			oldPlatform, oldDomain, oldOk := getAggregateConfigPlatformAndDomain(oldComp)
 			newPlatform, newDomain, newOk := getAggregateConfigPlatformAndDomain(newComp)
+			targetChanged := oldPlatform != newPlatform || oldDomain != newDomain
 
 			if !oldOk && !newOk {
 				return
 			}
 
-			if oldOk && !newOk {
+			if oldOk && (targetChanged || !newOk) {
 				klog.V(4).InfoS("ConfigMapAggregate invalidated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
 				// TODO: handle invalidation
 				//handler(oldPlatform, oldDomain)
@@ -513,8 +541,8 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 }
 
 func getAggregateConfigPlatformAndDomain(configAggregate *v1alpha1.ConfigurationAggregate) (platform string, domain string, ok bool) {
-	domain, domainlabelExists := configAggregate.Labels[domainLabelName]
-	if !domainlabelExists || len(domain) == 0 {
+	domain = configAggregate.Spec.Domain
+	if len(domain) == 0 {
 		return "", domain, false
 	}
 
@@ -527,8 +555,8 @@ func getAggregateConfigPlatformAndDomain(configAggregate *v1alpha1.Configuration
 }
 
 func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
-	domain, domainlabelExists := configMap.Labels[domainLabelName]
-	if !domainlabelExists || len(domain) == 0 {
+	domain, domainLabelExists := configMap.Labels[domainLabelName]
+	if !domainLabelExists || len(domain) == 0 {
 		return "", domain, false
 	}
 

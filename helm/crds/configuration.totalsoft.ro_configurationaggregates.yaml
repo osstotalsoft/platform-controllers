@@ -28,7 +28,7 @@ spec:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
-    - jsonPath: .metadata.labels["platform.totalsoft.ro/domain"]
+    - jsonPath: .spec.domain
       name: Domain
       type: string
     name: v1alpha1
@@ -49,9 +49,12 @@ spec:
             type: object
           spec:
             properties:
+              domain:
+                type: string
               platformRef:
                 type: string
             required:
+            - domain
             - platformRef
             type: object
           status:
