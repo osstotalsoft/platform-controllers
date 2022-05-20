@@ -86,3 +86,25 @@ spec:
 
 
 ## configuration.totalsoft.ro
+manages external configuration for the services in the platform
+
+### ConfigurationAggregate
+Definition can be found [here](./helm/crds/configuration.totalsoft.ro_configurationaggregates.yaml)
+
+It aggregates all config maps for the specified platform and domain and generates an output config map in the same namespace.
+
+Example:
+```yaml
+apiVersion: configuration.totalsoft.ro/v1alpha1
+kind: ConfigurationAggregate
+metadata:
+  name: test
+  namespace: qa-lsng
+spec:
+  domain: origination
+  platformRef: charismaonline.qa
+```
+
+> *Note 1* The monitored config maps can be in any namespace, they are identified by `platform.totalsoft.ro/domain`and `platform.totalsoft.ro/platform` labels
+
+> *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
