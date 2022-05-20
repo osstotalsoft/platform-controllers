@@ -58,7 +58,7 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 		// Arrange
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", "domain1", "dev", map[string]string{"k1": "v1"}),
-			newConfigMap("configMap2", "all", "dev", map[string]string{"k2": "v2"}),
+			newConfigMap("configMap2", globalDomainLabelValue, "dev", map[string]string{"k2": "v2"}),
 		}
 		configAggregates := []runtime.Object{
 			newConfigAggregate("configAggregate1", "domain1", "dev"),

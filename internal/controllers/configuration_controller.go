@@ -33,7 +33,7 @@ const (
 	domainLabelName           = "platform.totalsoft.ro/domain"
 	platformLabelName         = "platform.totalsoft.ro/platform"
 	configControllerAgentName = "configuration-controller"
-	allDomainsLabelValue      = "all"
+	globalDomainLabelValue    = "global"
 
 	// SuccessSynced is used as part of the Event 'reason' when a ConfigurationAggregate is synced
 	SuccessConfigAggregateSynced = "Synced successfully"
@@ -231,9 +231,9 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return nil
 	}
 
-	allDomainsAndPlatformLabelSelector, err :=
+	globalDomainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
-			domainLabelName:   allDomainsLabelValue,
+			domainLabelName:   globalDomainLabelValue,
 			platformLabelName: platform,
 		})
 
@@ -286,7 +286,7 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return err
 	}
 
-	allDomainsConfigMaps, err := c.configMapsLister.ConfigMaps("").List(allDomainsAndPlatformLabelSelector)
+	globalDomainConfigMaps, err := c.configMapsLister.ConfigMaps("").List(globalDomainAndPlatformLabelSelector)
 	if err != nil {
 		c.updateStatus(configAggregate, false, err.Error())
 		return err
@@ -298,7 +298,7 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return err
 	}
 
-	configMaps = append(allDomainsConfigMaps, configMaps...)
+	configMaps = append(globalDomainConfigMaps, configMaps...)
 
 	aggregatedConfigMap := c.aggregateConfigMaps(configAggregate, configMaps, outputConfigMapName)
 
@@ -400,7 +400,7 @@ func (c *ConfigurationController) updateStatus(configAggregate *v1alpha1.Configu
 }
 
 func (c *ConfigurationController) enqueueDomain(platform string, domain string) {
-	if domain == allDomainsLabelValue {
+	if domain == globalDomainLabelValue {
 		configAggregates, err := c.configAggregatesLister.ConfigurationAggregates("").List(labels.Everything())
 		if err != nil {
 			return

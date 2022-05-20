@@ -107,4 +107,4 @@ spec:
 
 > *Note 1* The monitored config maps can be in any namespace, they are identified by `platform.totalsoft.ro/domain`and `platform.totalsoft.ro/platform` labels
 
-> *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "all". These global config maps are always monitored and aggregated with the current domain config maps.
+> *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
