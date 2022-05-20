@@ -486,7 +486,6 @@ func addConfigAggregateHandlers(informer informers.ConfigurationAggregateInforme
 			if oldOk && (targetChanged || !newOk) {
 				klog.V(4).InfoS("ConfigMapAggregate invalidated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
 				handler(oldPlatform, oldDomain)
-				return
 			}
 
 			if oldOk && newOk {
