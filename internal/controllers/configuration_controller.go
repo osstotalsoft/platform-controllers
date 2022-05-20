@@ -218,6 +218,8 @@ func (c *ConfigurationController) syncHandler(key string) error {
 		return nil
 	}
 
+	outputConfigMapName := fmt.Sprintf("%s-%s-aggregate", platform, domain)
+
 	domainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
 			domainLabelName:   domain,
@@ -256,6 +258,18 @@ func (c *ConfigurationController) syncHandler(key string) error {
 	configAggregates = configAggregates[:n]
 
 	if len(configAggregates) != 1 {
+		// Cleanup if configAggregate was invalidated
+		if len(configAggregates) == 0 {
+			domainConfigMaps, err := c.configMapsLister.ConfigMaps("").List(domainAndPlatformLabelSelector)
+			if err == nil {
+				for _, domainConfigMap := range domainConfigMaps {
+					if domainConfigMap.Name == outputConfigMapName {
+						c.kubeClientset.CoreV1().ConfigMaps(domainConfigMap.Namespace).Delete(context.TODO(), domainConfigMap.Name, metav1.DeleteOptions{})
+					}
+				}
+			}
+		}
+
 		utilruntime.HandleError(fmt.Errorf("there should be exactly one ConfigMapAggregate for a platform %s and domain %s. Found: %d", platform, domain, len(configAggregates)))
 		return nil
 	}
@@ -268,17 +282,18 @@ func (c *ConfigurationController) syncHandler(key string) error {
 
 	allDomainsConfigMaps, err := c.configMapsLister.ConfigMaps("").List(allDomainsAndPlatformLabelSelector)
 	if err != nil {
+		c.updateStatus(configAggregate, false, err.Error())
 		return err
 	}
 
 	configMaps, err := c.configMapsLister.ConfigMaps("").List(domainAndPlatformLabelSelector)
 	if err != nil {
+		c.updateStatus(configAggregate, false, err.Error())
 		return err
 	}
 
 	configMaps = append(allDomainsConfigMaps, configMaps...)
 
-	outputConfigMapName := fmt.Sprintf("%s-%s-aggregate", platform, domain)
 	aggregatedConfigMap := c.aggregateConfigMaps(configAggregate, configMaps, outputConfigMapName)
 
 	// Get the output config map for this namespace::domain
@@ -292,7 +307,8 @@ func (c *ConfigurationController) syncHandler(key string) error {
 	// attempt processing again later. This could have been caused by a
 	// temporary network failure, or any other transient reason.
 	if err != nil {
-		c.updateStatus(configAggregate, false, "Aggregation failed")
+		c.recorder.Event(configAggregate, corev1.EventTypeWarning, ErrorSynced, err.Error())
+		c.updateStatus(configAggregate, false, "Aggregation failed"+err.Error())
 		return err
 	}
 
@@ -318,7 +334,8 @@ func (c *ConfigurationController) syncHandler(key string) error {
 	// attempt processing again later. This could have been caused by a
 	// temporary network failure, or any other transient reason.
 	if err != nil {
-		c.updateStatus(configAggregate, false, "Aggregation failed")
+		c.recorder.Event(configAggregate, corev1.EventTypeWarning, ErrorSynced, err.Error())
+		c.updateStatus(configAggregate, false, "Aggregation failed: "+err.Error())
 		return err
 	}
 
@@ -343,7 +360,7 @@ func (c *ConfigurationController) resetStatus(configAggregate *v1alpha1.Configur
 	}
 	apimeta.SetStatusCondition(&configAggregate.Status.Conditions, newCondition)
 
-	return c.configurationClientset.ConfigurationV1alpha1().ConfigurationAggregates(configAggregate.DeepCopy().Namespace).UpdateStatus(context.TODO(), configAggregate, metav1.UpdateOptions{})
+	return c.configurationClientset.ConfigurationV1alpha1().ConfigurationAggregates(configAggregate.Namespace).UpdateStatus(context.TODO(), configAggregate, metav1.UpdateOptions{})
 }
 
 func (c *ConfigurationController) updateStatus(configAggregate *v1alpha1.ConfigurationAggregate, isReady bool, message string) {
@@ -414,7 +431,7 @@ func (c *ConfigurationController) aggregateConfigMaps(configMapAggregate *v1alph
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outputName,
 			Labels: map[string]string{
-				domainLabelName:   configMapAggregate.Labels[domainLabelName],
+				domainLabelName:   configMapAggregate.Spec.Domain,
 				platformLabelName: configMapAggregate.Spec.PlatformRef,
 			},
 			Namespace: configMapAggregate.Namespace,
@@ -461,8 +478,7 @@ func addConfigAggregateHandlers(informer informers.ConfigurationAggregateInforme
 
 			if oldOk && (targetChanged || !newOk) {
 				klog.V(4).InfoS("ConfigMapAggregate invalidated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
-				// TODO: handle invalidation
-				//handler(oldPlatform, oldDomain)
+				handler(oldPlatform, oldDomain)
 				return
 			}
 

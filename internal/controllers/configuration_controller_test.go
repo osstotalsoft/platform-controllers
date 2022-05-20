@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -42,8 +43,43 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		time.Sleep(1 * time.Second)
-		output, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput := map[string]string{"k1": "v1", "k2": "v2"}
+		if !reflect.DeepEqual(output.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output.Data)
+		}
+	})
+
+	t.Run("aggregate domain specific and global config map", func(t *testing.T) {
+		// Arrange
+		configMaps := []runtime.Object{
+			newConfigMap("configMap1", "domain1", "dev", map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", "all", "dev", map[string]string{"k2": "v2"}),
+		}
+		configAggregates := []runtime.Object{
+			newConfigAggregate("configAggregate1", "domain1", "dev"),
+		}
+		c := runController(configAggregates, configMaps)
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return
@@ -79,8 +115,7 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		time.Sleep(1 * time.Second)
-		output, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return
@@ -116,8 +151,48 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			item, _ := c.workqueue.Get()
 			t.Error("queue should be empty, but contains ", item)
 		}
-		time.Sleep(1 * time.Second)
-		foundConfigMap, err := c.configMapsLister.ConfigMaps(metav1.NamespaceDefault).Get("dev-domain1-aggregate")
+
+		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
+		if foundConfigMap != nil || err == nil {
+			t.Error("output config map should not be generated ")
+		}
+	})
+
+	t.Run("invalidating the configurationAggregate should remove output", func(t *testing.T) {
+		// Arrange
+		configMaps := []runtime.Object{
+			newConfigMap("configMap1", "domain1", "dev", map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", "domain1", "dev", map[string]string{"k2": "v2"}),
+		}
+		configAggregates := []runtime.Object{
+			newConfigAggregate("configAggregate1", "domain1", "dev"),
+		}
+		c := runController(configAggregates, configMaps)
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		foundConfigAggregate, err := c.configurationClientset.ConfigurationV1alpha1().ConfigurationAggregates(metav1.NamespaceDefault).Get(context.TODO(), "configAggregate1", metav1.GetOptions{})
+		if err != nil {
+			t.Error("configurationAggregate not found")
+		}
+		foundConfigAggregate = foundConfigAggregate.DeepCopy()
+		foundConfigAggregate.Spec.Domain = "wrong"
+		c.configurationClientset.ConfigurationV1alpha1().ConfigurationAggregates(metav1.NamespaceDefault).Update(context.TODO(), foundConfigAggregate, metav1.UpdateOptions{})
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
 		if foundConfigMap != nil || err == nil {
 			t.Error("output config map should not be generated ")
 		}
