@@ -269,8 +269,14 @@ func (c *ConfigurationController) syncHandler(key string) error {
 				}
 			}
 		}
+		msg := fmt.Sprintf("there should be exactly one ConfigMapAggregate for a platform %s and domain %s. Found: %d", platform, domain, len(configAggregates))
 
-		utilruntime.HandleError(fmt.Errorf("there should be exactly one ConfigMapAggregate for a platform %s and domain %s. Found: %d", platform, domain, len(configAggregates)))
+		for _, configAggregate := range configAggregates {
+			c.recorder.Event(configAggregate, corev1.EventTypeWarning, ErrorSynced, msg)
+			c.updateStatus(configAggregate, false, "Aggregation failed: "+msg)
+		}
+
+		utilruntime.HandleError(fmt.Errorf(msg))
 		return nil
 	}
 
@@ -317,6 +323,7 @@ func (c *ConfigurationController) syncHandler(key string) error {
 	if !metav1.IsControlledBy(outputConfigMap, configAggregate) {
 		msg := fmt.Sprintf(MessageResourceExists, outputConfigMap.Name)
 		c.recorder.Event(configAggregate, corev1.EventTypeWarning, ErrResourceExists, msg)
+		c.updateStatus(configAggregate, false, "Aggregation failed"+err.Error())
 		return nil
 	}
 
