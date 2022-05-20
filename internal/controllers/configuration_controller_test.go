@@ -181,8 +181,11 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 			t.Error("configurationAggregate not found")
 		}
 		foundConfigAggregate = foundConfigAggregate.DeepCopy()
-		foundConfigAggregate.Spec.Domain = "wrong"
+		foundConfigAggregate.Spec.Domain = "domain2"
 		c.configurationClientset.ConfigurationV1alpha1().ConfigurationAggregates(metav1.NamespaceDefault).Update(context.TODO(), foundConfigAggregate, metav1.UpdateOptions{})
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
@@ -194,7 +197,11 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
 		if foundConfigMap != nil || err == nil {
-			t.Error("output config map should not be generated ")
+			t.Error("output config map dev-domain1-aggregate should be deleted ")
+		}
+		foundConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain2-aggregate", metav1.GetOptions{})
+		if foundConfigMap == nil || err != nil {
+			t.Error("output config map dev-domain2-aggregate should be present ")
 		}
 	})
 }
