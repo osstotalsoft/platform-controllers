@@ -3,6 +3,7 @@ module totalsoft.ro/platform-controllers
 go 1.17
 
 require (
+	github.com/google/uuid v1.1.2
 	github.com/pulumi/pulumi-azure-native/sdk v1.62.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.18.2
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.4.0
