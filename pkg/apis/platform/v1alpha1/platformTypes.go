@@ -9,17 +9,27 @@ import (
 // +genclient:nonNamespaced
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Age",type=string,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].status`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.conditions[?(@.type=="Ready")].message`
 
 type Platform struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec PlatformSpec `json:"spec,omitempty"`
+	Spec   PlatformSpec   `json:"spec,omitempty"`
+	Status PlatformStatus `json:"status,omitempty"`
 }
 
 type PlatformSpec struct {
 	Code string `json:"code"`
+}
+
+type PlatformStatus struct {
+	// Conditions holds the conditions for the HelmRepository.
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
