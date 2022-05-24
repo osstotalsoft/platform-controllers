@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-controller
+  labels:
+    app: platform-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: platform-controller
+  template:
+    metadata:
+      labels:
+        app: platform-controller
+        app.kubernetes.io/name: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Values.global.tag }}
+        app.kubernetes.io/managed-by: "helm"
+    spec:
+      containers:
+      - name: platform-controller
+        image: "{{ .Values.global.registry }}/platform-controllers:{{ .Values.global.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        command:
+        - "/platform-controller"
+        args:
+        - "--v"
+        - "{{ .Values.global.logLevel }}"
+      serviceAccountName: platform-controller
+{{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.global.imagePullSecrets }}
+{{- end }}

@@ -99,7 +99,7 @@ func NewPlatformController(
 		tenantsSynced:     tenantInformer.Informer().HasSynced,
 
 		recorder:  &record.FakeRecorder{},
-		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "tenant-controller"),
+		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "platform"),
 	}
 
 	utilruntime.Must(clientsetScheme.AddToScheme(scheme.Scheme))
