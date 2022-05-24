@@ -46,10 +46,10 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			return
 		}
 		expectedOutput := map[string]string{
-			"MultiTenancy__Tenants__tenant1____Code":     tenant1.Spec.Code,
-			"MultiTenancy__Tenants__tenant1____TenantId": tenant1.Spec.Id,
-			"MultiTenancy__Tenants__tenant2____Code":     tenant2.Spec.Code,
-			"MultiTenancy__Tenants__tenant2____TenantId": tenant2.Spec.Id,
+			"MultiTenancy__Tenants__tenant1__Code":     tenant1.Spec.Code,
+			"MultiTenancy__Tenants__tenant1__TenantId": tenant1.Spec.Id,
+			"MultiTenancy__Tenants__tenant2__Code":     tenant2.Spec.Code,
+			"MultiTenancy__Tenants__tenant2__TenantId": tenant2.Spec.Id,
 		}
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
@@ -138,6 +138,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		t1.Spec.PlatformRef = "charismaonline.uat"
 		t1, _ = c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Update(context.TODO(), t1, metav1.UpdateOptions{})
 		c.platformInformer.Informer().GetIndexer().Update(t1) //fix stale cache
+		time.Sleep(10 * time.Millisecond)                     //additional fix stale cache
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
@@ -168,10 +169,57 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		if expectedOutput := map[string]string{
-			"MultiTenancy__Tenants__tenant1____Code":     tenant1.Spec.Code,
-			"MultiTenancy__Tenants__tenant1____TenantId": tenant1.Spec.Id,
+			"MultiTenancy__Tenants__tenant1__Code":     tenant1.Spec.Code,
+			"MultiTenancy__Tenants__tenant1__TenantId": tenant1.Spec.Id,
 		}; !reflect.DeepEqual(uatConfigMap.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", uatConfigMap.Data)
+		}
+	})
+
+	t.Run("tenant deleted", func(t *testing.T) {
+		// Arrange
+		platformQa := _newPlatform("qa", "charismaonline.qa")
+		tenant1 := _newTenant("tenant1", "charismaonline.qa")
+
+		c := _runController([]runtime.Object{platformQa, tenant1})
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// t1, err := c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Get(context.TODO(), "tenant1", metav1.GetOptions{})
+		// if err != nil {
+		// 	t.Error(err)
+		// }
+		err := c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Delete(context.TODO(), "tenant1", metav1.DeleteOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		//c.platformInformer.Informer().GetIndexer().Delete(t1) //fix stale cache
+		time.Sleep(10 * time.Millisecond) //fix stale cache
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+		time.Sleep(10 * time.Millisecond) //fix stale cache
+		configMap, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if expectedOutput := map[string]string{}; !reflect.DeepEqual(configMap.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", configMap.Data)
 		}
 	})
 }

@@ -29,31 +29,6 @@ import (
 	listers "totalsoft.ro/platform-controllers/pkg/generated/listers/platform/v1alpha1"
 )
 
-const (
-// platformLabelName         = "platform.totalsoft.ro/platform"
-// configControllerAgentName = "configuration-controller"
-
-// // SuccessSynced is used as part of the Event 'reason' when a ConfigurationAggregate is synced
-// SuccessConfigAggregateSynced = "Synced successfully"
-
-// // ErrResourceExists is used as part of the Event 'reason' when a ConfigurationAggregate fails
-// // to sync due to a ConfigMap of the same name already existing.
-// ErrResourceExists = "ErrResourceExists"
-
-// // MessageResourceExists is the message used for Events when a resource
-// // fails to sync due to a ConfigMap already existing
-// MessageResourceExists = "Resource %q already exists and is not managed by Platform"
-
-// // MessageResourceSynced is the message used for an Event fired when a ConfigurationAggregate
-// // is synced successfully
-// MessageResourceSynced = "Synced successfully"
-
-// // ReadyCondition indicates the resource is ready and fully reconciled.
-// // If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
-// // representation of actual state.
-// ReadyCondition string = "Ready"
-)
-
 type PlatformController struct {
 	kubeClientset     kubernetes.Interface
 	platformClientset clientset.Interface
@@ -112,9 +87,9 @@ func NewPlatformController(
 	// Set up an event handler for when Tenant resources change
 	tenantInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.Tenant)
-			klog.V(4).InfoS("tenant added", "name", comp.Name, "namespace", comp.Namespace)
-			controller.enqueuePlatformByTenant(comp)
+			tenant := obj.(*platformv1.Tenant)
+			klog.V(4).InfoS("tenant added", "name", tenant.Name, "namespace", tenant.Namespace)
+			controller.enqueuePlatformByTenant(tenant)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldT := oldObj.(*platformv1.Tenant)
@@ -129,8 +104,9 @@ func NewPlatformController(
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.Tenant)
-			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
+			tenant := obj.(*platformv1.Tenant)
+			klog.V(4).InfoS("tenant deleted", "name", tenant.Name, "namespace", tenant.Namespace)
+			controller.enqueuePlatformByTenant(tenant)
 		},
 	})
 
@@ -325,7 +301,8 @@ func (c *PlatformController) syncHandler(key string) error {
 	// attempt processing again later. This could have been caused by a
 	// temporary network failure, or any other transient reason.
 	if err != nil {
-		c.updateStatus(platform, false, "Sync failed")
+		c.updateStatus(platform, false, "Sync failed: "+err.Error())
+		c.recorder.Event(platform, corev1.EventTypeWarning, "Synced failed", err.Error())
 		return err
 	}
 
@@ -395,7 +372,7 @@ func (c *PlatformController) enqueuePlatform(platform *platformv1.Platform) {
 func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platform, tenants []*platformv1.Tenant, outputName string) *corev1.ConfigMap {
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
-		keyPrefix := fmt.Sprintf("MultiTenancy__Tenants__%s__", tenant.Spec.Code)
+		keyPrefix := fmt.Sprintf("MultiTenancy__Tenants__%s", tenant.Spec.Code)
 		tenantData[fmt.Sprintf("%s__TenantId", keyPrefix)] = tenant.Spec.Id
 		tenantData[fmt.Sprintf("%s__Code", keyPrefix)] = tenant.Spec.Code
 	}
@@ -405,6 +382,7 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 			Name: outputName,
 			Labels: map[string]string{
 				platformLabelName: platform.Name,
+				domainLabelName:   globalDomainLabelValue,
 			},
 			Namespace: platform.Spec.Code,
 			OwnerReferences: []metav1.OwnerReference{
