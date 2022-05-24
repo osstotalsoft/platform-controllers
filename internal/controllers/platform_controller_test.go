@@ -136,7 +136,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 		t1 = t1.DeepCopy()
 		t1.Spec.PlatformRef = "charismaonline.uat"
-		c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Update(context.TODO(), t1, metav1.UpdateOptions{})
+		t1, _ = c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Update(context.TODO(), t1, metav1.UpdateOptions{})
+		c.platformInformer.Informer().GetIndexer().Update(t1) //fix stale cache
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
