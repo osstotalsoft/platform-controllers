@@ -119,9 +119,13 @@ func NewPlatformController(
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldT := oldObj.(*platformv1.Tenant)
 			newT := newObj.(*platformv1.Tenant)
-			klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
 			if oldT.Spec != newT.Spec {
+				klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
 				controller.enqueuePlatformByTenant(newT)
+
+				if platformChanged := oldT.Spec.PlatformRef != newT.Spec.PlatformRef; platformChanged {
+					controller.enqueuePlatformByTenant(oldT)
+				}
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -148,6 +152,7 @@ func NewPlatformController(
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Platform)
 			klog.V(4).InfoS("platform deleted", "name", comp.Name)
+			// Output configmap automatically deleted because it is controlled
 		},
 	})
 
