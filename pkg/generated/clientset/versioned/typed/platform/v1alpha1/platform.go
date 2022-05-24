@@ -40,6 +40,7 @@ type PlatformsGetter interface {
 type PlatformInterface interface {
 	Create(ctx context.Context, platform *v1alpha1.Platform, opts v1.CreateOptions) (*v1alpha1.Platform, error)
 	Update(ctx context.Context, platform *v1alpha1.Platform, opts v1.UpdateOptions) (*v1alpha1.Platform, error)
+	UpdateStatus(ctx context.Context, platform *v1alpha1.Platform, opts v1.UpdateOptions) (*v1alpha1.Platform, error)
 	Delete(ctx context.Context, name string, opts v1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error
 	Get(ctx context.Context, name string, opts v1.GetOptions) (*v1alpha1.Platform, error)
@@ -121,6 +122,21 @@ func (c *platforms) Update(ctx context.Context, platform *v1alpha1.Platform, opt
 	err = c.client.Put().
 		Resource("platforms").
 		Name(platform.Name).
+		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(platform).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *platforms) UpdateStatus(ctx context.Context, platform *v1alpha1.Platform, opts v1.UpdateOptions) (result *v1alpha1.Platform, err error) {
+	result = &v1alpha1.Platform{}
+	err = c.client.Put().
+		Resource("platforms").
+		Name(platform.Name).
+		SubResource("status").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(platform).
 		Do(ctx).
