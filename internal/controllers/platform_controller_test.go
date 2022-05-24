@@ -221,6 +221,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		if expectedOutput := map[string]string{}; !reflect.DeepEqual(configMap.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", configMap.Data)
 		}
+
 	})
 }
 
