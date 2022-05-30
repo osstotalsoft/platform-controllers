@@ -41,6 +41,8 @@ const (
 	requeueInterval            = 2 * time.Minute
 )
 
+var getSecrets = getSecretWithKubernetesAuth
+
 type SecretsController struct {
 	csiClientset             csiClientset.Interface
 	configurationClientset   clientset.Interface
@@ -359,13 +361,13 @@ func (c *SecretsController) syncHandler(key string) error {
 
 	role := fmt.Sprintf("%s-readonly", platform)
 
-	globalSecrets, err := getSecretWithKubernetesAuth(platform, globalDomainLabelValue, role)
+	globalSecrets, err := getSecrets(platform, globalDomainLabelValue, role)
 	if err != nil {
 		c.updateStatus(secretsAggregate, false, err.Error())
 		return err
 	}
 
-	secrets, err := getSecretWithKubernetesAuth(platform, domain, role)
+	secrets, err := getSecrets(platform, domain, role)
 	if err != nil {
 		c.updateStatus(secretsAggregate, false, err.Error())
 		return err
@@ -444,9 +446,9 @@ func (c *SecretsController) aggregateSecrets(secretAggregate *v1alpha1.SecretsAg
 	var sb strings.Builder
 	for _, secretKey := range orderedSecretKeys {
 		objString := fmt.Sprintf(`
-      - objectName: "%s"
-        secretPath: "%s"
-        secretKey: "%s"`, secretKey, mergedSecrets[secretKey].Path, mergedSecrets[secretKey].Key)
+- objectName: "%s"
+  secretPath: "%s"
+  secretKey: "%s"`, secretKey, mergedSecrets[secretKey].Path, mergedSecrets[secretKey].Key)
 		sb.WriteString(objString)
 	}
 	objectsString := sb.String()

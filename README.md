@@ -108,3 +108,24 @@ spec:
 > *Note 1* The monitored config maps can be in any namespace, they are identified by `platform.totalsoft.ro/domain`and `platform.totalsoft.ro/platform` labels
 
 > *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
+
+### ConfigurationAggregate
+Definition can be found [here](./helm/crds/configuration.totalsoft.ro_secretsaggregates.yaml)
+
+It aggregates all secrets stored in vault for the specified platform and domain and generates an output CSI SecretProviderClass namespace.
+
+Example:
+```yaml
+apiVersion: configuration.totalsoft.ro/v1alpha1
+kind: SecretsAggregate
+metadata:
+  name: test
+  namespace: qa-lsng
+spec:
+  domain: origination
+  platformRef: charismaonline.qa
+```
+
+> *Note 1* The monitored vault secrets are organized by platform (secret engine) and domain (subfolder). The keys of the secrets should be the environment variable names, and if they are not unique for the domain they will be overwritten.
+
+> *Note 2* There is support for global platform secrets, in this case domain folder should be named "global". These global secrets are always monitored and aggregated with the current domain secrets.
