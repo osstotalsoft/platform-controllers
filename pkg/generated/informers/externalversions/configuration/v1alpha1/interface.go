@@ -26,6 +26,8 @@ import (
 type Interface interface {
 	// ConfigurationAggregates returns a ConfigurationAggregateInformer.
 	ConfigurationAggregates() ConfigurationAggregateInformer
+	// SecretsAggregates returns a SecretsAggregateInformer.
+	SecretsAggregates() SecretsAggregateInformer
 }
 
 type version struct {
@@ -42,4 +44,9 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // ConfigurationAggregates returns a ConfigurationAggregateInformer.
 func (v *version) ConfigurationAggregates() ConfigurationAggregateInformer {
 	return &configurationAggregateInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// SecretsAggregates returns a SecretsAggregateInformer.
+func (v *version) SecretsAggregates() SecretsAggregateInformer {
+	return &secretsAggregateInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
