@@ -109,7 +109,7 @@ spec:
 
 > *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
 
-### ConfigurationAggregate
+### SecretsAggregate
 Definition can be found [here](./helm/crds/configuration.totalsoft.ro_secretsaggregates.yaml)
 
 It aggregates all secrets stored in vault for the specified platform and domain and generates an output CSI SecretProviderClass namespace.
