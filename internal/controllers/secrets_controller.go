@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -37,7 +38,6 @@ import (
 
 const (
 	secretsControllerAgentName = "secrets-controller"
-	vaultAddress               = "http://vault.default:8200"
 	requeueInterval            = 2 * time.Minute
 )
 
@@ -452,6 +452,8 @@ func (c *SecretsController) aggregateSecrets(secretAggregate *v1alpha1.SecretsAg
 		sb.WriteString(objString)
 	}
 	objectsString := sb.String()
+
+	vaultAddress := os.Getenv("VAULT_ADDR") //"http://vault.default:8200"
 
 	return &apisv1.SecretProviderClass{
 		ObjectMeta: metav1.ObjectMeta{
