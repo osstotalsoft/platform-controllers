@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +16,7 @@ import (
 
 func TestSecretsAggregateController_processNextWorkItem(t *testing.T) {
 
-	t.Run("aggregate two config maps", func(t *testing.T) {
+	t.Run("aggregate two secrets", func(t *testing.T) {
 		// Arrange
 		configAggregates := []runtime.Object{
 			newSecretsAggregate("secretsAggregate1", "domain1", "dev"),
@@ -62,9 +61,8 @@ func TestSecretsAggregateController_processNextWorkItem(t *testing.T) {
   secretPath: "path2"
   secretKey: "key2"`
 		if output.Spec.Parameters["objects"] != expectedOutput {
-			t.Error("expected output config ", expectedOutput, ", got", output.Spec.Parameters["objects"])
+			t.Error("expected output secret objects", expectedOutput, ", got", output.Spec.Parameters["objects"])
 		}
-		fmt.Println(output)
 	})
 }
 
