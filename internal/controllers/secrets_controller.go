@@ -43,6 +43,10 @@ const (
 
 var getSecrets = getSecretWithKubernetesAuth
 
+type secretSpec struct {
+	Path string `json:"platformRef"`
+	Key  string `json:"domain"`
+}
 type SecretsController struct {
 	csiClientset             csiClientset.Interface
 	configurationClientset   clientset.Interface
@@ -131,14 +135,9 @@ func (c *SecretsController) Run(workers int, stopCh <-chan struct{}) error {
 	return nil
 }
 
-type SecretSpec struct {
-	Path string `json:"platformRef"`
-	Key  string `json:"domain"`
-}
-
 // Fetches a key-value secret (kv-v2) after authenticating to Vault with a Kubernetes service account.
 // For a more in-depth setup explanation, please see the relevant readme in the hashicorp/vault-examples repo.
-func getSecretWithKubernetesAuth(platform, domain, role string) ([]SecretSpec, error) {
+func getSecretWithKubernetesAuth(platform, domain, role string) ([]secretSpec, error) {
 	// If set, the VAULT_ADDR environment variable will be the address that
 	// your pod uses to communicate with Vault.
 	config := vault.DefaultConfig() // modify for more granular configuration
@@ -174,7 +173,7 @@ func getSecretWithKubernetesAuth(platform, domain, role string) ([]SecretSpec, e
 		return nil, fmt.Errorf("no auth info was returned after login")
 	}
 
-	secretList := []SecretSpec{}
+	secretList := []secretSpec{}
 
 	var listSecrets func(string, string) error
 	listSecrets = func(secretEngine, parentPath string) (err error) {
@@ -198,7 +197,7 @@ func getSecretWithKubernetesAuth(platform, domain, role string) ([]SecretSpec, e
 				return fmt.Errorf("data type assertion failed: %T %#v", secret.Data["data"], secret.Data["data"])
 			}
 			for secretKey := range secretData {
-				secretList = append(secretList, SecretSpec{Path: secretPath, Key: secretKey})
+				secretList = append(secretList, secretSpec{Path: secretPath, Key: secretKey})
 			}
 			return nil
 		}
@@ -428,8 +427,8 @@ func (c *SecretsController) syncHandler(key string) error {
 	return nil
 }
 
-func (c *SecretsController) aggregateSecrets(secretAggregate *v1alpha1.SecretsAggregate, secrets []SecretSpec, outputName, role string) *apisv1.SecretProviderClass {
-	mergedSecrets := map[string]SecretSpec{}
+func (c *SecretsController) aggregateSecrets(secretAggregate *v1alpha1.SecretsAggregate, secrets []secretSpec, outputName, role string) *apisv1.SecretProviderClass {
+	mergedSecrets := map[string]secretSpec{}
 	for _, secret := range secrets {
 		if existingValue, ok := mergedSecrets[secret.Key]; ok {
 			msg := fmt.Sprintf("Key %s already exists with value %s. It will be replaced by secret %s with value %s", secret.Key, existingValue, secret.Key, secret)
@@ -563,7 +562,7 @@ func addSecretsAggregateHandlers(informer informers.SecretsAggregateInformer, ha
 				return
 			}
 
-			if oldOk && (targetChanged || !newOk) {
+			if oldOk && targetChanged {
 				klog.V(4).InfoS("SecretsAggregate invalidated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
 				handler(oldPlatform, oldDomain)
 			}

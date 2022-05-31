@@ -18,16 +18,16 @@ func TestSecretsAggregateController_processNextWorkItem(t *testing.T) {
 
 	t.Run("aggregate two secrets", func(t *testing.T) {
 		// Arrange
-		configAggregates := []runtime.Object{
+		secretsAggregates := []runtime.Object{
 			newSecretsAggregate("secretsAggregate1", "domain1", "dev"),
 		}
 		spcs := []runtime.Object{}
-		c := runSecretsController(configAggregates, spcs)
+		c := runSecretsController(secretsAggregates, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
-		getSecrets = func(platform, domain, role string) ([]SecretSpec, error) {
-			return []SecretSpec{
+		getSecrets = func(platform, domain, role string) ([]secretSpec, error) {
+			return []secretSpec{
 				{Key: "key1", Path: "path1"},
 				{Key: "key2", Path: "path2"},
 			}, nil
