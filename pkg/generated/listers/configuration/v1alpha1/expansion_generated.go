@@ -25,3 +25,11 @@ type ConfigurationAggregateListerExpansion interface{}
 // ConfigurationAggregateNamespaceListerExpansion allows custom methods to be added to
 // ConfigurationAggregateNamespaceLister.
 type ConfigurationAggregateNamespaceListerExpansion interface{}
+
+// SecretsAggregateListerExpansion allows custom methods to be added to
+// SecretsAggregateLister.
+type SecretsAggregateListerExpansion interface{}
+
+// SecretsAggregateNamespaceListerExpansion allows custom methods to be added to
+// SecretsAggregateNamespaceLister.
+type SecretsAggregateNamespaceListerExpansion interface{}

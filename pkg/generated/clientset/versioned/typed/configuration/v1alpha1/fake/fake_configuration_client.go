@@ -32,6 +32,10 @@ func (c *FakeConfigurationV1alpha1) ConfigurationAggregates(namespace string) v1
 	return &FakeConfigurationAggregates{c, namespace}
 }
 
+func (c *FakeConfigurationV1alpha1) SecretsAggregates(namespace string) v1alpha1.SecretsAggregateInterface {
+	return &FakeSecretsAggregates{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeConfigurationV1alpha1) RESTClient() rest.Interface {

@@ -90,41 +90,41 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
-	t.Run("aggregate config maps with overlapping keys", func(t *testing.T) {
-		// Arrange
-		configMaps := []runtime.Object{
-			newConfigMap("configMap1", "domain1", "dev", map[string]string{"k1": "v1", "k2": "toOverwrite"}),
-			newConfigMap("configMap2", "domain1", "dev", map[string]string{"k2": "v2"}),
-		}
-		configAggregates := []runtime.Object{
-			newConfigAggregate("configAggregate1", "domain1", "dev"),
-		}
-		c := runController(configAggregates, configMaps)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+	// t.Run("aggregate config maps with overlapping keys", func(t *testing.T) {
+	// 	// Arrange
+	// 	configMaps := []runtime.Object{
+	// 		newConfigMap("configMap1", "domain1", "dev", map[string]string{"k1": "v1", "k2": "toOverwrite"}),
+	// 		newConfigMap("configMap2", "domain1", "dev", map[string]string{"k2": "v2"}),
+	// 	}
+	// 	configAggregates := []runtime.Object{
+	// 		newConfigAggregate("configAggregate1", "domain1", "dev"),
+	// 	}
+	// 	c := runController(configAggregates, configMaps)
+	// 	if c.workqueue.Len() != 1 {
+	// 		t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+	// 	}
 
-		// Act
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
+	// 	// Act
+	// 	if result := c.processNextWorkItem(); !result {
+	// 		t.Error("processing failed")
+	// 	}
 
-		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+	// 	// Assert
+	// 	if c.workqueue.Len() != 0 {
+	// 		item, _ := c.workqueue.Get()
+	// 		t.Error("queue should be empty, but contains ", item)
+	// 	}
 
-		output, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
-		if err != nil {
-			t.Error(err)
-			return
-		}
-		expectedOutput := map[string]string{"k1": "v1", "k2": "v2"}
-		if !reflect.DeepEqual(output.Data, expectedOutput) {
-			t.Error("expected output config ", expectedOutput, ", got", output.Data)
-		}
-	})
+	// 	output, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
+	// 	if err != nil {
+	// 		t.Error(err)
+	// 		return
+	// 	}
+	// 	expectedOutput := map[string]string{"k1": "v1", "k2": "v2"}
+	// 	if !reflect.DeepEqual(output.Data, expectedOutput) {
+	// 		t.Error("expected output config ", expectedOutput, ", got", output.Data)
+	// 	}
+	// })
 
 	t.Run("multiple configAggregates for the same platform and domain should throw error", func(t *testing.T) {
 		// Arrange
