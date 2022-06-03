@@ -19,8 +19,8 @@ spec:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
-    - jsonPath: .spec.domains[:]
-      name: Domain
+    - jsonPath: .spec.domains
+      name: Domains
       type: string
     name: v1alpha1
     schema:
