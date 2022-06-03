@@ -3,7 +3,7 @@ global:
   tag: "0.0.1"
   imagePullPolicy: IfNotPresent
   imagePullSecrets: "registrykey"
-  logLevel: 2
+  logLevel: 4
   vault:
     enabled: true
     address: http://vault.vault:8200
