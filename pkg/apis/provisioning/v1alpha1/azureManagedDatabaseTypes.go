@@ -7,7 +7,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
-// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domains[:]`
+// +kubebuilder:printcolumn:name="Domains",type=string,JSONPath=`.spec.domains`
 
 type AzureManagedDatabase struct {
 	metav1.TypeMeta `json:",inline"`
