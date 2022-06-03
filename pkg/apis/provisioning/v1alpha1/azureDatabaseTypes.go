@@ -7,7 +7,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
-// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domain`
+// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domains[:]`
 
 type AzureDatabase struct {
 	metav1.TypeMeta `json:",inline"`
@@ -18,9 +18,12 @@ type AzureDatabase struct {
 }
 
 type AzureDatabaseSpec struct {
+	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
-	Domain      string `json:"domain"`
-	DbName      string `json:"dbName"`
+	// The domain or bounded-context in which this database will be used.
+	Domains []string `json:"domains"`
+	// Database name prefix. Will have platform and tenant suffix.
+	DbName string `json:"dbName"`
 	// +optional
 	Sku string `json:"sku,omitempty"`
 	// +optional

@@ -19,7 +19,7 @@ spec:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
-    - jsonPath: .spec.domain
+    - jsonPath: .spec.domains[:]
       name: Domain
       type: string
     name: v1alpha1
@@ -41,9 +41,14 @@ spec:
           spec:
             properties:
               dbName:
+                description: Database name prefix. Will have platform and tenant suffix.
                 type: string
-              domain:
-                type: string
+              domains:
+                description: The domain or bounded-context in which this database
+                  will be used.
+                items:
+                  type: string
+                type: array
               exports:
                 properties:
                   password:
@@ -82,12 +87,13 @@ spec:
                     type: object
                 type: object
               platformRef:
+                description: Target platform (custom resource name).
                 type: string
               sku:
                 type: string
             required:
             - dbName
-            - domain
+            - domains
             - platformRef
             type: object
         required:

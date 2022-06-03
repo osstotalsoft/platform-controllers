@@ -31,10 +31,6 @@ import (
 )
 
 const (
-	PulumiAzurePluginVersion      = "PULUMI_AZURE_PLUGIN_VERSION"
-	PulumiVaultPluginVersion      = "PULUMI_VAULT_PLUGIN_VERSION"
-	PulumiKubernetesPluginVersion = "PULUMI_KUBERNETES_PLUGIN_VERSION"
-
 	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
 	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
 
@@ -107,15 +103,19 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *platformv1.Te
 				ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
-				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
-					dbSpec.Spec.Exports.UserName, dbSpec.Namespace, pulumi.String(adminUser))
-				if err != nil {
-					return err
+				for _, domain := range dbSpec.Spec.Domains {
+					err = handleValueExport(ctx, platform, domain, dbSpec.Name, tenant,
+						dbSpec.Spec.Exports.UserName, dbSpec.Namespace, pulumi.String(adminUser))
+					if err != nil {
+						return err
+					}
 				}
-				err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
-					dbSpec.Spec.Exports.Password, dbSpec.Namespace, pulumi.String(adminPwd))
-				if err != nil {
-					return err
+				for _, domain := range dbSpec.Spec.Domains {
+					err = handleValueExport(ctx, platform, domain, dbSpec.Name, tenant,
+						dbSpec.Spec.Exports.Password, dbSpec.Namespace, pulumi.String(adminPwd))
+					if err != nil {
+						return err
+					}
 				}
 			}
 			_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
@@ -212,12 +212,13 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant, azureD
 				return err
 			}
 
-			err = handleValueExport(ctx, platform, dbSpec.Spec.Domain, dbSpec.Name, tenant,
-				dbSpec.Spec.Exports.DbName, dbSpec.Namespace, db.Name)
-			if err != nil {
-				return err
+			for _, domain := range dbSpec.Spec.Domains {
+				err = handleValueExport(ctx, platform, domain, dbSpec.Name, tenant,
+					dbSpec.Spec.Exports.DbName, dbSpec.Namespace, db.Name)
+				if err != nil {
+					return err
+				}
 			}
-
 			ctx.Export(fmt.Sprintf("azureManagedDb:%s", dbSpec.Spec.DbName), db.Name)
 		}
 		return nil
@@ -291,29 +292,17 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	w := s.Workspace()
 
 	// for inline source programs, we must manage plugins ourselves
-	v := os.Getenv(PulumiAzurePluginVersion)
-	if v == "" {
-		v = "v1.62.0"
-	}
-	err = w.InstallPlugin(ctx, "azure-native", v)
+	err = w.InstallPlugin(ctx, "azure-native", "v1.64.1")
 	if err != nil {
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	v = os.Getenv(PulumiVaultPluginVersion)
-	if v == "" {
-		v = "v5.4.0"
-	}
-	err = w.InstallPlugin(ctx, "vault", v)
+	err = w.InstallPlugin(ctx, "vault", "v5.5.0")
 	if err != nil {
 		klog.Errorf("Failed to install vault plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	v = os.Getenv(PulumiKubernetesPluginVersion)
-	if v == "" {
-		v = "v3.18.2"
-	}
-	err = w.InstallPlugin(ctx, "kubernetes", v)
+	err = w.InstallPlugin(ctx, "kubernetes", "v3.19.2")
 	if err != nil {
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
