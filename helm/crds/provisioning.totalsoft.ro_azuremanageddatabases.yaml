@@ -19,8 +19,8 @@ spec:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
-    - jsonPath: .spec.domain
-      name: Domain
+    - jsonPath: .spec.domains
+      name: Domains
       type: string
     name: v1alpha1
     schema:
@@ -44,10 +44,12 @@ spec:
                 description: Managed database name prefix. Will have platform and
                   tenant suffix.
                 type: string
-              domain:
+              domains:
                 description: The domain or bounded-context in which this database
                   will be used.
-                type: string
+                items:
+                  type: string
+                type: array
               exports:
                 description: Export provisioning values spec.
                 properties:
@@ -112,7 +114,7 @@ spec:
                 type: object
             required:
             - dbName
-            - domain
+            - domains
             - managedInstance
             - platformRef
             type: object

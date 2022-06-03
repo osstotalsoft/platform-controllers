@@ -7,7 +7,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
-// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domain`
+// +kubebuilder:printcolumn:name="Domains",type=string,JSONPath=`.spec.domains`
 
 type AzureManagedDatabase struct {
 	metav1.TypeMeta `json:",inline"`
@@ -21,7 +21,7 @@ type AzureManagedDatabaseSpec struct {
 	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
 	// The domain or bounded-context in which this database will be used.
-	Domain string `json:"domain"`
+	Domains []string `json:"domains"`
 	// Managed database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Target managed instance spec.

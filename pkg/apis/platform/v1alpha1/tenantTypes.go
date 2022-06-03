@@ -11,6 +11,7 @@ import (
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",description=""
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
+// +kubebuilder:printcolumn:name="LastResync",type=date,JSONPath=`.status.lastResyncTime`
 
 // Tenant describes an Application tenant component type.
 type Tenant struct {

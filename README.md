@@ -52,6 +52,12 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureDatabase
 spec:
   dbName: origination_db
+  domains:
+    - origination
+  exports:
+    dbName:
+      toConfigMap:
+        keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
   platformRef: charismaonline.qa
 ```
 
@@ -67,7 +73,8 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
 spec:
   dbName: origination_db
-  domain: origination
+  domains:
+    - origination
   exports:
     dbName:
       toConfigMap:

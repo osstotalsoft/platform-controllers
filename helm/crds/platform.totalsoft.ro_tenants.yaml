@@ -28,6 +28,9 @@ spec:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
+    - jsonPath: .status.lastResyncTime
+      name: LastResync
+      type: date
     name: v1alpha1
     schema:
       openAPIV3Schema:
