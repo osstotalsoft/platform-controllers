@@ -9,8 +9,10 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureDbDeployFunc(platform, resourceGroupName string, tenant *platformv1.Tenant,
-	azureDbs []*provisioningv1.AzureDatabase, valueExporter ValueExporterFunc) pulumi.RunFunc {
+func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName string,
+	azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
+
+	valueExporter := handleValueExport(platform, tenant)
 	return func(ctx *pulumi.Context) error {
 		if len(azureDbs) > 0 {
 			const pwdKey = "pass"
@@ -63,14 +65,14 @@ func azureDbDeployFunc(platform, resourceGroupName string, tenant *platformv1.Te
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
 				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(NewExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
+					err = valueExporter(newExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
 						dbSpec.Spec.Exports.UserName, pulumi.String(adminUser))
 					if err != nil {
 						return err
 					}
 				}
 				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(NewExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
+					err = valueExporter(newExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
 						dbSpec.Spec.Exports.Password, pulumi.String(adminPwd))
 					if err != nil {
 						return err

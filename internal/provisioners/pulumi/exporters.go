@@ -27,7 +27,7 @@ type ExportContext struct {
 	objectName    string
 }
 
-func NewExportContext(pulumiContext *pulumi.Context, namespace, domain, objectName string) ExportContext {
+func newExportContext(pulumiContext *pulumi.Context, namespace, domain, objectName string) ExportContext {
 	return ExportContext{
 		pulumiContext: pulumiContext,
 		namespace:     namespace,
@@ -36,7 +36,7 @@ func NewExportContext(pulumiContext *pulumi.Context, namespace, domain, objectNa
 	}
 }
 
-func HandleValueExport(tenant *platformv1.Tenant, platform string) ValueExporterFunc {
+func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporterFunc {
 	data := struct {
 		Tenant   platformv1.TenantSpec
 		Platform string

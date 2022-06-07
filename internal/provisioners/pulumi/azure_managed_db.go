@@ -9,7 +9,9 @@ import (
 )
 
 func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
-	azureDbs []*provisioningv1.AzureManagedDatabase, valueExporter ValueExporterFunc) pulumi.RunFunc {
+	azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
+
+	valueExporter := handleValueExport(platform, tenant)
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
 			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Spec.Code)
@@ -31,7 +33,7 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 			}
 
 			for _, domain := range dbSpec.Spec.Domains {
-				err = valueExporter(NewExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
+				err = valueExporter(newExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
 					dbSpec.Spec.Exports.DbName, db.Name)
 				if err != nil {
 					return err

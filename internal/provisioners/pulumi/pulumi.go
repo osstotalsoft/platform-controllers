@@ -54,8 +54,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			return err
 		}
 		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Spec.Code)
-		res, err = updateStack(azureDbStackName, platform,
-			azureDbDeployFunc(platform, azureRGName, tenant, infra.AzureDbs, HandleValueExport(tenant, platform)))
+		res, err = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
 		if err != nil {
 			return err
 		}
@@ -63,8 +62,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 
 	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb)); !s {
 		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Spec.Code)
-		res, err = updateStack(azureManagedDbStackName, platform,
-			azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs, HandleValueExport(tenant, platform)))
+		res, err = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
 		if err != nil {
 			return err
 		}
