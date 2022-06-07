@@ -42,7 +42,7 @@ const (
 type ProvisioningController struct {
 	factory   informers.SharedInformerFactory
 	clientset clientset.Interface
-	migrater  func(platform string, tenant *platformv1.Tenant) error
+	migrator  func(platform string, tenant *platformv1.Tenant) error
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -64,7 +64,7 @@ type ProvisioningController struct {
 
 func NewProvisioningController(clientSet clientset.Interface,
 	provisioner provisioners.CreateInfrastructureFunc,
-	migrater func(platform string, tenant *platformv1.Tenant) error,
+	migrator func(platform string, tenant *platformv1.Tenant) error,
 	eventBroadcaster record.EventBroadcaster) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
@@ -87,7 +87,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 		provisioner: provisioner,
 		clientset:   clientSet,
-		migrater:    migrater,
+		migrator:    migrator,
 	}
 
 	if eventBroadcaster != nil {
@@ -250,10 +250,10 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	})
 
 	if err == nil {
-		if c.migrater != nil {
+		if c.migrator != nil {
 			//TODO check if new resources were created
 			//schedule migrations after provisioning new resources
-			err = c.migrater(platform, tenant)
+			err = c.migrator(platform, tenant)
 		}
 	}
 
