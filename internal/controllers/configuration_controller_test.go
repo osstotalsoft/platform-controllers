@@ -183,6 +183,10 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 		foundConfigAggregate = foundConfigAggregate.DeepCopy()
 		foundConfigAggregate.Spec.Domain = "domain2"
 		c.configurationClientset.ConfigurationV1alpha1().ConfigurationAggregates(metav1.NamespaceDefault).Update(context.TODO(), foundConfigAggregate, metav1.UpdateOptions{})
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
@@ -191,8 +195,8 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 		}
 		// Assert
 		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
+			//item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", c.workqueue.Len())
 		}
 
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})

@@ -331,10 +331,9 @@ func (c *ConfigurationController) syncHandler(key string) error {
 	// should update the ConfigMap resource.
 	if !reflect.DeepEqual(aggregatedConfigMap.Data, outputConfigMap.Data) {
 		klog.V(4).Infof("Configuration values changed")
-		err = c.kubeClientset.CoreV1().ConfigMaps(configAggregate.Namespace).Delete(context.TODO(), aggregatedConfigMap.Name, metav1.DeleteOptions{})
-		if err == nil {
-			_, err = c.kubeClientset.CoreV1().ConfigMaps(configAggregate.Namespace).Create(context.TODO(), aggregatedConfigMap, metav1.CreateOptions{})
-		}
+		outputConfigMap = outputConfigMap.DeepCopy()
+		outputConfigMap.Data = aggregatedConfigMap.Data
+		_, err = c.kubeClientset.CoreV1().ConfigMaps(configAggregate.Namespace).Update(context.TODO(), outputConfigMap, metav1.UpdateOptions{})
 	}
 
 	// If an error occurs during Update, we'll requeue the item so we can
@@ -446,8 +445,7 @@ func (c *ConfigurationController) aggregateConfigMaps(configMapAggregate *v1alph
 				*metav1.NewControllerRef(configMapAggregate, v1alpha1.SchemeGroupVersion.WithKind("ConfigurationAggregate")),
 			},
 		},
-		Data:      mergedData,
-		Immutable: func(b bool) *bool { return &b }(true),
+		Data: mergedData,
 	}
 }
 
@@ -525,6 +523,10 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			oldComp := oldObj.(*corev1.ConfigMap)
 			newComp := newObj.(*corev1.ConfigMap)
 
+			// if isControlledByConfigAggregate(newComp) {
+			// 	return
+			// }
+
 			oldPlatform, oldDomain, oldOk := getConfigMapPlatformAndDomain(oldComp)
 			newPlatform, newDomain, newOk := getConfigMapPlatformAndDomain(newComp)
 			targetChanged := oldPlatform != newPlatform || oldDomain != newDomain
@@ -550,10 +552,11 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*corev1.ConfigMap)
 
+			// if isControlledByConfigAggregate(newComp) {
+			// 	return
+			// }
+
 			if platform, domain, ok := getConfigMapPlatformAndDomain(comp); ok {
-				if isControlledByConfigAggregate(comp) {
-					return
-				}
 
 				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
 				handler(platform, domain)
