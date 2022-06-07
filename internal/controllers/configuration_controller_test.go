@@ -195,8 +195,8 @@ func TestConfigAggregateController_processNextWorkItem(t *testing.T) {
 		}
 		// Assert
 		if c.workqueue.Len() != 0 {
-			//item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", c.workqueue.Len())
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
 		}
 
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(metav1.NamespaceDefault).Get(context.TODO(), "dev-domain1-aggregate", metav1.GetOptions{})
