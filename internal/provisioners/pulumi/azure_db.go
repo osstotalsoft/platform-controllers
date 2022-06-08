@@ -65,14 +65,14 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
 				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(newExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
+					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, dbSpec.TypeMeta),
 						dbSpec.Spec.Exports.UserName, pulumi.String(adminUser))
 					if err != nil {
 						return err
 					}
 				}
 				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(newExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
+					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, dbSpec.TypeMeta),
 						dbSpec.Spec.Exports.Password, pulumi.String(adminPwd))
 					if err != nil {
 						return err
