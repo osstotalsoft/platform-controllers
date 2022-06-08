@@ -28,9 +28,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newTenant("dev3", "qa"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 			outputs = append(outputs, result{platform, tenant, infra})
-			return nil
+			return provisioners.ProvisioningResult{}
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
@@ -77,9 +77,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			aSkipProvisioningTenant,
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 			outputs = append(outputs, result{platform, tenant, infra})
-			return nil
+			return provisioners.ProvisioningResult{}
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
@@ -97,10 +97,10 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		clientset := fakeClientset.NewSimpleClientset(tenant)
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 			outputs = append(outputs, result{platform, tenant, infra})
 			wg.Wait()
-			return nil
+			return provisioners.ProvisioningResult{}
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
@@ -139,9 +139,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newAzureManagedDb("db1", "dev"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 			outputs = append(outputs, result{platform, tenant, infra})
-			return nil
+			return provisioners.ProvisioningResult{}
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
@@ -182,9 +182,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			newAzureManagedDb("db1", "dev2"),
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 			outputs = append(outputs, result{platform, tenant, infra})
-			return nil
+			return provisioners.ProvisioningResult{}
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)
@@ -230,9 +230,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			azureDb,
 		}
 		clientset := fakeClientset.NewSimpleClientset(objects...)
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
+		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 			outputs = append(outputs, result{platform, tenant, infra})
-			return nil
+			return provisioners.ProvisioningResult{}
 		}
 		c := NewProvisioningController(clientset, infraCreator, nil, nil)
 		c.factory.Start(nil)

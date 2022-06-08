@@ -7,9 +7,15 @@ import (
 
 type CreateInfrastructureFunc func(platform string,
 	tenant *platformv1.Tenant,
-	infra *InfrastructureManifests) error
+	infra *InfrastructureManifests) ProvisioningResult
 
 type InfrastructureManifests struct {
 	AzureDbs        []*provisioningv1.AzureDatabase
 	AzureManagedDbs []*provisioningv1.AzureManagedDatabase
+}
+
+type ProvisioningResult struct {
+	Error                    error
+	HasAzureDbChanges        bool
+	HasAzureManagedDbChanges bool
 }

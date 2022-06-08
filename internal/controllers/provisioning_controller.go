@@ -95,7 +95,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	}
 
 	addTenantHandlers(c.tenantInformer, c.enqueueTenant)
-	//addPlatformHandlers(c.platformInformer)
+	addPlatformHandlers(c.platformInformer)
 	addAzureDbHandlers(c.azureDbInformer, c.enqueueAllTenant)
 	addAzureManagedDbHandlers(c.azureManagedDbInformer, c.enqueueAllTenant)
 
@@ -244,31 +244,32 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureManagedDbs = azureManagedDbs[:n]
 
-	err = c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
+	result := c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
 		AzureDbs:        azureDbs,
 		AzureManagedDbs: azureManagedDbs,
 	})
 
-	if err == nil {
-		if c.migrator != nil {
-			//TODO check if new resources were created
-			//schedule migrations after provisioning new resources
-			err = c.migrator(platform, tenant)
+	if result.Error == nil {
+		if c.migrator != nil && (result.HasAzureDbChanges || result.HasAzureManagedDbChanges) {
+			p, err := c.platformInformer.Lister().Get(platform)
+			if err != nil {
+				result.Error = c.migrator(p.Spec.Code, tenant)
+			}
 		}
 	}
 
-	if err == nil {
+	if result.Error == nil {
 		c.recorder.Event(tenant, corev1.EventTypeNormal, SuccessSynced, SuccessSynced)
 	} else {
-		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, err.Error())
+		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, result.Error.Error())
 	}
-	_, e := c.updateTenantStatus(tenant, err)
+	_, e := c.updateTenantStatus(tenant, result.Error)
 	if e != nil {
 		//just log this error, don't propagate
 		utilruntime.HandleError(e)
 	}
 
-	return err
+	return result.Error
 }
 
 func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) (*platformv1.Tenant, error) {
@@ -339,6 +340,23 @@ func decodeKey(key string) (platformKey, tenantKey string, err error) {
 		return res[0], res[1], nil
 	}
 	return "", "", fmt.Errorf("cannot decode key: %v", key)
+}
+
+func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*platformv1.Platform)
+			klog.V(4).InfoS("Platform added", "name", comp.Name)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			newT := newObj.(*platformv1.Platform)
+			klog.V(4).InfoS("Platform updated", "name", newT.Name)
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*platformv1.Platform)
+			klog.V(4).InfoS("Platform deleted", "name", comp.Name)
+		},
+	})
 }
 
 func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func(*platformv1.Tenant)) {
