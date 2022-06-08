@@ -24,12 +24,17 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 	}
 
 	return func(platform string, tenant *platformv1.Tenant) error {
+		klog.InfoS("Creating migrations jobs", "tenant", tenant.Name)
+
 		jobs, err := kubeClient.BatchV1().Jobs("").List(context.TODO(), metav1.ListOptions{
 			LabelSelector: JobLabelSelectorKey + "=true",
 		})
 		if err != nil {
 			return err
 		}
+
+		klog.V(4).InfoS("migrations", "template jobs found", len(jobs.Items))
+
 		for _, job := range jobs.Items {
 			if !nsFilter(job.Namespace, platform) {
 				continue
@@ -55,10 +60,9 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 				j.Spec.Template.Spec.Containers[i] = c
 			}
 			_, err = kubeClient.BatchV1().Jobs(job.Namespace).Create(context.TODO(), j, metav1.CreateOptions{})
-		}
-
-		if err != nil {
-			klog.ErrorS(err, "error migration")
+			if err != nil {
+				klog.ErrorS(err, "error creating migration job")
+			}
 		}
 
 		return err
