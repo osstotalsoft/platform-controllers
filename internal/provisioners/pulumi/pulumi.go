@@ -5,6 +5,7 @@ package pulumi
 import (
 	"context"
 	"fmt"
+	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"strings"
 
 	"math/rand"
@@ -39,35 +40,50 @@ func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFun
 	}
 }
 
-func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) error {
-
+func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
+	result := provisioners.ProvisioningResult{}
+	res := auto.UpResult{}
 	azureRGStackName := fmt.Sprintf("%s_rg", tenant.Spec.Code)
-	res, err := updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))
-	if err != nil {
-		return err
+	res, result.Error = updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))
+	if result.Error != nil {
+		return result
 	}
 
 	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureDb)); !s {
 		azureRGName, ok := res.Outputs["azureRGName"].Value.(string)
 		if !ok {
-			klog.Errorf("Failed to get azureRGName: %v", err)
-			return err
+			klog.Errorf("Failed to get azureRGName: %s", res.StdErr)
+			return result
 		}
 		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Spec.Code)
-		res, err = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
-		if err != nil {
-			return err
+		res, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
+		if result.Error != nil {
+			return result
 		}
+		result.HasAzureDbChanges = hasChanges(res.Summary)
 	}
 
 	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb)); !s {
 		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Spec.Code)
-		res, err = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
-		if err != nil {
-			return err
+		res, result.Error = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
+		if result.Error != nil {
+			return result
+		}
+		result.HasAzureManagedDbChanges = hasChanges(res.Summary)
+	}
+	return result
+}
+
+func hasChanges(summary auto.UpdateSummary) bool {
+	if summary.ResourceChanges == nil {
+		return false
+	}
+	for key := range *summary.ResourceChanges {
+		if apitype.OpType(key) != apitype.OpSame {
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 func updateStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
