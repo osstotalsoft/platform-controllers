@@ -33,7 +33,7 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 			}
 
 			for _, domain := range dbSpec.Spec.Domains {
-				err = valueExporter(newExportContext(ctx, dbSpec.Namespace, domain, dbSpec.Name),
+				err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, dbSpec.TypeMeta),
 					dbSpec.Spec.Exports.DbName, db.Name)
 				if err != nil {
 					return err

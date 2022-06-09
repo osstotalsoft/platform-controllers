@@ -4,6 +4,7 @@ import (
 	"fmt"
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"totalsoft.ro/platform-controllers/internal/template"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
@@ -22,17 +23,21 @@ type ValueExporterFunc func(exportContext ExportContext,
 
 type ExportContext struct {
 	pulumiContext *pulumi.Context
-	namespace     string
 	domain        string
 	objectName    string
+	owner         metav1.PartialObjectMetadata
 }
 
-func newExportContext(pulumiContext *pulumi.Context, namespace, domain, objectName string) ExportContext {
+func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
+	ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) ExportContext {
 	return ExportContext{
 		pulumiContext: pulumiContext,
-		namespace:     namespace,
-		domain:        domain,
-		objectName:    objectName,
+		owner: metav1.PartialObjectMetadata{
+			TypeMeta:   ownerType,
+			ObjectMeta: ownerMeta,
+		},
+		domain:     domain,
+		objectName: objectName,
 	}
 }
 
@@ -53,8 +58,8 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 		if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
 			name := objectNamingConvention(platform, exportContext.domain, tenant.Spec.Code,
 				exportContext.objectName, "-")
-			return exportToConfigMap(exportContext.pulumiContext, name, exportTemplate.ToConfigMap.KeyTemplate, data,
-				exportContext.namespace, exportContext.domain, platform, value)
+			return exportToConfigMap(exportContext, name, exportTemplate.ToConfigMap.KeyTemplate,
+				data, platform, value)
 		}
 		return nil
 	}
@@ -77,8 +82,9 @@ func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
 	return err
 }
 
-func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
-	templateContext interface{}, namespace, domain, platform string, value pulumi.StringInput) error {
+func exportToConfigMap(exportContext ExportContext, configMapName, keyTemplate string,
+	templateContext interface{}, platform string, value pulumi.StringInput) error {
+
 	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
 	if err != nil {
 		return err
@@ -87,17 +93,31 @@ func exportToConfigMap(ctx *pulumi.Context, configMapName, keyTemplate string,
 		return map[string]string{configMapKey: v}
 	}).(pulumi.StringMapOutput)
 
-	_, err = pulumiKube.NewConfigMap(ctx, configMapName, &pulumiKube.ConfigMapArgs{
+	_, err = pulumiKube.NewConfigMap(exportContext.pulumiContext, configMapName, &pulumiKube.ConfigMapArgs{
 		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
 			Name:      pulumi.String(configMapName),
-			Namespace: pulumi.String(namespace),
+			Namespace: pulumi.String(exportContext.owner.Namespace),
 			Labels: pulumi.ToStringMap(map[string]string{
-				ConfigMapDomainLabel:   domain,
+				ConfigMapDomainLabel:   exportContext.domain,
 				ConfigMapPlatformLabel: platform,
 			}),
+			OwnerReferences: mapOwnersToReferences(exportContext.owner),
 		},
 		Immutable: pulumi.Bool(true),
 		Data:      data,
 	})
 	return err
+}
+
+func mapOwnersToReferences(owner metav1.PartialObjectMetadata) pulumiKubeMetav1.OwnerReferenceArray {
+	return pulumiKubeMetav1.OwnerReferenceArray{
+		pulumiKubeMetav1.OwnerReferenceArgs{
+			ApiVersion:         pulumi.String(owner.APIVersion),
+			Kind:               pulumi.String(owner.Kind),
+			Name:               pulumi.String(owner.GetName()),
+			Uid:                pulumi.String(owner.GetUID()),
+			Controller:         pulumi.Bool(true),
+			BlockOwnerDeletion: pulumi.Bool(true),
+		},
+	}
 }
