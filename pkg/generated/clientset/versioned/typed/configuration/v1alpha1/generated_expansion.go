@@ -20,4 +20,6 @@ package v1alpha1
 
 type ConfigurationAggregateExpansion interface{}
 
+type ConfigurationDomainExpansion interface{}
+
 type SecretsAggregateExpansion interface{}

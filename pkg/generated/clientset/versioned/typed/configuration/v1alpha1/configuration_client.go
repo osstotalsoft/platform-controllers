@@ -29,6 +29,7 @@ import (
 type ConfigurationV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	ConfigurationAggregatesGetter
+	ConfigurationDomainsGetter
 	SecretsAggregatesGetter
 }
 
@@ -39,6 +40,10 @@ type ConfigurationV1alpha1Client struct {
 
 func (c *ConfigurationV1alpha1Client) ConfigurationAggregates(namespace string) ConfigurationAggregateInterface {
 	return newConfigurationAggregates(c, namespace)
+}
+
+func (c *ConfigurationV1alpha1Client) ConfigurationDomains(namespace string) ConfigurationDomainInterface {
+	return newConfigurationDomains(c, namespace)
 }
 
 func (c *ConfigurationV1alpha1Client) SecretsAggregates(namespace string) SecretsAggregateInterface {
