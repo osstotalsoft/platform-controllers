@@ -266,9 +266,9 @@ func (c *PlatformController) syncHandler(key string) error {
 
 	outputConfigMapName := fmt.Sprintf("%s-tenants", platform.Name)
 	tenantsConfigMap := c.generateTenantsConfigMap(platform, tenants, outputConfigMapName)
-	outputConfigMap, err := c.configMapsLister.ConfigMaps(platform.Spec.Code).Get(outputConfigMapName)
+	outputConfigMap, err := c.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).Get(outputConfigMapName)
 	if errors.IsNotFound(err) {
-		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(platform.Spec.Code).Create(context.TODO(), tenantsConfigMap, metav1.CreateOptions{})
+		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(platform.Spec.TargetNamespace).Create(context.TODO(), tenantsConfigMap, metav1.CreateOptions{})
 	}
 
 	// If an error occurs during Get/Create, we'll requeue the item so we can
@@ -382,7 +382,7 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 				platformLabelName: platform.Name,
 				domainLabelName:   globalDomainLabelValue,
 			},
-			Namespace: platform.Spec.Code,
+			Namespace: platform.Spec.TargetNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(platform, v1alpha1.SchemeGroupVersion.WithKind("Platform")),
 			},
