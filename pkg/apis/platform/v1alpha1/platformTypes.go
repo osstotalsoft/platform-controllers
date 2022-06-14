@@ -23,7 +23,7 @@ type Platform struct {
 }
 
 type PlatformSpec struct {
-	Code string `json:"code"`
+	TargetNamespace string `json:"targetNamespace"`
 }
 
 type PlatformStatus struct {

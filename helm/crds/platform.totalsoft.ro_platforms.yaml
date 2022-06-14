@@ -43,10 +43,10 @@ spec:
             type: object
           spec:
             properties:
-              code:
+              targetNamespace:
                 type: string
             required:
-            - code
+            - targetNamespace
             type: object
           status:
             properties:
