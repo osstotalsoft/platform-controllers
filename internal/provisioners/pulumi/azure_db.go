@@ -13,6 +13,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 	azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(platform, tenant)
+	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureDatabase")
 	return func(ctx *pulumi.Context) error {
 		if len(azureDbs) > 0 {
 			const pwdKey = "pass"
@@ -36,15 +37,6 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 				return err
 			}
 
-			//pool, err := azureSql.NewElasticPool(ctx, fmt.Sprintf("%s-sqlserver-pool", tenant.Spec.Code),
-			//	&azureSql.ElasticPoolArgs{
-			//		ResourceGroupName: resourceGroup.Name,
-			//		ServerName:        server.Name,
-			//	})
-			//if err != nil {
-			//	return err
-			//}
-
 			for _, dbSpec := range azureDbs {
 				sku := "S0"
 				if dbSpec.Spec.Sku != "" {
@@ -65,14 +57,14 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
 
 				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, dbSpec.TypeMeta),
+					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
 						dbSpec.Spec.Exports.UserName, pulumi.String(adminUser))
 					if err != nil {
 						return err
 					}
 				}
 				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, dbSpec.TypeMeta),
+					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
 						dbSpec.Spec.Exports.Password, pulumi.String(adminPwd))
 					if err != nil {
 						return err

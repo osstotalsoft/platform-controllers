@@ -5,6 +5,7 @@ import (
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sSchema "k8s.io/apimachinery/pkg/runtime/schema"
 	"totalsoft.ro/platform-controllers/internal/template"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
@@ -25,19 +26,18 @@ type ExportContext struct {
 	pulumiContext *pulumi.Context
 	domain        string
 	objectName    string
-	owner         metav1.PartialObjectMetadata
+	ownerMeta     metav1.ObjectMeta
+	ownerKind     k8sSchema.GroupVersionKind
 }
 
 func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
-	ownerMeta metav1.ObjectMeta, ownerType metav1.TypeMeta) ExportContext {
+	ownerMeta metav1.ObjectMeta, ownerKind k8sSchema.GroupVersionKind) ExportContext {
 	return ExportContext{
 		pulumiContext: pulumiContext,
-		owner: metav1.PartialObjectMetadata{
-			TypeMeta:   ownerType,
-			ObjectMeta: ownerMeta,
-		},
-		domain:     domain,
-		objectName: objectName,
+		ownerMeta:     ownerMeta,
+		ownerKind:     ownerKind,
+		domain:        domain,
+		objectName:    objectName,
 	}
 }
 
@@ -96,12 +96,12 @@ func exportToConfigMap(exportContext ExportContext, configMapName, keyTemplate s
 	_, err = pulumiKube.NewConfigMap(exportContext.pulumiContext, configMapName, &pulumiKube.ConfigMapArgs{
 		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
 			Name:      pulumi.String(configMapName),
-			Namespace: pulumi.String(exportContext.owner.Namespace),
+			Namespace: pulumi.String(exportContext.ownerMeta.Namespace),
 			Labels: pulumi.ToStringMap(map[string]string{
 				ConfigMapDomainLabel:   exportContext.domain,
 				ConfigMapPlatformLabel: platform,
 			}),
-			OwnerReferences: mapOwnersToReferences(exportContext.owner),
+			OwnerReferences: mapOwnersToReferences(exportContext.ownerMeta, exportContext.ownerKind),
 		},
 		Immutable: pulumi.Bool(true),
 		Data:      data,
@@ -109,13 +109,13 @@ func exportToConfigMap(exportContext ExportContext, configMapName, keyTemplate s
 	return err
 }
 
-func mapOwnersToReferences(owner metav1.PartialObjectMetadata) pulumiKubeMetav1.OwnerReferenceArray {
+func mapOwnersToReferences(ownerMeta metav1.ObjectMeta, ownerKind k8sSchema.GroupVersionKind) pulumiKubeMetav1.OwnerReferenceArray {
 	return pulumiKubeMetav1.OwnerReferenceArray{
 		pulumiKubeMetav1.OwnerReferenceArgs{
-			ApiVersion:         pulumi.String(owner.APIVersion),
-			Kind:               pulumi.String(owner.Kind),
-			Name:               pulumi.String(owner.GetName()),
-			Uid:                pulumi.String(owner.GetUID()),
+			ApiVersion:         pulumi.String(ownerKind.GroupVersion().String()),
+			Kind:               pulumi.String(ownerKind.Kind),
+			Name:               pulumi.String(ownerMeta.GetName()),
+			Uid:                pulumi.String(ownerMeta.GetUID()),
 			Controller:         pulumi.Bool(true),
 			BlockOwnerDeletion: pulumi.Bool(true),
 		},
