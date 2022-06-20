@@ -5,8 +5,9 @@ package pulumi
 import (
 	"context"
 	"fmt"
-	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"strings"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 
 	"math/rand"
 	"os"
@@ -29,7 +30,7 @@ const (
 
 func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFunc {
 	return func(ctx *pulumi.Context) error {
-		resourceGroup, err := azureResources.NewResourceGroup(ctx, fmt.Sprintf("%s_%s_RG", platform, tenant.Spec.Code), nil)
+		resourceGroup, err := azureResources.NewResourceGroup(ctx, fmt.Sprintf("%s_%s_RG", platform, tenant.ObjectMeta.Name), nil)
 		if err != nil {
 			return err
 		}
@@ -43,7 +44,7 @@ func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFun
 func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 	result := provisioners.ProvisioningResult{}
 	res := auto.UpResult{}
-	azureRGStackName := fmt.Sprintf("%s_rg", tenant.Spec.Code)
+	azureRGStackName := fmt.Sprintf("%s_rg", tenant.ObjectMeta.Name)
 	res, result.Error = updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))
 	if result.Error != nil {
 		return result
@@ -55,7 +56,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			klog.Errorf("Failed to get azureRGName: %s", res.StdErr)
 			return result
 		}
-		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Spec.Code)
+		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.ObjectMeta.Name)
 		res, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
 		if result.Error != nil {
 			return result
@@ -64,7 +65,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	}
 
 	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb)); !s {
-		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Spec.Code)
+		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.ObjectMeta.Name)
 		res, result.Error = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
 		if result.Error != nil {
 			return result

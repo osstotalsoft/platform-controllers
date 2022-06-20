@@ -205,12 +205,25 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		// The tenant resource may no longer exist, in which case we stop processing.
 		if errors.IsNotFound(err) {
 			utilruntime.HandleError(fmt.Errorf("tenant '%s' from work queue no longer exists", key))
+
+			// TODO: use the tenant name as code, and remove the code from spec
+			result := c.provisioner(platform, &platformv1.Tenant{
+				ObjectMeta: metav1.ObjectMeta{Name: name},
+				Spec:       platformv1.TenantSpec{PlatformRef: platform}},
+				&provisioners.InfrastructureManifests{
+					AzureDbs:        []*provisioningv1.AzureDatabase{},
+					AzureManagedDbs: []*provisioningv1.AzureManagedDatabase{},
+				})
+			if result.Error != nil {
+				utilruntime.HandleError(result.Error)
+			}
+
 			return nil
 		}
 		return err
 	}
 
-	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Spec.Code)
+	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.ObjectMeta.Name)
 	skipTenantLabelSelector, err := labels.Parse(fmt.Sprintf("%s!=true", skipTenantLabel))
 	if err != nil {
 		return err
@@ -370,6 +383,7 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 			oldT := oldObj.(*platformv1.Tenant)
 			newT := newObj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
+
 			if oldT.Spec != newT.Spec {
 				handler(newT)
 			}
@@ -377,6 +391,7 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
+			handler(comp)
 		},
 	})
 }

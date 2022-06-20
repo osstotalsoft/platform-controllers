@@ -40,6 +40,9 @@ spec:
             type: object
           spec:
             properties:
+              allowDeletion:
+                default: false
+                type: boolean
               dbName:
                 description: Managed database name prefix. Will have platform and
                   tenant suffix.
