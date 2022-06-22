@@ -16,6 +16,7 @@ import (
 
 	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"k8s.io/klog/v2"
@@ -45,10 +46,12 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	result := provisioners.ProvisioningResult{}
 	res := auto.UpResult{}
 	azureRGStackName := fmt.Sprintf("%s_rg", tenant.ObjectMeta.Name)
+	//if len(infra.AzureDbs) > 0 || len(infra.AzureManagedDbs) > 0 {
 	res, result.Error = updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))
 	if result.Error != nil {
 		return result
 	}
+	//}
 
 	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureDb)); !s {
 		azureRGName, ok := res.Outputs["azureRGName"].Value.(string)
@@ -57,20 +60,39 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			return result
 		}
 		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.ObjectMeta.Name)
-		res, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
-		if result.Error != nil {
-			return result
+		if len(infra.AzureDbs) > 0 {
+			res, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
+			if result.Error != nil {
+				return result
+			}
+			result.HasAzureDbChanges = hasChanges(res.Summary)
+		} else {
+			destroyRes := auto.DestroyResult{}
+			destroyRes, result.Error = destroyStack(azureDbStackName, platform, func(ctx *pulumi.Context) error { return nil })
+			if result.Error != nil {
+				return result
+			}
+			result.HasAzureDbChanges = hasChanges(destroyRes.Summary)
 		}
-		result.HasAzureDbChanges = hasChanges(res.Summary)
 	}
 
 	if s, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb)); !s {
 		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.ObjectMeta.Name)
-		res, result.Error = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
-		if result.Error != nil {
-			return result
+
+		if len(infra.AzureManagedDbs) > 0 {
+			res, result.Error = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
+			if result.Error != nil {
+				return result
+			}
+			result.HasAzureManagedDbChanges = hasChanges(res.Summary)
+		} else {
+			destroyRes := auto.DestroyResult{}
+			destroyRes, result.Error = destroyStack(azureManagedDbStackName, platform, func(ctx *pulumi.Context) error { return nil })
+			if result.Error != nil {
+				return result
+			}
+			result.HasAzureManagedDbChanges = hasChanges(destroyRes.Summary)
 		}
-		result.HasAzureManagedDbChanges = hasChanges(res.Summary)
 	}
 	return result
 }
@@ -108,6 +130,65 @@ func updateStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto
 	klog.V(4).InfoS("Stack results", "name", stackName, "Outputs", res.Outputs)
 
 	return res, err
+}
+
+func destroyStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto.DestroyResult, error) {
+	ctx := context.Background()
+	s, err := auto.SelectStackInlineSource(ctx, stackName, projectName, deployFunc)
+	if err != nil {
+		// ignore if stack is not found
+		if auto.IsSelectStack404Error(err) {
+			klog.V(4).Info("Skipping destroy because stack was not found")
+			return auto.DestroyResult{}, nil
+		}
+		klog.Errorf("Failed to select stack: %v", err)
+		return auto.DestroyResult{}, err
+	}
+	klog.V(4).Info("Starting destroy")
+	// wire up our update to stream progress to stdout
+	stdoutStreamer := optdestroy.ProgressStreams(os.Stdout)
+	res, err := s.Destroy(ctx, stdoutStreamer)
+	if err != nil {
+		klog.Errorf("Failed to destroy stack: %v", err)
+		return auto.DestroyResult{}, err
+	}
+
+	klog.V(4).Info("Destroy succeeded!")
+
+	klog.V(4).Info("Starting remove")
+	// wire up our update to stream progress to stdout
+	err = s.Workspace().RemoveStack(ctx, stackName)
+	if err != nil {
+		klog.Errorf("Failed to remove stack: %v", err)
+		return res, err
+	}
+	klog.V(4).Info("Remove stack succeeded!")
+
+	return res, nil
+}
+
+func removeStack(stackName, projectName string, deployFunc pulumi.RunFunc) error {
+	ctx := context.Background()
+	s, err := auto.SelectStackInlineSource(ctx, stackName, projectName, deployFunc)
+	if err != nil {
+
+		// ignore if stack is not found
+		if auto.IsSelectStack404Error(err) {
+			klog.V(4).Info("Skipping remove because stack was not found")
+			return nil
+		}
+		klog.Errorf("Failed to select stack: %v", err)
+		return err
+	}
+	klog.V(4).Info("Starting remove")
+	// wire up our update to stream progress to stdout
+	err = s.Workspace().RemoveStack(ctx, stackName)
+	if err != nil {
+		klog.Errorf("Failed to remove stack: %v", err)
+		return err
+	}
+	klog.V(4).Info("Remove stack succeeded!")
+	return nil
 }
 
 func createOrSelectStack(ctx context.Context, stackName, projectName string, deployFunc pulumi.RunFunc) (auto.Stack, error) {
