@@ -252,10 +252,10 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if result.Error == nil {
 		if c.migrator != nil && (result.HasAzureDbChanges || result.HasAzureManagedDbChanges) {
 			p, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platform, metav1.GetOptions{})
-			if err != nil {
+			if err == nil {
 				result.Error = c.migrator(p.Spec.TargetNamespace, tenant)
 			} else {
-				klog.ErrorS(err, "platform not found", "msg", err.Error())
+				klog.ErrorS(err, "platform not found")
 			}
 		}
 	}
