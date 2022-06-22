@@ -255,7 +255,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			if err != nil {
 				result.Error = c.migrator(p.Spec.TargetNamespace, tenant)
 			} else {
-				utilruntime.HandleError(fmt.Errorf("platform '%s' not found", platform))
+				utilruntime.HandleError(err)
 			}
 		}
 	}
