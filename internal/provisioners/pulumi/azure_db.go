@@ -27,13 +27,6 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 				adminPwd = secret.Data[pwdKey].(string)
 			}
 
-			allowServerDeletion := true
-			for _, dbSpec := range azureDbs {
-				if !dbSpec.Spec.AllowDeletion {
-					allowServerDeletion = false
-				}
-			}
-
 			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.ObjectMeta.Name),
 				&azureSql.ServerArgs{
 					ResourceGroupName:          pulumi.String(resourceGroupName),
@@ -41,8 +34,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 					AdministratorLoginPassword: pulumi.String(adminPwd),
 					Version:                    pulumi.String("12.0"),
 				},
-				//pulumi.Protect(!allowServerDeletion),
-				pulumi.RetainOnDelete(!allowServerDeletion),
+				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 			)
 			if err != nil {
 				return err
@@ -62,8 +54,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 							Name: pulumi.String(sku),
 						},
 					},
-					//pulumi.Protect(!dbSpec.Spec.AllowDeletion),
-					pulumi.RetainOnDelete(!dbSpec.Spec.AllowDeletion),
+					pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				)
 
 				if err != nil {
@@ -93,7 +84,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 					DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
 					Path:     pulumi.String(secretPath),
 				},
-				pulumi.RetainOnDelete(!allowServerDeletion),
+				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 			)
 			if err != nil {
 				return err

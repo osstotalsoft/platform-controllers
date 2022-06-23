@@ -28,9 +28,6 @@ type AzureDatabaseSpec struct {
 	Sku string `json:"sku,omitempty"`
 	// +optional
 	Exports AzureDatabaseExportsSpec `json:"exports,omitempty"`
-	// +optional
-	// +kubebuilder:default=false
-	AllowDeletion bool `json:"allowDeletion,omitempty"`
 }
 
 type AzureDatabaseExportsSpec struct {

@@ -32,9 +32,6 @@ type AzureManagedDatabaseSpec struct {
 	// Export provisioning values spec.
 	// +optional
 	Exports AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
-	// +optional
-	// +kubebuilder:default=false
-	AllowDeletion bool `json:"allowDeletion,omitempty"`
 }
 type AzureManagedInstanceSpec struct {
 	// Managed instance name.

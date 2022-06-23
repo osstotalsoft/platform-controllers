@@ -30,13 +30,12 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
 			ignoreProps := []string{}
-			if !dbSpec.Spec.AllowDeletion {
+			if PulumiRetainOnDelete {
 				ignoreProps = []string{"lastBackupName", "storageContainerUri"}
 			}
 
 			db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
-				//pulumi.Protect(!dbSpec.Spec.AllowDeletion),
-				pulumi.RetainOnDelete(!dbSpec.Spec.AllowDeletion),
+				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreProps),
 			)
 

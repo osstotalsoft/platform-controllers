@@ -40,9 +40,6 @@ spec:
             type: object
           spec:
             properties:
-              allowDeletion:
-                default: false
-                type: boolean
               dbName:
                 description: Database name prefix. Will have platform and tenant suffix.
                 type: string
