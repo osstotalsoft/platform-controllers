@@ -222,14 +222,14 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 	})
 }
 
-func _newPlatform(code, name string) *platformv1.Platform {
+func _newPlatform(ns, name string) *platformv1.Platform {
 	return &platformv1.Platform{
 		TypeMeta: metav1.TypeMeta{APIVersion: platformv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: platformv1.PlatformSpec{
-			Code: code,
+			TargetNamespace: ns,
 		},
 	}
 }
@@ -243,7 +243,7 @@ func _newTenant(name, platform string) *platformv1.Tenant {
 		},
 		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
-			Code:        name,
+			Description: name + " description",
 			Id:          uuid.New().String(),
 		},
 	}

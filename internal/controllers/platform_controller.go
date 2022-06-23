@@ -266,9 +266,9 @@ func (c *PlatformController) syncHandler(key string) error {
 
 	outputConfigMapName := fmt.Sprintf("%s-tenants", platform.Name)
 	tenantsConfigMap := c.generateTenantsConfigMap(platform, tenants, outputConfigMapName)
-	outputConfigMap, err := c.configMapsLister.ConfigMaps(platform.Spec.Code).Get(outputConfigMapName)
+	outputConfigMap, err := c.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).Get(outputConfigMapName)
 	if errors.IsNotFound(err) {
-		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(platform.Spec.Code).Create(context.TODO(), tenantsConfigMap, metav1.CreateOptions{})
+		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(platform.Spec.TargetNamespace).Create(context.TODO(), tenantsConfigMap, metav1.CreateOptions{})
 	}
 
 	// If an error occurs during Get/Create, we'll requeue the item so we can
@@ -372,7 +372,7 @@ func (c *PlatformController) enqueuePlatform(platform *platformv1.Platform) {
 func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platform, tenants []*platformv1.Tenant, outputName string) *corev1.ConfigMap {
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
-		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Spec.Code)] = tenant.Spec.Id
+		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
 	}
 
 	return &corev1.ConfigMap{
@@ -382,7 +382,7 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 				platformLabelName: platform.Name,
 				domainLabelName:   globalDomainLabelValue,
 			},
-			Namespace: platform.Spec.Code,
+			Namespace: platform.Spec.TargetNamespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(platform, v1alpha1.SchemeGroupVersion.WithKind("Platform")),
 			},

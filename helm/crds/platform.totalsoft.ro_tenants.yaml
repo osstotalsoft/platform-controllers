@@ -51,14 +51,14 @@ spec:
           spec:
             description: TenantSpec is the spec for a tenant.
             properties:
-              code:
+              description:
                 type: string
               id:
                 type: string
               platformRef:
                 type: string
             required:
-            - code
+            - description
             - id
             - platformRef
             type: object
