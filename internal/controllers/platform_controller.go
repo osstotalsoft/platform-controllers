@@ -372,7 +372,7 @@ func (c *PlatformController) enqueuePlatform(platform *platformv1.Platform) {
 func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platform, tenants []*platformv1.Tenant, outputName string) *corev1.ConfigMap {
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
-		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.ObjectMeta.Name)] = tenant.Spec.Id
+		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
 	}
 
 	return &corev1.ConfigMap{

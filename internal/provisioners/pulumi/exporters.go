@@ -51,13 +51,13 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 	return func(exportContext ExportContext, exportTemplate provisioningv1.ValueExport, value pulumi.StringInput) error {
 
 		if exportTemplate.ToVault != (provisioningv1.VaultSecretTemplate{}) {
-			name := objectNamingConvention(platform, exportContext.domain, tenant.ObjectMeta.Name,
+			name := objectNamingConvention(platform, exportContext.domain, tenant.Name,
 				exportContext.objectName, "/")
 			return exportToVault(exportContext.pulumiContext, name, exportTemplate.ToVault.KeyTemplate, data, value)
 		}
 
 		if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
-			name := objectNamingConvention(platform, exportContext.domain, tenant.ObjectMeta.Name,
+			name := objectNamingConvention(platform, exportContext.domain, tenant.Name,
 				exportContext.objectName, "-")
 			return exportToConfigMap(exportContext, name, exportTemplate.ToConfigMap.KeyTemplate,
 				data, platform, value)

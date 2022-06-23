@@ -16,7 +16,7 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
-			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.ObjectMeta.Name)
+			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
 			args := azureSql.ManagedDatabaseArgs{
 				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
 				ResourceGroupName:   pulumi.String(dbSpec.Spec.ManagedInstance.ResourceGroup),

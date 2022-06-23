@@ -41,7 +41,7 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 			}
 			j := &v1.Job{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      namer(job.Name, tenant.ObjectMeta.Name),
+					Name:      namer(job.Name, tenant.Name),
 					Namespace: job.Namespace,
 				},
 				Spec: v1.JobSpec{

@@ -20,14 +20,14 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 			const pwdKey = "pass"
 			const userKey = "user"
 			adminPwd := generatePassword()
-			adminUser := fmt.Sprintf("sqlUser%s", tenant.ObjectMeta.Name)
-			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.ObjectMeta.Name)
+			adminUser := fmt.Sprintf("sqlUser%s", tenant.Name)
+			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.Name)
 			secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
 			if secret != nil && secret.Data[pwdKey] != nil {
 				adminPwd = secret.Data[pwdKey].(string)
 			}
 
-			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.ObjectMeta.Name),
+			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.Name),
 				&azureSql.ServerArgs{
 					ResourceGroupName:          pulumi.String(resourceGroupName),
 					AdministratorLogin:         pulumi.String(adminUser),

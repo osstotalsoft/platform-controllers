@@ -202,15 +202,15 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	// use the live query API, to get the latest version instead of listers which are cached
 	tenant, err := c.clientset.PlatformV1alpha1().Tenants(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if shouldCleanupTenantResources := (err != nil && errors.IsNotFound(err)) || (err == nil && tenant.Spec.PlatformRef != platform); shouldCleanupTenantResources {
-		result := c.provisioner(platform, &platformv1.Tenant{
+		cleanupResult := c.provisioner(platform, &platformv1.Tenant{
 			ObjectMeta: metav1.ObjectMeta{Name: name},
 			Spec:       platformv1.TenantSpec{PlatformRef: platform}},
 			&provisioners.InfrastructureManifests{
 				AzureDbs:        []*provisioningv1.AzureDatabase{},
 				AzureManagedDbs: []*provisioningv1.AzureManagedDatabase{},
 			})
-		if result.Error != nil {
-			utilruntime.HandleError(result.Error)
+		if cleanupResult.Error != nil {
+			utilruntime.HandleError(cleanupResult.Error)
 		}
 
 		return nil
@@ -219,7 +219,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 
-	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.ObjectMeta.Name)
+	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Name)
 	skipTenantLabelSelector, err := labels.Parse(fmt.Sprintf("%s!=true", skipTenantLabel))
 	if err != nil {
 		return err

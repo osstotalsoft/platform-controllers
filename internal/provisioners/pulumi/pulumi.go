@@ -33,7 +33,7 @@ const (
 func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFunc {
 	return func(ctx *pulumi.Context) error {
 		resourceGroup, err := azureResources.NewResourceGroup(ctx,
-			fmt.Sprintf("%s_%s_RG", platform, tenant.ObjectMeta.Name),
+			fmt.Sprintf("%s_%s_RG", platform, tenant.Name),
 			nil,
 			pulumi.RetainOnDelete(PulumiRetainOnDelete))
 
@@ -51,7 +51,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	result := provisioners.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
-	azureRGStackName := fmt.Sprintf("%s_rg", tenant.ObjectMeta.Name)
+	azureRGStackName := fmt.Sprintf("%s_rg", tenant.Name)
 	emptyDeployFunc := func(ctx *pulumi.Context) error { return nil }
 
 	skipAzureDb, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureDb))
@@ -73,7 +73,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	}
 
 	if !skipAzureDb {
-		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.ObjectMeta.Name)
+		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Name)
 		if anyAzureDb {
 			azureRGName, ok := upRes.Outputs["azureRGName"].Value.(string)
 			if !ok {
@@ -95,7 +95,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	}
 
 	if !skipManagedAzureDb {
-		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.ObjectMeta.Name)
+		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Name)
 
 		if anyManagedAzureDb {
 			upRes, result.Error = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
