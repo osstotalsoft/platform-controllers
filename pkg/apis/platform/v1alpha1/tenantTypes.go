@@ -26,7 +26,7 @@ type Tenant struct {
 // TenantSpec is the spec for a tenant.
 type TenantSpec struct {
 	Id          string `json:"id"`
-	Code        string `json:"code"`
+	Description string `json:"description"`
 	PlatformRef string `json:"platformRef"`
 }
 

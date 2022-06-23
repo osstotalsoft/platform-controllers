@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"fmt"
+
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,21 +43,29 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 }
 
 func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporterFunc {
-	data := struct {
-		Tenant   platformv1.TenantSpec
+	type TemplateContextTenant struct {
+		Id          string
+		Code        string
+		Description string
+	}
+
+	type TemplateContext struct {
+		Tenant   TemplateContextTenant
 		Platform string
-	}{tenant.Spec, platform}
+	}
+
+	data := TemplateContext{TemplateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description}, platform}
 
 	return func(exportContext ExportContext, exportTemplate provisioningv1.ValueExport, value pulumi.StringInput) error {
 
 		if exportTemplate.ToVault != (provisioningv1.VaultSecretTemplate{}) {
-			name := objectNamingConvention(platform, exportContext.domain, tenant.Spec.Code,
+			name := objectNamingConvention(platform, exportContext.domain, tenant.Name,
 				exportContext.objectName, "/")
 			return exportToVault(exportContext.pulumiContext, name, exportTemplate.ToVault.KeyTemplate, data, value)
 		}
 
 		if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
-			name := objectNamingConvention(platform, exportContext.domain, tenant.Spec.Code,
+			name := objectNamingConvention(platform, exportContext.domain, tenant.Name,
 				exportContext.objectName, "-")
 			return exportToConfigMap(exportContext, name, exportTemplate.ToConfigMap.KeyTemplate,
 				data, platform, value)

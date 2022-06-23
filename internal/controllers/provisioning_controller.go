@@ -201,16 +201,25 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	// Get the Tenant resource with this namespace/name
 	// use the live query API, to get the latest version instead of listers which are cached
 	tenant, err := c.clientset.PlatformV1alpha1().Tenants(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
-		// The tenant resource may no longer exist, in which case we stop processing.
-		if errors.IsNotFound(err) {
-			utilruntime.HandleError(fmt.Errorf("tenant '%s' from work queue no longer exists", key))
-			return nil
+	if shouldCleanupTenantResources := (err != nil && errors.IsNotFound(err)) || (err == nil && tenant.Spec.PlatformRef != platform); shouldCleanupTenantResources {
+		cleanupResult := c.provisioner(platform, &platformv1.Tenant{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec:       platformv1.TenantSpec{PlatformRef: platform}},
+			&provisioners.InfrastructureManifests{
+				AzureDbs:        []*provisioningv1.AzureDatabase{},
+				AzureManagedDbs: []*provisioningv1.AzureManagedDatabase{},
+			})
+		if cleanupResult.Error != nil {
+			utilruntime.HandleError(cleanupResult.Error)
 		}
+
+		return nil
+	}
+	if err != nil {
 		return err
 	}
 
-	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Spec.Code)
+	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Name)
 	skipTenantLabelSelector, err := labels.Parse(fmt.Sprintf("%s!=true", skipTenantLabel))
 	if err != nil {
 		return err
@@ -365,20 +374,34 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Tenant)
-			klog.V(4).InfoS("tenant added", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp)
+			if platform, ok := getTenantPlatform(comp); ok {
+				klog.V(4).InfoS("tenant added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(comp)
+			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldT := oldObj.(*platformv1.Tenant)
 			newT := newObj.(*platformv1.Tenant)
-			klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
-			if oldT.Spec != newT.Spec {
+			oldPlatform, oldOk := getTenantPlatform(oldT)
+			newPlatform, newOk := getTenantPlatform(newT)
+			platformChanged := oldPlatform != newPlatform
+			specChanged := oldT.Spec != newT.Spec
+			if oldOk && platformChanged {
+				klog.V(4).InfoS("Tenant invalidated", "name", oldT.Name, "namespace", oldT.Namespace, "platform", oldPlatform)
+				handler(oldT)
+			}
+
+			if newOk && specChanged {
+				klog.V(4).InfoS("Tenant updated", "name", newT.Name, "namespace", newT.Namespace, "platform", newPlatform)
 				handler(newT)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Tenant)
-			klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace)
+			if platform, ok := getTenantPlatform(comp); ok {
+				klog.V(4).InfoS("tenant deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(comp)
+			}
 		},
 	})
 }
@@ -387,18 +410,34 @@ func addAzureDbHandlers(informer provisioningInformersv1.AzureDatabaseInformer, 
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureDatabase)
-			klog.V(4).InfoS("Azure database added", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.Spec.PlatformRef)
+			if platform, ok := getAzureDbPlatform(comp); ok {
+				klog.V(4).InfoS("Azure database added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			comp := newObj.(*provisioningv1.AzureDatabase)
-			klog.V(4).InfoS("Azure database updated", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.Spec.PlatformRef)
+			oldComp := oldObj.(*provisioningv1.AzureDatabase)
+			newComp := newObj.(*provisioningv1.AzureDatabase)
+			oldPlatform, oldOk := getAzureDbPlatform(oldComp)
+			newPlatform, newOk := getAzureDbPlatform(newComp)
+			platformChanged := oldPlatform != newPlatform
+
+			if oldOk && platformChanged {
+				klog.V(4).InfoS("Azure database invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
+				handler(oldPlatform)
+			}
+
+			if newOk {
+				klog.V(4).InfoS("Azure database updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
+				handler(newPlatform)
+			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureDatabase)
-			klog.V(4).InfoS("Azure database deleted", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.Spec.PlatformRef)
+			if platform, ok := getAzureDbPlatform(comp); ok {
+				klog.V(4).InfoS("Azure database deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
 		},
 	})
 }
@@ -407,18 +446,61 @@ func addAzureManagedDbHandlers(informer provisioningInformersv1.AzureManagedData
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureManagedDatabase)
-			klog.V(4).InfoS("Azure managed database added", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.Spec.PlatformRef)
+			if platform, ok := getAzureManagedDbPlatform(comp); ok {
+				klog.V(4).InfoS("Azure managed database added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			comp := newObj.(*provisioningv1.AzureManagedDatabase)
-			klog.V(4).InfoS("Azure managed database updated", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.Spec.PlatformRef)
+			oldComp := oldObj.(*provisioningv1.AzureManagedDatabase)
+			newComp := newObj.(*provisioningv1.AzureManagedDatabase)
+			oldPlatform, oldOk := getAzureManagedDbPlatform(oldComp)
+			newPlatform, newOk := getAzureManagedDbPlatform(newComp)
+			platformChanged := oldPlatform != newPlatform
+
+			if oldOk && platformChanged {
+				klog.V(4).InfoS("Azure managed database invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
+				handler(oldPlatform)
+			}
+
+			if newOk {
+				klog.V(4).InfoS("Azure managed database updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
+				handler(newPlatform)
+			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*provisioningv1.AzureManagedDatabase)
-			klog.V(4).InfoS("Azure managed database deleted", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.Spec.PlatformRef)
+			if platform, ok := getAzureManagedDbPlatform(comp); ok {
+				klog.V(4).InfoS("Azure managed database deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
 		},
 	})
+}
+
+func getTenantPlatform(tenant *platformv1.Tenant) (platform string, ok bool) {
+	platform = tenant.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, false
+	}
+
+	return platform, true
+}
+
+func getAzureDbPlatform(azureDb *provisioningv1.AzureDatabase) (platform string, ok bool) {
+	platform = azureDb.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, false
+	}
+
+	return platform, true
+}
+
+func getAzureManagedDbPlatform(azureManagedDb *provisioningv1.AzureManagedDatabase) (platform string, ok bool) {
+	platform = azureManagedDb.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, false
+	}
+
+	return platform, true
 }

@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"fmt"
+
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -19,20 +20,22 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 			const pwdKey = "pass"
 			const userKey = "user"
 			adminPwd := generatePassword()
-			adminUser := fmt.Sprintf("sqlUser%s", tenant.Spec.Code)
-			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.Spec.Code)
+			adminUser := fmt.Sprintf("sqlUser%s", tenant.Name)
+			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.Name)
 			secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
 			if secret != nil && secret.Data[pwdKey] != nil {
 				adminPwd = secret.Data[pwdKey].(string)
 			}
 
-			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.Spec.Code),
+			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.Name),
 				&azureSql.ServerArgs{
 					ResourceGroupName:          pulumi.String(resourceGroupName),
 					AdministratorLogin:         pulumi.String(adminUser),
 					AdministratorLoginPassword: pulumi.String(adminPwd),
 					Version:                    pulumi.String("12.0"),
-				})
+				},
+				pulumi.RetainOnDelete(PulumiRetainOnDelete),
+			)
 			if err != nil {
 				return err
 			}
@@ -42,13 +45,18 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 				if dbSpec.Spec.Sku != "" {
 					sku = dbSpec.Spec.Sku
 				}
-				db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName, &azureSql.DatabaseArgs{
-					ResourceGroupName: pulumi.String(resourceGroupName),
-					ServerName:        server.Name,
-					Sku: &azureSql.SkuArgs{
-						Name: pulumi.String(sku),
+
+				db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName,
+					&azureSql.DatabaseArgs{
+						ResourceGroupName: pulumi.String(resourceGroupName),
+						ServerName:        server.Name,
+						Sku: &azureSql.SkuArgs{
+							Name: pulumi.String(sku),
+						},
 					},
-				})
+					pulumi.RetainOnDelete(PulumiRetainOnDelete),
+				)
+
 				if err != nil {
 					return err
 				}
@@ -71,10 +79,13 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 					}
 				}
 			}
-			_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
-				DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
-				Path:     pulumi.String(secretPath),
-			})
+			_, err = vault.NewSecret(ctx, secretPath,
+				&vault.SecretArgs{
+					DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
+					Path:     pulumi.String(secretPath),
+				},
+				pulumi.RetainOnDelete(PulumiRetainOnDelete),
+			)
 			if err != nil {
 				return err
 			}
