@@ -54,7 +54,7 @@ func newTenant(name, platform string) *platformv1.Tenant {
 		},
 		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
-			Code:        name,
+			Description: name + " description",
 		},
 	}
 }
