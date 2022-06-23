@@ -43,10 +43,18 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 }
 
 func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporterFunc {
-	data := struct {
-		Tenant   platformv1.TenantSpec
+	type TemplateContextTenant struct {
+		Id          string
+		Code        string
+		Description string
+	}
+
+	type TemplateContext struct {
+		Tenant   TemplateContextTenant
 		Platform string
-	}{tenant.Spec, platform}
+	}
+
+	data := TemplateContext{TemplateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description}, platform}
 
 	return func(exportContext ExportContext, exportTemplate provisioningv1.ValueExport, value pulumi.StringInput) error {
 
