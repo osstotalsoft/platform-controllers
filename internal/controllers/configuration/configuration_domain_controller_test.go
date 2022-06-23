@@ -230,14 +230,14 @@ func newConfigurationDomain(name, namespace, platform string) *configurationv1.C
 	}
 }
 
-func newPlatform(name, code string) *platformv1.Platform {
+func newPlatform(name, targetNamespace string) *platformv1.Platform {
 	return &platformv1.Platform{
 		TypeMeta: metav1.TypeMeta{APIVersion: configurationv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
 		Spec: platformv1.PlatformSpec{
-			Code: code,
+			TargetNamespace: targetNamespace,
 		},
 	}
 }

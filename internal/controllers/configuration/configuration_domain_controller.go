@@ -371,7 +371,7 @@ func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, dom
 		return
 	}
 
-	platformNamespace := namespace == platformObj.Spec.Code
+	platformNamespace := namespace == platformObj.Spec.TargetNamespace
 	globalDomain := domain == globalDomainLabelValue
 
 	if platformNamespace || globalDomain {
@@ -422,7 +422,7 @@ func (c *ConfigurationDomainController) getConfigMapsFor(platform *platformv1.Pl
 		return nil, ErrNonRetryAble
 	}
 
-	platformConfigMaps, err := c.configMapsLister.ConfigMaps(platform.Spec.Code).List(globalDomainAndPlatformLabelSelector)
+	platformConfigMaps, err := c.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).List(globalDomainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
