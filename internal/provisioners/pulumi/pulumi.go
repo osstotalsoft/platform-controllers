@@ -86,7 +86,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			}
 			result.HasAzureDbChanges = hasChanges(upRes.Summary)
 		} else {
-			destroyRes, result.Error = destroyStack(azureDbStackName, platform, emptyDeployFunc)
+			destroyRes, result.Error = tryDestroyAndDeleteStack(azureDbStackName, platform, emptyDeployFunc)
 			if result.Error != nil {
 				return result
 			}
@@ -104,7 +104,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			}
 			result.HasAzureManagedDbChanges = hasChanges(upRes.Summary)
 		} else {
-			destroyRes, result.Error = destroyStack(azureManagedDbStackName, platform, emptyDeployFunc)
+			destroyRes, result.Error = tryDestroyAndDeleteStack(azureManagedDbStackName, platform, emptyDeployFunc)
 			if result.Error != nil {
 				return result
 			}
@@ -113,7 +113,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	}
 
 	if !anyResourceGroup {
-		destroyRes, result.Error = destroyStack(azureRGStackName, platform, emptyDeployFunc)
+		destroyRes, result.Error = tryDestroyAndDeleteStack(azureRGStackName, platform, emptyDeployFunc)
 		if result.Error != nil {
 			return result
 		}
@@ -157,7 +157,7 @@ func updateStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto
 	return res, err
 }
 
-func destroyStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto.DestroyResult, error) {
+func tryDestroyAndDeleteStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto.DestroyResult, error) {
 	ctx := context.Background()
 	s, err := auto.SelectStackInlineSource(ctx, stackName, projectName, deployFunc)
 	if err != nil {
