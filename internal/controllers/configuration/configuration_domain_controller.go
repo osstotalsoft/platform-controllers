@@ -120,8 +120,9 @@ func NewConfigurationDomainController(
 	klog.Info("Setting up event handlers")
 
 	// Set up an event handler for when ConfigAggregate resources change
-	addConfigurationDomainHandlers(configDomainInformer, controller.enqueueDomain)
-	addConfigMapHandlers(configMapInformer, controller.enqueueDomain)
+	addPlatformHandlers(platformInformer)
+	addConfigurationDomainHandlers(configDomainInformer, controller.enqueueConfigurationDomain)
+	addConfigMapHandlers(configMapInformer, controller.handleConfigMap)
 
 	return controller
 }
@@ -139,7 +140,7 @@ func (c *ConfigurationDomainController) Run(workers int, stopCh <-chan struct{})
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.configMapsSynced, c.configDomainsSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.configMapsSynced, c.configDomainsSynced, c.platformsSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -241,7 +242,10 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	// Get the ConfigurationDomain resource
 	configDomain, err := c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
 	if shouldDeleteConfigMap := (err != nil && k8serrors.IsNotFound(err)) || (err == nil && configDomain.Spec.PlatformRef != platform); shouldDeleteConfigMap {
-		c.kubeClientset.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), outputConfigMapName, metav1.DeleteOptions{})
+		deleteErr := c.kubeClientset.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), outputConfigMapName, metav1.DeleteOptions{})
+		if deleteErr != nil {
+			utilruntime.HandleError(deleteErr)
+		}
 		return nil
 	}
 	if err != nil {
@@ -361,7 +365,7 @@ func (c *ConfigurationDomainController) updateStatus(configurationDomain *v1alph
 	}
 }
 
-func (c *ConfigurationDomainController) enqueueDomain(platform, namespace, domain string) {
+func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, domain string) {
 	platformObj, err := c.platformsLister.Get(platform)
 	if err != nil {
 		return
@@ -380,14 +384,18 @@ func (c *ConfigurationDomainController) enqueueDomain(platform, namespace, domai
 		}
 		for _, configurationDomain := range configDomains {
 			if configurationDomain.Spec.PlatformRef == platform {
-				key := encodeDomainKey(platform, configurationDomain.Namespace, configurationDomain.Name)
-				c.workqueue.Add(key)
+				c.enqueueConfigurationDomain(platform, configurationDomain.Namespace, configurationDomain.Name)
 			}
 		}
 	} else {
-		key := encodeDomainKey(platform, namespace, domain)
-		c.workqueue.Add(key)
+		c.enqueueConfigurationDomain(platform, namespace, domain)
 	}
+
+}
+
+func (c *ConfigurationDomainController) enqueueConfigurationDomain(platform, namespace, domain string) {
+	key := encodeDomainKey(platform, namespace, domain)
+	c.workqueue.Add(key)
 
 }
 
@@ -568,6 +576,23 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
 				handler(platform, comp.Namespace, domain)
 			}
+		},
+	})
+}
+
+func addPlatformHandlers(informer platformInformers.PlatformInformer) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*platformv1.Platform)
+			klog.V(4).InfoS("Platform added", "name", comp.Name)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			newT := newObj.(*platformv1.Platform)
+			klog.V(4).InfoS("Platform updated", "name", newT.Name)
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*platformv1.Platform)
+			klog.V(4).InfoS("Platform deleted", "name", comp.Name)
 		},
 	})
 }

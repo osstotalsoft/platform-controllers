@@ -36,6 +36,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		c := runController(configurationDomains, configMaps, platforms)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+			return
 		}
 
 		// Act
@@ -62,7 +63,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 
 	t.Run("aggregate domain specific and global config map", func(t *testing.T) {
 		// Arrange
-		platform, namespace, domain := "dev", "team1", "domain1"
+		platform, namespace, domain := "pl1", "n1", "domain1"
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", domain, namespace, platform, map[string]string{"k1": "v1"}),
 			newConfigMap("configMap2", globalDomainLabelValue, namespace, platform, map[string]string{"k2": "v2"}),
@@ -75,7 +76,9 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		c := runController(configurationDomains, configMaps, platforms)
 		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+			items := c.workqueue.Len()
+			t.Error("queue should have only 1 item, but it has", items)
+			return
 		}
 
 		// Act
@@ -100,9 +103,51 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
+	t.Run("aggregate platform config map", func(t *testing.T) {
+		// Arrange
+		platform, namespace, domain := "p1", "p1-team1", "domain1"
+		platformNamespace := namespace
+
+		configMaps := []runtime.Object{
+			newConfigMap("configMap1", globalDomainLabelValue, platformNamespace, platform, map[string]string{"k1": "v1"}),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace, platform),
+		}
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		c := runController(configurationDomains, configMaps, platforms)
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+			return
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), fmt.Sprintf("%s-%s-aggregate", platform, domain), metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput := map[string]string{"k1": "v1"}
+		if !reflect.DeepEqual(output.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output.Data)
+		}
+	})
+
 	t.Run("should remove output when platform changes", func(t *testing.T) {
 		// Arrange
-		old_platform, new_platform, namespace, domain := "dev", "qa", "ns1", "domain1"
+		old_platform, new_platform, namespace, domain := "p3", "p4", "p3-ns1", "domain1"
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", domain, namespace, old_platform, map[string]string{"k1": "v1"}),
 			newConfigMap("configMap2", domain, namespace, old_platform, map[string]string{"k2": "v2"}),
@@ -117,14 +162,13 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		c := runController(configurationDomains, configMaps, platforms)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+			return
 		}
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
-
-		time.Sleep(10 * time.Millisecond)
 
 		foundConfigurationDomain, err := c.configurationClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Get(context.TODO(), domain, metav1.GetOptions{})
 		if err != nil {
@@ -156,8 +200,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			item, _ := c.workqueue.Get()
 			t.Error("queue should be empty, but contains ", item)
 		}
-
-		time.Sleep(100 * time.Millisecond)
 
 		oldAggregateConfigMap := fmt.Sprintf("%s-%s-aggregate", old_platform, domain)
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), oldAggregateConfigMap, metav1.GetOptions{})
@@ -217,7 +259,7 @@ func newConfigMap(name, domain, namespace, platform string, data map[string]stri
 
 func runController(configurationDomains, configMaps []runtime.Object, platforms []runtime.Object) *ConfigurationDomainController {
 	kubeClient := kubeFakeClientSet.NewSimpleClientset(configMaps...)
-	platformClient := fakeClientset.NewSimpleClientset(append(configurationDomains, platforms...)...)
+	platformClient := fakeClientset.NewSimpleClientset(append(platforms, configurationDomains...)...)
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	platformInformerFactory := informers.NewSharedInformerFactory(platformClient, time.Second*30)
@@ -230,8 +272,8 @@ func runController(configurationDomains, configMaps []runtime.Object, platforms 
 	kubeInformerFactory.Start(nil)
 	platformInformerFactory.Start(nil)
 
-	kubeInformerFactory.WaitForCacheSync(nil)
 	platformInformerFactory.WaitForCacheSync(nil)
+	kubeInformerFactory.WaitForCacheSync(nil)
 
 	return c
 }
