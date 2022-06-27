@@ -272,23 +272,23 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 		return err
 	}
 	platformOrConfigDomainNotOk := platformObj == nil || configDomain == nil || configDomain.Spec.PlatformRef != platformObj.Name
-	shouldCleanupConfigMap := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateConfigMaps
-	if shouldCleanupConfigMap {
+	cleanupConfigMap := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateConfigMaps
+	if cleanupConfigMap {
 		err = c.configurationHandler.Cleanup(platform, namespace, domain)
 		if err != nil {
 			return err
 		}
 	}
 
-	shouldCleanupSpc := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateSecrets
-	if shouldCleanupSpc {
+	cleanupSpc := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateSecrets
+	if cleanupSpc {
 		err = c.secretsHandler.Cleanup(platform, namespace, domain)
 		if err != nil {
 			return err
 		}
 	}
 
-	if shouldCleanupConfigMap && shouldCleanupSpc {
+	if cleanupConfigMap && cleanupSpc {
 		return nil
 	}
 
@@ -297,16 +297,20 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 		return err
 	}
 
-	err = c.configurationHandler.Sync(platformObj, configDomain)
-	if err != nil {
-		c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
-		return err
+	if !cleanupConfigMap {
+		err = c.configurationHandler.Sync(platformObj, configDomain)
+		if err != nil {
+			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
+			return err
+		}
 	}
 
-	err = c.secretsHandler.Sync(platformObj, configDomain)
-	if err != nil {
-		c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
-		return err
+	if !cleanupSpc {
+		err = c.secretsHandler.Sync(platformObj, configDomain)
+		if err != nil {
+			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
+			return err
+		}
 	}
 
 	// Finally, we update the status block of the ConfigurationDomain resource to reflect the

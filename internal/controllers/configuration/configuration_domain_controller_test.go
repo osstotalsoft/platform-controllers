@@ -272,6 +272,56 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
+	t.Run("should not aggregate configMaps from other platform namespaces", func(t *testing.T) {
+		// Arrange
+		platform, namespace1, namespace2, domain := "qa", "qa-n1", "qa-n2", "domain"
+		configMaps := []runtime.Object{
+			newConfigMap("configMap1", domain, namespace1, platform, map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", globalDomainLabelValue, namespace1, platform, map[string]string{"k2": "v2"}),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace1, platform, true, false),
+			newConfigurationDomain(domain, namespace2, platform, true, false),
+		}
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		spcs := []runtime.Object{}
+
+		c := runController(platforms, configurationDomains, configMaps, spcs)
+		if c.workqueue.Len() != 2 {
+			items := c.workqueue.Len()
+			t.Error("queue should have 2 items, but it has", items)
+			return
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		outputConfigmap := getOutputConfigmapName(platform, domain)
+		output2, err := c.kubeClientset.CoreV1().ConfigMaps(namespace2).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput := map[string]string{}
+		if !reflect.DeepEqual(output2.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output2.Data)
+		}
+	})
+
 	t.Run("aggregate two secrets", func(t *testing.T) {
 		// Arrange
 		platform, namespace, domain := "qa", "qa-t1", "domain1"
