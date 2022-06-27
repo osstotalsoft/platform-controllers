@@ -32,6 +32,10 @@ import (
 	platformInformers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/platform/v1alpha1"
 	listers "totalsoft.ro/platform-controllers/pkg/generated/listers/configuration/v1alpha1"
 	platformListers "totalsoft.ro/platform-controllers/pkg/generated/listers/platform/v1alpha1"
+
+	csiClientset "sigs.k8s.io/secrets-store-csi-driver/pkg/client/clientset/versioned"
+	csiInformers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions/apis/v1"
+	csiListers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/listers/apis/v1"
 )
 
 const (
@@ -40,10 +44,10 @@ const (
 	configControllerAgentName = "configuration-controller"
 	globalDomainLabelValue    = "global"
 
-	// SuccessSynced is used as part of the Event 'reason' when a ConfigurationAggregate is synced
-	SuccessConfigAggregateSynced = "Synced successfully"
+	// SuccessSynced is used as part of the Event 'reason' when a ConfigurationDomain is synced
+	SuccessConfigurationDomainSynced = "Synced successfully"
 
-	// ErrResourceExists is used as part of the Event 'reason' when a ConfigurationAggregate fails
+	// ErrResourceExists is used as part of the Event 'reason' when a ConfigurationDomain fails
 	// to sync due to a ConfigMap of the same name already existing.
 	ErrResourceExists = "ErrResourceExists"
 
@@ -51,7 +55,7 @@ const (
 	// fails to sync due to a ConfigMap already existing
 	MessageResourceExists = "Resource %q already exists and is not managed by ConfigurationDomain"
 
-	// MessageResourceSynced is the message used for an Event fired when a ConfigurationAggregate
+	// MessageResourceSynced is the message used for an Event fired when a ConfigurationDomain
 	// is synced successfully
 	MessageResourceSynced = "Synced successfully"
 
@@ -63,14 +67,22 @@ const (
 
 var ErrNonRetryAble = errors.New("non retry-able handled error")
 
+type secretSpec struct {
+	Path string `json:"platformRef"`
+	Key  string `json:"domain"`
+}
 type ConfigurationDomainController struct {
-	kubeClientset          kubernetes.Interface
-	configurationClientset clientset.Interface
-	configMapInformer      coreInformers.ConfigMapInformer
-	configDomainInformer   informers.ConfigurationDomainInformer
+	kubeClientset        kubernetes.Interface
+	csiClientset         csiClientset.Interface
+	platformClientset    clientset.Interface
+	configMapInformer    coreInformers.ConfigMapInformer
+	spcInformer          csiInformers.SecretProviderClassInformer
+	configDomainInformer informers.ConfigurationDomainInformer
 
 	configMapsLister    coreListers.ConfigMapLister
 	configMapsSynced    cache.InformerSynced
+	spcLister           csiListers.SecretProviderClassLister
+	spcSynced           cache.InformerSynced
 	configDomainsLister listers.ConfigurationDomainLister
 	configDomainsSynced cache.InformerSynced
 	platformsLister     platformListers.PlatformLister
@@ -86,27 +98,42 @@ type ConfigurationDomainController struct {
 	// time, and makes it easy to ensure we are never processing the same item
 	// simultaneously in two different workers.
 	workqueue workqueue.RateLimitingInterface
+
+	configurationHandler *configurationHandler
+	secretsHandler       *secretsHandler
 }
 
 func NewConfigurationDomainController(
+	platformClientset clientset.Interface,
 	kubeClientset kubernetes.Interface,
-	configurationClientset clientset.Interface,
-	configMapInformer coreInformers.ConfigMapInformer,
-	configDomainInformer informers.ConfigurationDomainInformer,
+	csiClientset csiClientset.Interface,
+
 	platformInformer platformInformers.PlatformInformer,
+	configDomainInformer informers.ConfigurationDomainInformer,
+	configMapInformer coreInformers.ConfigMapInformer,
+	spcInformer csiInformers.SecretProviderClassInformer,
+
 	eventBroadcaster record.EventBroadcaster,
 ) *ConfigurationDomainController {
 	controller := &ConfigurationDomainController{
-		kubeClientset:          kubeClientset,
-		configurationClientset: configurationClientset,
-		configMapInformer:      configMapInformer,
-		configMapsLister:       configMapInformer.Lister(),
-		configMapsSynced:       configMapInformer.Informer().HasSynced,
-		configDomainInformer:   configDomainInformer,
-		configDomainsLister:    configDomainInformer.Lister(),
-		configDomainsSynced:    configDomainInformer.Informer().HasSynced,
-		platformsLister:        platformInformer.Lister(),
-		platformsSynced:        platformInformer.Informer().HasSynced,
+		platformClientset: platformClientset,
+		kubeClientset:     kubeClientset,
+		csiClientset:      csiClientset,
+
+		platformsLister: platformInformer.Lister(),
+		platformsSynced: platformInformer.Informer().HasSynced,
+
+		configDomainInformer: configDomainInformer,
+		configDomainsLister:  configDomainInformer.Lister(),
+		configDomainsSynced:  configDomainInformer.Informer().HasSynced,
+
+		configMapInformer: configMapInformer,
+		configMapsLister:  configMapInformer.Lister(),
+		configMapsSynced:  configMapInformer.Informer().HasSynced,
+
+		spcInformer: spcInformer,
+		spcLister:   spcInformer.Lister(),
+		spcSynced:   spcInformer.Informer().HasSynced,
 
 		recorder:  &record.FakeRecorder{},
 		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configuration-domain"),
@@ -116,6 +143,9 @@ func NewConfigurationDomainController(
 	if eventBroadcaster != nil {
 		controller.recorder = eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: configControllerAgentName})
 	}
+
+	controller.configurationHandler = newConfigurationHandler(kubeClientset, configMapInformer.Lister(), controller.recorder)
+	controller.secretsHandler = newSecretsHandler(csiClientset, spcInformer.Lister(), controller.recorder)
 
 	klog.Info("Setting up event handlers")
 
@@ -140,7 +170,7 @@ func (c *ConfigurationDomainController) Run(workers int, stopCh <-chan struct{})
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.configMapsSynced, c.configDomainsSynced, c.platformsSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.platformsSynced, c.configDomainsSynced, c.configMapsSynced, c.spcSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -232,24 +262,34 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	}
 
 	platformObj, err := c.platformsLister.Get(platform)
-	if err != nil {
-		utilruntime.HandleError(err)
-		return nil
+	if err != nil && !k8serrors.IsNotFound(err) {
+		return err
 	}
-
-	outputConfigMapName := fmt.Sprintf("%s-%s-aggregate", platform, domain)
 
 	// Get the ConfigurationDomain resource
 	configDomain, err := c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
-	if shouldDeleteConfigMap := (err != nil && k8serrors.IsNotFound(err)) || (err == nil && configDomain.Spec.PlatformRef != platform); shouldDeleteConfigMap {
-		deleteErr := c.kubeClientset.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), outputConfigMapName, metav1.DeleteOptions{})
-		if deleteErr != nil {
-			utilruntime.HandleError(deleteErr)
-		}
-		return nil
-	}
-	if err != nil {
+	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
+	}
+	platformOrConfigDomainNotOk := platformObj == nil || configDomain == nil || configDomain.Spec.PlatformRef != platformObj.Name
+	shouldCleanupConfigMap := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateConfigMaps
+	if shouldCleanupConfigMap {
+		err = c.configurationHandler.Cleanup(platform, namespace, domain)
+		if err != nil {
+			return err
+		}
+	}
+
+	shouldCleanupSpc := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateSecrets
+	if shouldCleanupSpc {
+		err = c.secretsHandler.Cleanup(platform, namespace, domain)
+		if err != nil {
+			return err
+		}
+	}
+
+	if shouldCleanupConfigMap && shouldCleanupSpc {
+		return nil
 	}
 
 	configDomain, err = c.resetStatus(configDomain)
@@ -257,65 +297,22 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 		return err
 	}
 
-	configMaps, err := c.getConfigMapsFor(platformObj, namespace, domain)
+	err = c.configurationHandler.Sync(platformObj, configDomain)
 	if err != nil {
-		if errors.Is(err, ErrNonRetryAble) {
-			return nil
-		}
-
-		c.updateStatus(configDomain, false, err.Error())
-		return err
-	}
-
-	aggregatedConfigMap := c.aggregateConfigMaps(configDomain, configMaps, outputConfigMapName)
-
-	// Get the output config map for this namespace::domain
-	outputConfigMap, err := c.configMapsLister.ConfigMaps(configDomain.Namespace).Get(outputConfigMapName)
-	// If the resource doesn't exist, we'll create it
-	if k8serrors.IsNotFound(err) {
-		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Create(context.TODO(), aggregatedConfigMap, metav1.CreateOptions{})
-	}
-
-	// If an error occurs during Get/Create, we'll requeue the item so we can
-	// attempt processing again later. This could have been caused by a
-	// temporary network failure, or any other transient reason.
-	if err != nil {
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
 		c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
 		return err
 	}
 
-	// If the ConfigMap is not controlled by this ConfigMapAggregate resource, we should log
-	// a warning to the event recorder and return error msg.
-	if !metav1.IsControlledBy(outputConfigMap, configDomain) {
-		msg := fmt.Sprintf(MessageResourceExists, outputConfigMap.Name)
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
-		c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
-		return nil
-	}
-
-	// If the existing ConfigMap data differs from the aggregation result we
-	// should update the ConfigMap resource.
-	if !reflect.DeepEqual(aggregatedConfigMap.Data, outputConfigMap.Data) {
-		klog.V(4).Infof("Configuration values changed")
-		outputConfigMap = outputConfigMap.DeepCopy()
-		outputConfigMap.Data = aggregatedConfigMap.Data
-		_, err = c.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Update(context.TODO(), outputConfigMap, metav1.UpdateOptions{})
-	}
-
-	// If an error occurs during Update, we'll requeue the item so we can
-	// attempt processing again later. This could have been caused by a
-	// temporary network failure, or any other transient reason.
+	err = c.secretsHandler.Sync(platformObj, configDomain)
 	if err != nil {
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
-		c.updateStatus(configDomain, false, "Aggregation failed: "+err.Error())
+		c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
 		return err
 	}
 
-	// Finally, we update the status block of the ConfigurationAggregate resource to reflect the
+	// Finally, we update the status block of the ConfigurationDomain resource to reflect the
 	// current state of the world
-	c.updateStatus(configDomain, true, SuccessConfigAggregateSynced)
-	c.recorder.Event(configDomain, corev1.EventTypeNormal, SuccessConfigAggregateSynced, MessageResourceSynced)
+	c.updateStatus(configDomain, true, SuccessConfigurationDomainSynced)
+	c.recorder.Event(configDomain, corev1.EventTypeNormal, SuccessConfigurationDomainSynced, MessageResourceSynced)
 	return nil
 }
 
@@ -333,7 +330,7 @@ func (c *ConfigurationDomainController) resetStatus(configurationDomain *v1alpha
 	}
 	apimeta.SetStatusCondition(&configurationDomain.Status.Conditions, newCondition)
 
-	return c.configurationClientset.ConfigurationV1alpha1().ConfigurationDomains(configurationDomain.Namespace).UpdateStatus(context.TODO(), configurationDomain, metav1.UpdateOptions{})
+	return c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(configurationDomain.Namespace).UpdateStatus(context.TODO(), configurationDomain, metav1.UpdateOptions{})
 }
 
 func (c *ConfigurationDomainController) updateStatus(configurationDomain *v1alpha1.ConfigurationDomain, isReady bool, message string) {
@@ -358,7 +355,7 @@ func (c *ConfigurationDomainController) updateStatus(configurationDomain *v1alph
 	}
 	apimeta.SetStatusCondition(&configurationDomain.Status.Conditions, newCondition)
 
-	_, err := c.configurationClientset.ConfigurationV1alpha1().ConfigurationDomains(configurationDomain.DeepCopy().Namespace).UpdateStatus(context.TODO(), configurationDomain, metav1.UpdateOptions{})
+	_, err := c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(configurationDomain.DeepCopy().Namespace).UpdateStatus(context.TODO(), configurationDomain, metav1.UpdateOptions{})
 
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -390,87 +387,11 @@ func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, dom
 	} else {
 		c.enqueueConfigurationDomain(platform, namespace, domain)
 	}
-
 }
 
 func (c *ConfigurationDomainController) enqueueConfigurationDomain(platform, namespace, domain string) {
 	key := encodeDomainKey(platform, namespace, domain)
 	c.workqueue.Add(key)
-
-}
-
-func (c *ConfigurationDomainController) getConfigMapsFor(platform *platformv1.Platform, namespace, domain string) ([]*corev1.ConfigMap, error) {
-	domainAndPlatformLabelSelector, err :=
-		labels.ValidatedSelectorFromSet(map[string]string{
-			domainLabelName:   domain,
-			platformLabelName: platform.Name,
-		})
-
-	if err != nil {
-		utilruntime.HandleError(err)
-		return nil, ErrNonRetryAble
-	}
-
-	globalDomainAndPlatformLabelSelector, err :=
-		labels.ValidatedSelectorFromSet(map[string]string{
-			domainLabelName:   globalDomainLabelValue,
-			platformLabelName: platform.Name,
-		})
-
-	if err != nil {
-		utilruntime.HandleError(err)
-		return nil, ErrNonRetryAble
-	}
-
-	platformConfigMaps, err := c.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).List(globalDomainAndPlatformLabelSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	globalDomainConfigMaps, err := c.configMapsLister.ConfigMaps(namespace).List(globalDomainAndPlatformLabelSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	configMaps, err := c.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	configMaps = append(append(platformConfigMaps, globalDomainConfigMaps...), configMaps...)
-	return configMaps, nil
-}
-
-func (c *ConfigurationDomainController) aggregateConfigMaps(configurationDomain *v1alpha1.ConfigurationDomain, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
-	mergedData := map[string]string{}
-	for _, configMap := range configMaps {
-		if configMap.Name == outputName {
-			continue
-		}
-
-		for k, v := range configMap.Data {
-			if existingValue, ok := mergedData[k]; ok {
-				msg := fmt.Sprintf("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, configMap.Name, v)
-				c.recorder.Event(configurationDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
-			}
-			mergedData[k] = v
-		}
-	}
-
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: outputName,
-			Labels: map[string]string{
-				domainLabelName:   configurationDomain.Name,
-				platformLabelName: configurationDomain.Spec.PlatformRef,
-			},
-			Namespace: configurationDomain.Namespace,
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(configurationDomain, v1alpha1.SchemeGroupVersion.WithKind("ConfigurationDomain")),
-			},
-		},
-		Data: mergedData,
-	}
 }
 
 func encodeDomainKey(platform, namespace, domain string) (key string) {
@@ -530,7 +451,7 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			comp := obj.(*corev1.ConfigMap)
 
 			if platform, domain, ok := getConfigMapPlatformAndDomain(comp); ok {
-				if isControlledByConfigurationDomain(comp) {
+				if isOutputConfigMap(comp) {
 					return
 				}
 
@@ -618,11 +539,4 @@ func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string
 	}
 
 	return platform, domain, true
-}
-
-func isControlledByConfigurationDomain(configMap *corev1.ConfigMap) bool {
-	owner := metav1.GetControllerOf(configMap)
-	return (owner != nil &&
-		owner.Kind == "ConfigurationDomain" &&
-		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
 }
