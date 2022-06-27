@@ -8,6 +8,7 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:printcolumn:name="Enabled",type=date,JSONPath=`.spec.enabled`
 // +kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].status",description=""
 // +kubebuilder:printcolumn:name="Status",type="string",JSONPath=".status.conditions[?(@.type==\"Ready\")].message",description=""
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
@@ -28,6 +29,9 @@ type TenantSpec struct {
 	Id          string `json:"id"`
 	Description string `json:"description"`
 	PlatformRef string `json:"platformRef"`
+
+	// +kubebuilder:default:=true
+	Enabled bool `json:"enabled"`
 }
 
 // TenantStatus is the status for a tenant.

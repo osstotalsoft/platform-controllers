@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -373,6 +374,7 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
+		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled)
 	}
 
 	return &corev1.ConfigMap{

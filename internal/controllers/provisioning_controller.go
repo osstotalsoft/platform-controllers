@@ -259,7 +259,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	})
 
 	if result.Error == nil {
-		if c.migrator != nil && (result.HasAzureDbChanges || result.HasAzureManagedDbChanges) {
+		if c.migrator != nil && (result.HasAzureDbChanges || result.HasAzureManagedDbChanges) && tenant.Spec.Enabled {
 			p, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platform, metav1.GetOptions{})
 			if err == nil {
 				result.Error = c.migrator(p.Spec.TargetNamespace, tenant)
