@@ -2,7 +2,6 @@ package configuration
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -56,8 +55,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			item, _ := c.workqueue.Get()
 			t.Error("queue should be empty, but contains ", item)
 		}
-
-		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), fmt.Sprintf("%s-%s-aggregate", platform, domain), metav1.GetOptions{})
+		outputConfigmap := getOutputConfigmapName(platform, domain)
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return
@@ -101,7 +100,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), fmt.Sprintf("%s-%s-aggregate", platform, domain), metav1.GetOptions{})
+		outputConfigmap := getOutputConfigmapName(platform, domain)
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return
@@ -145,7 +145,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), fmt.Sprintf("%s-%s-aggregate", platform, domain), metav1.GetOptions{})
+		outputConfigmap := getOutputConfigmapName(platform, domain)
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return
@@ -214,12 +215,12 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		oldAggregateConfigMap := fmt.Sprintf("%s-%s-aggregate", old_platform, domain)
+		oldAggregateConfigMap := getOutputConfigmapName(old_platform, domain)
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), oldAggregateConfigMap, metav1.GetOptions{})
 		if foundConfigMap != nil || err == nil {
 			t.Errorf("output config map %s should be deleted ", oldAggregateConfigMap)
 		}
-		newAggregateConfigMap := fmt.Sprintf("%s-%s-aggregate", new_platform, domain)
+		newAggregateConfigMap := getOutputConfigmapName(new_platform, domain)
 		foundConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), newAggregateConfigMap, metav1.GetOptions{})
 		if foundConfigMap == nil || err != nil {
 			t.Errorf("output config map %s should be present ", newAggregateConfigMap)
@@ -229,7 +230,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 	t.Run("should perform cleanup when aggregateConfigMaps is false", func(t *testing.T) {
 		// Arrange
 		platform, namespace, domain := "qa", "qa-t1", "domain1"
-		outputConfigMap := fmt.Sprintf("%s-%s-aggregate", platform, domain)
+		outputConfigMap := getOutputConfigmapName(platform, domain)
 		configMaps := []runtime.Object{
 			newConfigMap(outputConfigMap, domain, namespace, platform, map[string]string{"k1": "v1"}),
 		}
@@ -242,9 +243,59 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 
 		c := runController(platforms, configurationDomains, configMaps, spcs)
+
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigMap, metav1.GetOptions{})
+		if foundConfigMap != nil || err == nil {
+			t.Errorf("output config map %s should be deleted ", outputConfigMap)
+		}
+	})
+
+	t.Run("aggregate two secrets", func(t *testing.T) {
+		// Arrange
+		platform, namespace, domain := "qa", "qa-t1", "domain1"
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace, platform, false, true),
+		}
+		configMaps := []runtime.Object{}
+		spcs := []runtime.Object{}
+		c := runController(platforms, configurationDomains, configMaps, spcs)
+
+		var oldGetSecrets = getSecrets
+		defer func() { getSecrets = oldGetSecrets }()
+		getSecrets = func(platform, domain, role string) ([]secretSpec, error) {
+			return []secretSpec{
+				{Key: "key1", Path: "path1"},
+				{Key: "key2", Path: "path2"},
+			}, nil
+		}
+
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 		}
 
 		// Act
@@ -257,12 +308,21 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			item, _ := c.workqueue.Get()
 			t.Error("queue should be empty, but contains ", item)
 		}
-
-		time.Sleep(100 * time.Millisecond)
-
-		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigMap, metav1.GetOptions{})
-		if foundConfigMap != nil || err == nil {
-			t.Errorf("output config map %s should be deleted ", outputConfigMap)
+		outputSpcName := getOutputSpcName(platform, domain)
+		output, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput := `
+- objectName: "key1"
+  secretPath: "path1"
+  secretKey: "key1"
+- objectName: "key2"
+  secretPath: "path2"
+  secretKey: "key2"`
+		if output.Spec.Parameters["objects"] != expectedOutput {
+			t.Error("expected output secret objects", expectedOutput, ", got", output.Spec.Parameters["objects"])
 		}
 	})
 }
