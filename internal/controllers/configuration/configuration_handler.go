@@ -21,6 +21,8 @@ import (
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
+var ErrNonRetryAble = errors.New("non retry-able handled error")
+
 type configurationHandler struct {
 	kubeClientset kubernetes.Interface
 

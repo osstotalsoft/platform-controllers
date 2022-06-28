@@ -28,6 +28,10 @@ import (
 
 var getSecrets = getSecretWithKubernetesAuth
 
+type secretSpec struct {
+	Path string `json:"platformRef"`
+	Key  string `json:"domain"`
+}
 type secretsHandler struct {
 	csiClientset csiClientset.Interface
 	spcLister    csiListers.SecretProviderClassLister

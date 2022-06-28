@@ -2,7 +2,6 @@ package configuration
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -65,12 +64,6 @@ const (
 	ReadyCondition string = "Ready"
 )
 
-var ErrNonRetryAble = errors.New("non retry-able handled error")
-
-type secretSpec struct {
-	Path string `json:"platformRef"`
-	Key  string `json:"domain"`
-}
 type ConfigurationDomainController struct {
 	kubeClientset        kubernetes.Interface
 	csiClientset         csiClientset.Interface
@@ -512,27 +505,4 @@ func addPlatformHandlers(informer platformInformers.PlatformInformer) {
 			klog.V(4).InfoS("Platform deleted", "name", comp.Name)
 		},
 	})
-}
-
-func getConfigurationDomainPlatform(configurationDomain *v1alpha1.ConfigurationDomain) (platform string, ok bool) {
-	platform = configurationDomain.Spec.PlatformRef
-	if len(platform) == 0 {
-		return platform, false
-	}
-
-	return platform, true
-}
-
-func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
-	domain, domainLabelExists := configMap.Labels[domainLabelName]
-	if !domainLabelExists || len(domain) == 0 {
-		return "", domain, false
-	}
-
-	platform, platformLabelExists := configMap.Labels[platformLabelName]
-	if !platformLabelExists || len(platform) == 0 {
-		return platform, domain, false
-	}
-
-	return platform, domain, true
 }
