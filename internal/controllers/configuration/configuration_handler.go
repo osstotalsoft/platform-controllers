@@ -44,8 +44,8 @@ func newConfigurationHandler(
 	return handler
 }
 
-func (c *configurationHandler) Cleanup(platform, namespace, domain string) error {
-	outputConfigMapName := getOutputConfigmapName(platform, domain)
+func (c *configurationHandler) Cleanup(namespace, domain string) error {
+	outputConfigMapName := getOutputConfigmapName(domain)
 	err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), outputConfigMapName, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
@@ -54,7 +54,7 @@ func (c *configurationHandler) Cleanup(platform, namespace, domain string) error
 }
 
 func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
-	outputConfigMapName := getOutputConfigmapName(platformObj.Name, configDomain.Name)
+	outputConfigMapName := getOutputConfigmapName(configDomain.Name)
 
 	configMaps, err := h.getConfigMapsFor(platformObj, configDomain.Namespace, configDomain.Name)
 	if err != nil {
@@ -179,8 +179,8 @@ func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1
 	}
 }
 
-func getOutputConfigmapName(platform, domain string) string {
-	return fmt.Sprintf("%s-%s-aggregate", platform, domain)
+func getOutputConfigmapName(domain string) string {
+	return fmt.Sprintf("%s-aggregate", domain)
 }
 
 func isOutputConfigMap(configMap *corev1.ConfigMap) bool {

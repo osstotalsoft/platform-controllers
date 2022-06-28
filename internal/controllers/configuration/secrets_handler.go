@@ -50,8 +50,8 @@ func newSecretsHandler(
 	return handler
 }
 
-func (c *secretsHandler) Cleanup(platform, namespace, domain string) error {
-	outputSpcName := getOutputSpcName(platform, domain)
+func (c *secretsHandler) Cleanup(namespace, domain string) error {
+	outputSpcName := getOutputSpcName(domain)
 	err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Delete(context.TODO(), outputSpcName, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
@@ -60,7 +60,7 @@ func (c *secretsHandler) Cleanup(platform, namespace, domain string) error {
 }
 
 func (c *secretsHandler) Sync(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
-	outputSpcName := getOutputSpcName(platformObj.Name, configDomain.Name)
+	outputSpcName := getOutputSpcName(configDomain.Name)
 	role := fmt.Sprintf("%s-readonly", platformObj.Name)
 
 	platformSecrets, err := getSecrets(platformObj.Name, platformObj.Spec.TargetNamespace, globalDomainLabelValue, role)
@@ -261,6 +261,6 @@ func getSecretWithKubernetesAuth(platform, namespace, domain, role string) ([]se
 	return secretList, err
 }
 
-func getOutputSpcName(platform, domain string) string {
-	return fmt.Sprintf("%s-%s-aggregate", platform, domain)
+func getOutputSpcName(domain string) string {
+	return fmt.Sprintf("%s-aggregate", domain)
 }

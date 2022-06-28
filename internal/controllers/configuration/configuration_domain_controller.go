@@ -255,34 +255,38 @@ func (c *ConfigurationDomainController) processNextWorkItem() bool {
 // with the current status of the resource.
 func (c *ConfigurationDomainController) syncHandler(key string) error {
 	// Convert the namespace::domain string into a distinct namespace and domain
-	platform, namespace, domain, err := decodeDomainKey(key)
+	namespace, domain, err := decodeDomainKey(key)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("invalid resource key: %s", key))
 		return nil
 	}
 
-	platformObj, err := c.platformsLister.Get(platform)
+	// Get the ConfigurationDomain resource
+	configDomain, err := c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	platformObj, err := c.platformsLister.Get(configDomain.Spec.PlatformRef)
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
 	}
 
-	// Get the ConfigurationDomain resource
-	configDomain, err := c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
-	if err != nil && !k8serrors.IsNotFound(err) {
-		return err
-	}
-	platformOrConfigDomainNotOk := platformObj == nil || configDomain == nil || configDomain.Spec.PlatformRef != platformObj.Name
-	cleanupConfigMap := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateConfigMaps
+	platformNotOk := platformObj == nil
+	cleanupConfigMap := platformNotOk || !configDomain.Spec.AggregateConfigMaps
 	if cleanupConfigMap {
-		err = c.configurationHandler.Cleanup(platform, namespace, domain)
+		err = c.configurationHandler.Cleanup(namespace, domain)
 		if err != nil {
 			return err
 		}
 	}
 
-	cleanupSpc := platformOrConfigDomainNotOk || !configDomain.Spec.AggregateSecrets
+	cleanupSpc := platformNotOk || !configDomain.Spec.AggregateSecrets
 	if cleanupSpc {
-		err = c.secretsHandler.Cleanup(platform, namespace, domain)
+		err = c.secretsHandler.Cleanup(namespace, domain)
 		if err != nil {
 			return err
 		}
@@ -385,66 +389,54 @@ func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, dom
 		}
 		for _, configurationDomain := range configDomains {
 			if configurationDomain.Spec.PlatformRef == platform {
-				c.enqueueConfigurationDomain(platform, configurationDomain.Namespace, configurationDomain.Name)
+				c.enqueueConfigurationDomain(configurationDomain.Namespace, configurationDomain.Name)
 			}
 		}
 	} else {
-		c.enqueueConfigurationDomain(platform, namespace, domain)
+		c.enqueueConfigurationDomain(namespace, domain)
 	}
 }
 
-func (c *ConfigurationDomainController) enqueueConfigurationDomain(platform, namespace, domain string) {
-	key := encodeDomainKey(platform, namespace, domain)
+func (c *ConfigurationDomainController) enqueueConfigurationDomain(namespace, domain string) {
+	key := encodeDomainKey(namespace, domain)
 	c.workqueue.Add(key)
 }
 
-func encodeDomainKey(platform, namespace, domain string) (key string) {
-	return fmt.Sprintf("%s::%s::%s", platform, namespace, domain)
+func encodeDomainKey(namespace, domain string) (key string) {
+	return fmt.Sprintf("%s::%s", namespace, domain)
 }
 
-func decodeDomainKey(key string) (platform, namespace, domain string, err error) {
+func decodeDomainKey(key string) (namespace, domain string, err error) {
 	res := strings.Split(key, "::")
-	if len(res) == 3 {
-		return res[0], res[1], res[2], nil
+	if len(res) == 2 {
+		return res[0], res[1], nil
 	}
-	return "", "", "", fmt.Errorf("cannot decode key: %v", key)
+	return "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
-func addConfigurationDomainHandlers(informer informers.ConfigurationDomainInformer, handler func(platform, namespace, domain string)) {
+func addConfigurationDomainHandlers(informer informers.ConfigurationDomainInformer, handler func(namespace, domain string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*v1alpha1.ConfigurationDomain)
-			if platform, ok := getConfigurationDomainPlatform(comp); ok {
-				klog.V(4).InfoS("ConfigurationDomain added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform, comp.Namespace, comp.Name)
-			}
+			cd := obj.(*v1alpha1.ConfigurationDomain)
+			klog.V(4).InfoS("ConfigurationDomain added", "name", cd.Name, "namespace", cd.Namespace)
+			handler(cd.Namespace, cd.Name)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldComp := oldObj.(*v1alpha1.ConfigurationDomain)
 			newComp := newObj.(*v1alpha1.ConfigurationDomain)
 			domain := newComp.Name
 			namespace := newComp.Namespace
-			oldPlatform, oldOk := getConfigurationDomainPlatform(oldComp)
-			newPlatform, newOk := getConfigurationDomainPlatform(newComp)
-			platformChanged := oldPlatform != newPlatform
 			specChanged := oldComp.Spec != newComp.Spec
 
-			if oldOk && platformChanged {
-				klog.V(4).InfoS("ConfigurationDomain invalidated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform)
-				handler(oldPlatform, namespace, domain)
-			}
-
-			if newOk && specChanged {
-				klog.V(4).InfoS("ConfigurationDomain updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform)
-				handler(newPlatform, namespace, domain)
+			if specChanged {
+				klog.V(4).InfoS("ConfigurationDomain updated", "name", newComp.Name, "namespace", newComp.Namespace)
+				handler(namespace, domain)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*v1alpha1.ConfigurationDomain)
-			if platform, ok := getConfigurationDomainPlatform(comp); ok {
-				klog.V(4).InfoS("ConfigurationDomain deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				// Output configmap and spc automatically deleted because it is controlled
-			}
+			klog.V(4).InfoS("ConfigurationDomain deleted", "name", comp.Name, "namespace", comp.Namespace)
+			// Output configmap and spc automatically deleted because it is controlled
 		},
 	})
 }

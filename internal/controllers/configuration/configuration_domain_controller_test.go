@@ -55,7 +55,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			item, _ := c.workqueue.Get()
 			t.Error("queue should be empty, but contains ", item)
 		}
-		outputConfigmap := getOutputConfigmapName(platform, domain)
+		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
@@ -100,7 +100,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		outputConfigmap := getOutputConfigmapName(platform, domain)
+		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
@@ -145,7 +145,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		outputConfigmap := getOutputConfigmapName(platform, domain)
+		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
@@ -157,12 +157,12 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
-	t.Run("should perform cleanup when platform changes", func(t *testing.T) {
+	t.Run("should update output when platform changes", func(t *testing.T) {
 		// Arrange
-		old_platform, new_platform, namespace, domain := "p3", "p4", "p3-ns1", "domain1"
+		old_platform, new_platform, namespace, domain := "p1", "p2", "p1-ns1", "domain1"
 		configMaps := []runtime.Object{
-			newConfigMap("configMap1", domain, namespace, old_platform, map[string]string{"k1": "v1"}),
-			newConfigMap("configMap2", domain, namespace, old_platform, map[string]string{"k2": "v2"}),
+			newConfigMap("configMap1", globalDomainLabelValue, old_platform, old_platform, map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", globalDomainLabelValue, new_platform, new_platform, map[string]string{"k2": "v2"}),
 		}
 		configurationDomains := []runtime.Object{
 			newConfigurationDomain(domain, namespace, old_platform, true, false),
@@ -194,14 +194,10 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		if c.workqueue.Len() != 2 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should have 2 items, but contains ", item)
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have 1 item, but contains ", c.workqueue.Len())
 		}
 
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
@@ -215,22 +211,21 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		oldAggregateConfigMap := getOutputConfigmapName(old_platform, domain)
-		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), oldAggregateConfigMap, metav1.GetOptions{})
-		if foundConfigMap != nil || err == nil {
-			t.Errorf("output config map %s should be deleted ", oldAggregateConfigMap)
-		}
-		newAggregateConfigMap := getOutputConfigmapName(new_platform, domain)
-		foundConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), newAggregateConfigMap, metav1.GetOptions{})
+		aggregateConfigMap := getOutputConfigmapName(domain)
+		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), aggregateConfigMap, metav1.GetOptions{})
 		if foundConfigMap == nil || err != nil {
-			t.Errorf("output config map %s should be present ", newAggregateConfigMap)
+			t.Errorf("output config map %s should be present ", aggregateConfigMap)
+		}
+		expectedOutput := map[string]string{"k2": "v2"}
+		if !reflect.DeepEqual(foundConfigMap.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", foundConfigMap.Data)
 		}
 	})
 
 	t.Run("should perform cleanup when aggregateConfigMaps is false", func(t *testing.T) {
 		// Arrange
 		platform, namespace, domain := "qa", "qa-t1", "domain1"
-		outputConfigMap := getOutputConfigmapName(platform, domain)
+		outputConfigMap := getOutputConfigmapName(domain)
 		configMaps := []runtime.Object{
 			newConfigMap(outputConfigMap, domain, namespace, platform, map[string]string{"k1": "v1"}),
 		}
@@ -310,7 +305,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		outputConfigmap := getOutputConfigmapName(platform, domain)
+		outputConfigmap := getOutputConfigmapName(domain)
 		output2, err := c.kubeClientset.CoreV1().ConfigMaps(namespace2).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
@@ -358,7 +353,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			item, _ := c.workqueue.Get()
 			t.Error("queue should be empty, but contains ", item)
 		}
-		outputSpcName := getOutputSpcName(platform, domain)
+		outputSpcName := getOutputSpcName(domain)
 		output, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
