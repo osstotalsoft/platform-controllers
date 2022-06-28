@@ -337,7 +337,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
-		getSecrets = func(platform, domain, role string) ([]secretSpec, error) {
+		getSecrets = func(platform, namespace, domain, role string) ([]secretSpec, error) {
 			return []secretSpec{
 				{Key: "key1", Path: "path1"},
 				{Key: "key2", Path: "path2"},

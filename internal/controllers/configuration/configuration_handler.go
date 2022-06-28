@@ -53,10 +53,10 @@ func (c *configurationHandler) Cleanup(platform, namespace, domain string) error
 	return nil
 }
 
-func (c *configurationHandler) Sync(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
+func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
 	outputConfigMapName := getOutputConfigmapName(platformObj.Name, configDomain.Name)
 
-	configMaps, err := c.getConfigMapsFor(platformObj, configDomain.Namespace, configDomain.Name)
+	configMaps, err := h.getConfigMapsFor(platformObj, configDomain.Namespace, configDomain.Name)
 	if err != nil {
 		if errors.Is(err, ErrNonRetryAble) {
 			return nil
@@ -64,20 +64,20 @@ func (c *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 		return err
 	}
 
-	aggregatedConfigMap := c.aggregateConfigMaps(configDomain, configMaps, outputConfigMapName)
+	aggregatedConfigMap := h.aggregateConfigMaps(configDomain, configMaps, outputConfigMapName)
 
 	// Get the output config map for this namespace::domain
-	outputConfigMap, err := c.configMapsLister.ConfigMaps(configDomain.Namespace).Get(outputConfigMapName)
+	outputConfigMap, err := h.configMapsLister.ConfigMaps(configDomain.Namespace).Get(outputConfigMapName)
 	// If the resource doesn't exist, we'll create it
 	if k8serrors.IsNotFound(err) {
-		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Create(context.TODO(), aggregatedConfigMap, metav1.CreateOptions{})
+		outputConfigMap, err = h.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Create(context.TODO(), aggregatedConfigMap, metav1.CreateOptions{})
 	}
 
 	// If an error occurs during Get/Create, we'll requeue the item so we can
 	// attempt processing again later. This could have been caused by a
 	// temporary network failure, or any other transient reason.
 	if err != nil {
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
+		h.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
 		return err
 	}
 
@@ -85,7 +85,7 @@ func (c *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 	// a warning to the event recorder and return error msg.
 	if !metav1.IsControlledBy(outputConfigMap, configDomain) {
 		msg := fmt.Sprintf(MessageResourceExists, outputConfigMap.Name)
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
+		h.recorder.Event(configDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
 		return nil
 	}
 
@@ -95,21 +95,17 @@ func (c *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 		klog.V(4).Infof("Configuration values changed")
 		outputConfigMap = outputConfigMap.DeepCopy()
 		outputConfigMap.Data = aggregatedConfigMap.Data
-		_, err = c.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Update(context.TODO(), outputConfigMap, metav1.UpdateOptions{})
-	}
-
-	// If an error occurs during Update, we'll requeue the item so we can
-	// attempt processing again later. This could have been caused by a
-	// temporary network failure, or any other transient reason.
-	if err != nil {
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
-		return err
+		_, err = h.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Update(context.TODO(), outputConfigMap, metav1.UpdateOptions{})
+		if err != nil {
+			h.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (c *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, namespace, domain string) ([]*corev1.ConfigMap, error) {
+func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, namespace, domain string) ([]*corev1.ConfigMap, error) {
 	domainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
 			domainLabelName:   domain,
@@ -132,17 +128,17 @@ func (c *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 		return nil, ErrNonRetryAble
 	}
 
-	platformConfigMaps, err := c.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).List(globalDomainAndPlatformLabelSelector)
+	platformConfigMaps, err := h.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).List(globalDomainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	globalDomainConfigMaps, err := c.configMapsLister.ConfigMaps(namespace).List(globalDomainAndPlatformLabelSelector)
+	globalDomainConfigMaps, err := h.configMapsLister.ConfigMaps(namespace).List(globalDomainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	configMaps, err := c.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
+	configMaps, err := h.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +147,7 @@ func (c *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 	return configMaps, nil
 }
 
-func (c *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1.ConfigurationDomain, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
+func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1.ConfigurationDomain, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
 	mergedData := map[string]string{}
 	for _, configMap := range configMaps {
 		if configMap.Name == outputName {
@@ -161,7 +157,7 @@ func (c *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1
 		for k, v := range configMap.Data {
 			if existingValue, ok := mergedData[k]; ok {
 				msg := fmt.Sprintf("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, configMap.Name, v)
-				c.recorder.Event(configurationDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
+				h.recorder.Event(configurationDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
 			}
 			mergedData[k] = v
 		}

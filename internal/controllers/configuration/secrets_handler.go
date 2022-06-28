@@ -63,17 +63,22 @@ func (c *secretsHandler) Sync(platformObj *platformv1.Platform, configDomain *v1
 	outputSpcName := getOutputSpcName(platformObj.Name, configDomain.Name)
 	role := fmt.Sprintf("%s-readonly", platformObj.Name)
 
-	globalSecrets, err := getSecrets(platformObj.Name, globalDomainLabelValue, role)
+	platformSecrets, err := getSecrets(platformObj.Name, platformObj.Spec.TargetNamespace, globalDomainLabelValue, role)
 	if err != nil {
 		return err
 	}
 
-	secrets, err := getSecrets(platformObj.Name, configDomain.Name, role)
+	globalSecrets, err := getSecrets(platformObj.Name, configDomain.Namespace, globalDomainLabelValue, role)
 	if err != nil {
 		return err
 	}
 
-	secrets = append(globalSecrets, secrets...)
+	secrets, err := getSecrets(platformObj.Name, configDomain.Namespace, configDomain.Name, role)
+	if err != nil {
+		return err
+	}
+
+	secrets = append(append(platformSecrets, globalSecrets...), secrets...)
 
 	aggregatedSpc := c.aggregateSecrets(configDomain, secrets, outputSpcName, role)
 
@@ -104,18 +109,13 @@ func (c *secretsHandler) Sync(platformObj *platformv1.Platform, configDomain *v1
 	// should update the SPC resource.
 	if !reflect.DeepEqual(aggregatedSpc.Spec.Parameters, outputSpc.Spec.Parameters) {
 		klog.V(4).Infof("Secret values changed")
-		err = c.csiClientset.SecretsstoreV1().SecretProviderClasses(configDomain.Namespace).Delete(context.TODO(), aggregatedSpc.Name, metav1.DeleteOptions{})
-		if err == nil {
-			_, err = c.csiClientset.SecretsstoreV1().SecretProviderClasses(configDomain.Namespace).Create(context.TODO(), aggregatedSpc, metav1.CreateOptions{})
+		outputSpc := outputSpc.DeepCopy()
+		outputSpc.Spec.Parameters = aggregatedSpc.Spec.Parameters
+		_, err = c.csiClientset.SecretsstoreV1().SecretProviderClasses(configDomain.Namespace).Update(context.TODO(), outputSpc, metav1.UpdateOptions{})
+		if err != nil {
+			c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
+			return err
 		}
-	}
-
-	// If an error occurs during Update, we'll requeue the item so we can
-	// attempt processing again later. This could have been caused by a
-	// temporary network failure, or any other transient reason.
-	if err != nil {
-		c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
-		return err
 	}
 
 	return nil
@@ -173,7 +173,7 @@ func (c *secretsHandler) aggregateSecrets(configurationDomain *v1alpha1.Configur
 
 // Fetches a key-value secret (kv-v2) after authenticating to Vault with a Kubernetes service account.
 // For a more in-depth setup explanation, please see the relevant readme in the hashicorp/vault-examples repo.
-func getSecretWithKubernetesAuth(platform, domain, role string) ([]secretSpec, error) {
+func getSecretWithKubernetesAuth(platform, namespace, domain, role string) ([]secretSpec, error) {
 	// If set, the VAULT_ADDR environment variable will be the address that
 	// your pod uses to communicate with Vault.
 	config := vault.DefaultConfig() // modify for more granular configuration
@@ -256,7 +256,8 @@ func getSecretWithKubernetesAuth(platform, domain, role string) ([]secretSpec, e
 		return nil
 	}
 
-	err = listSecrets(platform, domain+"/")
+	path := fmt.Sprintf("%s/%s/", namespace, domain)
+	err = listSecrets(platform, path)
 	return secretList, err
 }
 
