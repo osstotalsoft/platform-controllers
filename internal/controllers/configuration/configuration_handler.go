@@ -191,3 +191,17 @@ func isOutputConfigMap(configMap *corev1.ConfigMap) bool {
 		owner.Kind == "ConfigurationDomain" &&
 		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
 }
+
+func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
+	domain, domainLabelExists := configMap.Labels[domainLabelName]
+	if !domainLabelExists || len(domain) == 0 {
+		return "", domain, false
+	}
+
+	platform, platformLabelExists := configMap.Labels[platformLabelName]
+	if !platformLabelExists || len(platform) == 0 {
+		return platform, domain, false
+	}
+
+	return platform, domain, true
+}
