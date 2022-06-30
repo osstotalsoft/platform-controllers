@@ -33,6 +33,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ConfigurationAggregateList{},
 		&SecretsAggregate{},
 		&SecretsAggregateList{},
+		&ConfigurationDomain{},
+		&ConfigurationDomainList{},
 		&metav1.Status{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

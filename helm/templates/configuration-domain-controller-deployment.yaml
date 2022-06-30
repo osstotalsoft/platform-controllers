@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: configuration-domain-controller
+  labels:
+    app: configuration-domain-controller
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: configuration-domain-controller
+  template:
+    metadata:
+      labels:
+        app: configuration-domain-controller
+        app.kubernetes.io/name: {{ .Release.Name }}
+        app.kubernetes.io/version: {{ .Values.global.tag }}
+        app.kubernetes.io/managed-by: "helm"
+    spec:
+      containers:
+      - name: configuration-domain-controller
+        image: "{{ .Values.global.registry }}/platform-controllers:{{ .Values.global.tag }}"
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: VAULT_ADDR
+          value: "{{ .Values.global.vault.address }}"
+        command:
+        - "/configuration-domain-controller"
+        args:
+        - "--v"
+        - "{{ .Values.global.logLevel }}"
+      serviceAccountName: configuration-domain-controller
+{{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        - name: {{ .Values.global.imagePullSecrets }}
+{{- end }}

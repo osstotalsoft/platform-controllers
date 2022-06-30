@@ -46,6 +46,18 @@
             "mode": "auto",
             "program": "./cmd/platform-controller",
             "args": ["-v", "4"]
+        },
+        {
+            "name": "Run configuration domain controller",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "./cmd/configuration-domain-controller",
+            "args": ["-v", "4"],
+            "env": {
+                "VAULT_ADDR": "http://localhost:65455/",
+                //"VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN""
+            }
         }
     ]
 }

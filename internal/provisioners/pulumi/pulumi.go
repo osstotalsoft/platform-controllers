@@ -5,7 +5,6 @@ package pulumi
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 
@@ -260,8 +259,4 @@ func generatePassword() string {
 		buf[i], buf[j] = buf[j], buf[i]
 	})
 	return string(buf)
-}
-
-func objectNamingConvention(platform, domain, tenant, object, separator string) string {
-	return strings.Join([]string{platform, domain, tenant, object}, separator)
 }

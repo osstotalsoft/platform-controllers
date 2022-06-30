@@ -136,3 +136,38 @@ spec:
 > *Note 1* The monitored vault secrets are organized by platform (secret engine) and domain (subfolder). The keys of the secrets should be the environment variable names, and if they are not unique for the domain they will be overwritten.
 
 > *Note 2* There is support for global platform secrets, in this case domain folder should be named "global". These global secrets are always monitored and aggregated with the current domain secrets.
+
+
+### ConfigurationDomain
+Definition can be found [here](./helm/crds/configuration.totalsoft.ro_configurationdomains.yaml)
+
+If `aggregateConfigMaps` is set, it will aggregate all config maps from it's namespace and platform's target namespace, for the specified domain and generates an output config map in the same namespace.
+
+If `aggregateSecrets` is set, it will aggregate all secrets stored in vault for the specified platform namespace and domain and generates an output CSI SecretProviderClass namespace.
+
+Example:
+```yaml
+apiVersion: configuration.totalsoft.ro/v1alpha1
+kind: ConfigurationDomain
+metadata:
+  name: origination
+  namespace: qa-lsng
+spec:
+  aggregateConfigMaps: true
+  aggregateSecrets: true
+  platformRef: charismaonline.qa
+```
+
+> *Note 1* The monitored config maps can be either in the same namespace as the ConfigurationDomain or in the platform's target namespace, they are identified by `platform.totalsoft.ro/domain`and `platform.totalsoft.ro/platform` labels.
+
+> *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
+
+> *Note 3* The monitored vault secrets are organized by platform (secret engine), namespace (subfolder) and domain (subfolder). The keys of the secrets should be the environment variable names, and if they are not unique for the domain they will be overwritten.
+
+> *Note 4* There is support for global platform secrets (subfolder) and global namespace secrets (subfolder), in this case the domain folder should be named "global". These global secrets are always monitored and aggregated with the current domain secrets. 
+
+
+> For example, for the above manifest, the controller will aggregate secrets from the following paths:
+-  /charismaonline.qa/qa/global
+-  /charismaonline.qa/qa-lsng/global
+-  /charismaonline.qa/qa-lsng/origination/

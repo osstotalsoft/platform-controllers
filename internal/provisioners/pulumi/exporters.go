@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"fmt"
+	"strings"
 
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -59,14 +60,12 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 	return func(exportContext ExportContext, exportTemplate provisioningv1.ValueExport, value pulumi.StringInput) error {
 
 		if exportTemplate.ToVault != (provisioningv1.VaultSecretTemplate{}) {
-			name := objectNamingConvention(platform, exportContext.domain, tenant.Name,
-				exportContext.objectName, "/")
-			return exportToVault(exportContext.pulumiContext, name, exportTemplate.ToVault.KeyTemplate, data, value)
+			path := strings.Join([]string{platform, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.Name, exportContext.objectName}, "/")
+			return exportToVault(exportContext.pulumiContext, path, exportTemplate.ToVault.KeyTemplate, data, value)
 		}
 
 		if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
-			name := objectNamingConvention(platform, exportContext.domain, tenant.Name,
-				exportContext.objectName, "-")
+			name := strings.Join([]string{exportContext.domain, tenant.Name, exportContext.objectName}, "-")
 			return exportToConfigMap(exportContext, name, exportTemplate.ToConfigMap.KeyTemplate,
 				data, platform, value)
 		}
