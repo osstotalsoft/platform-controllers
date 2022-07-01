@@ -47,7 +47,9 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 		expectedOutput := map[string]string{
 			"MultiTenancy__Tenants__tenant1__TenantId": tenant1.Spec.Id,
+			"MultiTenancy__Tenants__tenant1__Enabled":  "true",
 			"MultiTenancy__Tenants__tenant2__TenantId": tenant2.Spec.Id,
+			"MultiTenancy__Tenants__tenant2__Enabled":  "true",
 		}
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
@@ -168,6 +170,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 
 		if expectedOutput := map[string]string{
 			"MultiTenancy__Tenants__tenant1__TenantId": tenant1.Spec.Id,
+			"MultiTenancy__Tenants__tenant1__Enabled":  "true",
 		}; !reflect.DeepEqual(uatConfigMap.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", uatConfigMap.Data)
 		}
@@ -245,6 +248,7 @@ func _newTenant(name, platform string) *platformv1.Tenant {
 			PlatformRef: platform,
 			Description: name + " description",
 			Id:          uuid.New().String(),
+			Enabled:     true,
 		},
 	}
 }
