@@ -18,14 +18,6 @@ limitations under the License.
 
 package v1alpha1
 
-// ConfigurationAggregateListerExpansion allows custom methods to be added to
-// ConfigurationAggregateLister.
-type ConfigurationAggregateListerExpansion interface{}
-
-// ConfigurationAggregateNamespaceListerExpansion allows custom methods to be added to
-// ConfigurationAggregateNamespaceLister.
-type ConfigurationAggregateNamespaceListerExpansion interface{}
-
 // ConfigurationDomainListerExpansion allows custom methods to be added to
 // ConfigurationDomainLister.
 type ConfigurationDomainListerExpansion interface{}
@@ -33,11 +25,3 @@ type ConfigurationDomainListerExpansion interface{}
 // ConfigurationDomainNamespaceListerExpansion allows custom methods to be added to
 // ConfigurationDomainNamespaceLister.
 type ConfigurationDomainNamespaceListerExpansion interface{}
-
-// SecretsAggregateListerExpansion allows custom methods to be added to
-// SecretsAggregateLister.
-type SecretsAggregateListerExpansion interface{}
-
-// SecretsAggregateNamespaceListerExpansion allows custom methods to be added to
-// SecretsAggregateNamespaceLister.
-type SecretsAggregateNamespaceListerExpansion interface{}

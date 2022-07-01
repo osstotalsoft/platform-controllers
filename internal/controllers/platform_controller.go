@@ -29,6 +29,16 @@ import (
 	listers "totalsoft.ro/platform-controllers/pkg/generated/listers/platform/v1alpha1"
 )
 
+const (
+	platformControllerAgentName = "platform-controller"
+	ErrResourceExists           = "ErrResourceExists"
+
+	// ReadyCondition indicates the resource is ready and fully reconciled.
+	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
+	// representation of actual state.
+	ReadyCondition string = "Ready"
+)
+
 type PlatformController struct {
 	kubeClientset     kubernetes.Interface
 	platformClientset clientset.Interface
@@ -79,7 +89,7 @@ func NewPlatformController(
 
 	utilruntime.Must(clientsetScheme.AddToScheme(scheme.Scheme))
 	if eventBroadcaster != nil {
-		controller.recorder = eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: configControllerAgentName})
+		controller.recorder = eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: platformControllerAgentName})
 	}
 
 	klog.Info("Setting up event handlers")
@@ -379,8 +389,8 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outputName,
 			Labels: map[string]string{
-				platformLabelName: platform.Name,
-				domainLabelName:   globalDomainLabelValue,
+				PlatformLabelName: platform.Name,
+				DomainLabelName:   GlobalDomainLabelValue,
 			},
 			Namespace: platform.Spec.TargetNamespace,
 			OwnerReferences: []metav1.OwnerReference{

@@ -55,12 +55,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=configuration.totalsoft.ro, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("configurationaggregates"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Configuration().V1alpha1().ConfigurationAggregates().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("configurationdomains"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Configuration().V1alpha1().ConfigurationDomains().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("secretsaggregates"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Configuration().V1alpha1().SecretsAggregates().Informer()}, nil
 
 		// Group=platform.totalsoft.ro, Version=v1alpha1
 	case platformv1alpha1.SchemeGroupVersion.WithResource("platforms"):

@@ -28,9 +28,7 @@ import (
 
 type ConfigurationV1alpha1Interface interface {
 	RESTClient() rest.Interface
-	ConfigurationAggregatesGetter
 	ConfigurationDomainsGetter
-	SecretsAggregatesGetter
 }
 
 // ConfigurationV1alpha1Client is used to interact with features provided by the configuration.totalsoft.ro group.
@@ -38,16 +36,8 @@ type ConfigurationV1alpha1Client struct {
 	restClient rest.Interface
 }
 
-func (c *ConfigurationV1alpha1Client) ConfigurationAggregates(namespace string) ConfigurationAggregateInterface {
-	return newConfigurationAggregates(c, namespace)
-}
-
 func (c *ConfigurationV1alpha1Client) ConfigurationDomains(namespace string) ConfigurationDomainInterface {
 	return newConfigurationDomains(c, namespace)
-}
-
-func (c *ConfigurationV1alpha1Client) SecretsAggregates(namespace string) SecretsAggregateInterface {
-	return newSecretsAggregates(c, namespace)
 }
 
 // NewForConfig creates a new ConfigurationV1alpha1Client for the given config.

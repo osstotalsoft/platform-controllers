@@ -38,10 +38,7 @@ import (
 )
 
 const (
-	domainLabelName           = "platform.totalsoft.ro/domain"
-	platformLabelName         = "platform.totalsoft.ro/platform"
 	configControllerAgentName = "configuration-controller"
-	globalDomainLabelValue    = "global"
 
 	// SuccessSynced is used as part of the Event 'reason' when a ConfigurationDomain is synced
 	SuccessConfigurationDomainSynced = "Synced successfully"
@@ -370,7 +367,7 @@ func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, dom
 	}
 
 	platformNamespace := namespace == platformObj.Spec.TargetNamespace
-	globalDomain := domain == globalDomainLabelValue
+	globalDomain := domain == controllers.GlobalDomainLabelValue
 
 	if platformNamespace || globalDomain {
 		if platformNamespace {

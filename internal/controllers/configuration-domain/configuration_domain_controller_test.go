@@ -21,6 +21,8 @@ import (
 
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
+
+	"totalsoft.ro/platform-controllers/internal/controllers"
 )
 
 func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
@@ -72,7 +74,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		platform, namespace, domain := "pl1", "n1", "domain1"
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", domain, namespace, platform, map[string]string{"k1": "v1"}),
-			newConfigMap("configMap2", globalDomainLabelValue, namespace, platform, map[string]string{"k2": "v2"}),
+			newConfigMap("configMap2", controllers.GlobalDomainLabelValue, namespace, platform, map[string]string{"k2": "v2"}),
 		}
 		configurationDomains := []runtime.Object{
 			newConfigurationDomain(domain, namespace, platform, true, false),
@@ -118,7 +120,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		platformNamespace := namespace
 
 		configMaps := []runtime.Object{
-			newConfigMap("configMap1", globalDomainLabelValue, platformNamespace, platform, map[string]string{"k1": "v1"}),
+			newConfigMap("configMap1", controllers.GlobalDomainLabelValue, platformNamespace, platform, map[string]string{"k1": "v1"}),
 		}
 		configurationDomains := []runtime.Object{
 			newConfigurationDomain(domain, namespace, platform, true, false),
@@ -161,8 +163,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		// Arrange
 		old_platform, new_platform, namespace, domain := "p1", "p2", "p1-ns1", "domain1"
 		configMaps := []runtime.Object{
-			newConfigMap("configMap1", globalDomainLabelValue, old_platform, old_platform, map[string]string{"k1": "v1"}),
-			newConfigMap("configMap2", globalDomainLabelValue, new_platform, new_platform, map[string]string{"k2": "v2"}),
+			newConfigMap("configMap1", controllers.GlobalDomainLabelValue, old_platform, old_platform, map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", controllers.GlobalDomainLabelValue, new_platform, new_platform, map[string]string{"k2": "v2"}),
 		}
 		configurationDomains := []runtime.Object{
 			newConfigurationDomain(domain, namespace, old_platform, true, false),
@@ -272,7 +274,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		platform, namespace1, namespace2, domain := "qa", "qa-n1", "qa-n2", "domain"
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", domain, namespace1, platform, map[string]string{"k1": "v1"}),
-			newConfigMap("configMap2", globalDomainLabelValue, namespace1, platform, map[string]string{"k2": "v2"}),
+			newConfigMap("configMap2", controllers.GlobalDomainLabelValue, namespace1, platform, map[string]string{"k2": "v2"}),
 		}
 		configurationDomains := []runtime.Object{
 			newConfigurationDomain(domain, namespace1, platform, true, false),
@@ -406,8 +408,8 @@ func newConfigMap(name, domain, namespace, platform string, data map[string]stri
 			Name:      name,
 			Namespace: namespace,
 			Labels: map[string]string{
-				domainLabelName:   domain,
-				platformLabelName: platform,
+				controllers.DomainLabelName:   domain,
+				controllers.PlatformLabelName: platform,
 			},
 		},
 		Data: data,

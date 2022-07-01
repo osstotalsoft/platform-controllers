@@ -29,10 +29,6 @@ var (
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(
 		SchemeGroupVersion,
-		&ConfigurationAggregate{},
-		&ConfigurationAggregateList{},
-		&SecretsAggregate{},
-		&SecretsAggregateList{},
 		&ConfigurationDomain{},
 		&ConfigurationDomainList{},
 		&metav1.Status{},

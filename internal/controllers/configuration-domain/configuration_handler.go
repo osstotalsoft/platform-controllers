@@ -110,8 +110,8 @@ func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, namespace, domain string) ([]*corev1.ConfigMap, error) {
 	domainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
-			domainLabelName:   domain,
-			platformLabelName: platform.Name,
+			controllers.DomainLabelName:   domain,
+			controllers.PlatformLabelName: platform.Name,
 		})
 
 	if err != nil {
@@ -121,8 +121,8 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 
 	globalDomainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
-			domainLabelName:   globalDomainLabelValue,
-			platformLabelName: platform.Name,
+			controllers.DomainLabelName:   controllers.GlobalDomainLabelValue,
+			controllers.PlatformLabelName: platform.Name,
 		})
 
 	if err != nil {
@@ -169,8 +169,8 @@ func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outputName,
 			Labels: map[string]string{
-				domainLabelName:   configurationDomain.Name,
-				platformLabelName: configurationDomain.Spec.PlatformRef,
+				controllers.DomainLabelName:   configurationDomain.Name,
+				controllers.PlatformLabelName: configurationDomain.Spec.PlatformRef,
 			},
 			Namespace: configurationDomain.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
@@ -193,12 +193,12 @@ func isOutputConfigMap(configMap *corev1.ConfigMap) bool {
 }
 
 func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
-	domain, domainLabelExists := configMap.Labels[domainLabelName]
+	domain, domainLabelExists := configMap.Labels[controllers.DomainLabelName]
 	if !domainLabelExists || len(domain) == 0 {
 		return "", domain, false
 	}
 
-	platform, platformLabelExists := configMap.Labels[platformLabelName]
+	platform, platformLabelExists := configMap.Labels[controllers.PlatformLabelName]
 	if !platformLabelExists || len(platform) == 0 {
 		return platform, domain, false
 	}
