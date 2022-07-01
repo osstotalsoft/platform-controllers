@@ -67,12 +67,12 @@ func (c *secretsHandler) Sync(platformObj *platformv1.Platform, configDomain *v1
 	outputSpcName := getOutputSpcName(configDomain.Name)
 	role := fmt.Sprintf("%s-readonly", platformObj.Name)
 
-	platformSecrets, err := getSecrets(platformObj.Name, platformObj.Spec.TargetNamespace, globalDomainLabelValue, role)
+	platformSecrets, err := getSecrets(platformObj.Name, platformObj.Spec.TargetNamespace, controllers.GlobalDomainLabelValue, role)
 	if err != nil {
 		return err
 	}
 
-	globalSecrets, err := getSecrets(platformObj.Name, configDomain.Namespace, globalDomainLabelValue, role)
+	globalSecrets, err := getSecrets(platformObj.Name, configDomain.Namespace, controllers.GlobalDomainLabelValue, role)
 	if err != nil {
 		return err
 	}
@@ -156,8 +156,8 @@ func (c *secretsHandler) aggregateSecrets(configurationDomain *v1alpha1.Configur
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outputName,
 			Labels: map[string]string{
-				domainLabelName:   configurationDomain.Name,
-				platformLabelName: configurationDomain.Spec.PlatformRef,
+				controllers.DomainLabelName:   configurationDomain.Name,
+				controllers.PlatformLabelName: configurationDomain.Spec.PlatformRef,
 			},
 			Namespace: configurationDomain.Namespace,
 			OwnerReferences: []metav1.OwnerReference{

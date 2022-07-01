@@ -36,40 +36,7 @@ roleRef:
   kind: ClusterRole
   name: provisioning-controller-role
   apiGroup: rbac.authorization.k8s.io
----  
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: configuration-controller
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: configuration-controller-role
-rules:
-  - apiGroups: ["configuration.totalsoft.ro"]
-    resources: ["*"]
-    verbs: ["*"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["*"]
-  - apiGroups: [""]
-    resources: [ "configmaps" ]
-    verbs: [ "*" ]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: configuration-controller-binding
-subjects:
-  - kind: ServiceAccount
-    name: configuration-controller
-    namespace: {{ .Release.Namespace }}
-roleRef:
-  kind: ClusterRole
-  name: configuration-controller-role
-  apiGroup: rbac.authorization.k8s.io
----  
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -103,39 +70,6 @@ roleRef:
   name: platform-controller-role
   apiGroup: rbac.authorization.k8s.io
 ---
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: secrets-controller
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: secrets-controller-role
-rules:
-  - apiGroups: ["configuration.totalsoft.ro"]
-    resources: ["*"]
-    verbs: ["*"]
-  - apiGroups: [""]
-    resources: ["events"]
-    verbs: ["*"]
-  - apiGroups: ["secrets-store.csi.x-k8s.io"]
-    resources: [ "*" ]
-    verbs: [ "*" ]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: secrets-controller-binding
-subjects:
-  - kind: ServiceAccount
-    name: secrets-controller
-    namespace: {{ .Release.Namespace }}
-roleRef:
-  kind: ClusterRole
-  name: secrets-controller-role
-  apiGroup: rbac.authorization.k8s.io
----  
 apiVersion: v1
 kind: ServiceAccount
 metadata:

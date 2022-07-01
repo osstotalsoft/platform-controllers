@@ -27,7 +27,7 @@ DEFAULT_LDFLAGS:=-X $(BASE_PACKAGE_NAME)/internal/version.gitcommit=$(GIT_COMMIT
 ################################################################################
 build-linux:
 	mkdir -p $(OUT_DIR)
-	CGO_ENABLED=0 GOOS=linux go build -o $(OUT_DIR) -ldflags "$(DEFAULT_LDFLAGS) -s -w" ./cmd/tenant-provisioner ./cmd/platform-controller ./cmd/configuration-controller  ./cmd/secrets-controller ./cmd/configuration-domain-controller
+	CGO_ENABLED=0 GOOS=linux go build -o $(OUT_DIR) -ldflags "$(DEFAULT_LDFLAGS) -s -w" ./cmd/tenant-provisioner ./cmd/platform-controller ./cmd/configuration-domain-controller
 
 modtidy:
 	go mod tidy
