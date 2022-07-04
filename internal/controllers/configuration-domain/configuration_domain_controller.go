@@ -32,6 +32,7 @@ import (
 	listers "totalsoft.ro/platform-controllers/pkg/generated/listers/configuration/v1alpha1"
 	platformListers "totalsoft.ro/platform-controllers/pkg/generated/listers/platform/v1alpha1"
 
+	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 	csiClientset "sigs.k8s.io/secrets-store-csi-driver/pkg/client/clientset/versioned"
 	csiInformers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions/apis/v1"
 	csiListers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/listers/apis/v1"
@@ -143,6 +144,7 @@ func NewConfigurationDomainController(
 	addPlatformHandlers(platformInformer)
 	addConfigurationDomainHandlers(configDomainInformer, controller.enqueueConfigurationDomain)
 	addConfigMapHandlers(configMapInformer, controller.handleConfigMap)
+	addSPCHandlers(spcInformer, controller.enqueueConfigurationDomain)
 
 	return controller
 }
@@ -500,6 +502,23 @@ func addPlatformHandlers(informer platformInformers.PlatformInformer) {
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Platform)
 			klog.V(4).InfoS("Platform deleted", "name", comp.Name)
+		},
+	})
+}
+
+func addSPCHandlers(informer csiInformers.SecretProviderClassInformer, handler func(namespace, domain string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+		},
+		DeleteFunc: func(obj interface{}) {
+			spc := obj.(*csiv1.SecretProviderClass)
+
+			if _, domain, ok := getSPCPlatformAndDomain(spc); isOutputSPC(spc) && ok {
+				klog.V(4).InfoS("Secret provider class deleted", "name", spc.Name, "namespace", spc.Namespace, "domain", domain)
+				handler(spc.Namespace, domain)
+			}
 		},
 	})
 }

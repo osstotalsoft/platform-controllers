@@ -271,3 +271,24 @@ func getSecretWithKubernetesAuth(platform, namespace, domain, role string) ([]se
 func getOutputSpcName(domain string) string {
 	return fmt.Sprintf("%s-aggregate", domain)
 }
+
+func getSPCPlatformAndDomain(spc *csiv1.SecretProviderClass) (platform string, domain string, ok bool) {
+	domain, domainLabelExists := spc.Labels[controllers.DomainLabelName]
+	if !domainLabelExists || len(domain) == 0 {
+		return "", domain, false
+	}
+
+	platform, platformLabelExists := spc.Labels[controllers.PlatformLabelName]
+	if !platformLabelExists || len(platform) == 0 {
+		return platform, domain, false
+	}
+
+	return platform, domain, true
+}
+
+func isOutputSPC(spc *csiv1.SecretProviderClass) bool {
+	owner := metav1.GetControllerOf(spc)
+	return (owner != nil &&
+		owner.Kind == "ConfigurationDomain" &&
+		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
+}

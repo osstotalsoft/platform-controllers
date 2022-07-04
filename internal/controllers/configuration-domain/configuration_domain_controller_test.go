@@ -372,6 +372,72 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output secret objects", expectedOutput, ", got", output.Spec.Parameters["objects"])
 		}
 	})
+
+	t.Run("should re-generate SPC on delete", func(t *testing.T) {
+		// Arrange
+		platform, namespace, domain := "qa", "qa-t1", "domain1"
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace, platform, false, true),
+		}
+		configMaps := []runtime.Object{}
+		spcs := []runtime.Object{}
+		c := runController(platforms, configurationDomains, configMaps, spcs)
+
+		var oldGetSecrets = getSecrets
+		defer func() { getSecrets = oldGetSecrets }()
+		getSecrets = func(platform, namespace, domain, role string) ([]secretSpec, error) {
+			return []secretSpec{
+				{Key: "key1", Path: "path1"},
+				{Key: "key2", Path: "path2"},
+			}, nil
+		}
+
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		outputSpcName := getOutputSpcName(domain)
+		_, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		// Act
+		err = c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Delete(context.TODO(), outputSpcName, metav1.DeleteOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
+			return
+		}
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+			return
+		}
+
+		output, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
+		if output == nil || err != nil {
+			t.Errorf("output SPC %s should be re-generated ", outputSpcName)
+		}
+	})
 }
 
 func newConfigurationDomain(name, namespace, platform string, aggregateConfigMaps, aggregateSecrets bool) *configurationv1.ConfigurationDomain {
