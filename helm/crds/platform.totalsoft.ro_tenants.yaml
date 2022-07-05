@@ -21,7 +21,7 @@ spec:
       type: date
     - jsonPath: .spec.enabled
       name: Enabled
-      type: date
+      type: boolean
     - jsonPath: .status.conditions[?(@.type=="Ready")].status
       name: Ready
       type: string
