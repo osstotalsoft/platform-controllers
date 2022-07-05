@@ -60,6 +60,8 @@ const (
 	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
 	// representation of actual state.
 	ReadyCondition string = "Ready"
+
+	requeueInterval = 2 * time.Minute
 )
 
 type ConfigurationDomainController struct {
@@ -231,6 +233,9 @@ func (c *ConfigurationDomainController) processNextWorkItem() bool {
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
 		klog.Infof("Successfully synced '%s'", key)
+
+		//Requeue the processing after the configured interval
+		c.workqueue.AddAfter(key, requeueInterval)
 		return nil
 	}(obj)
 
