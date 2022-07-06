@@ -60,9 +60,9 @@ const (
 	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
 	// representation of actual state.
 	ReadyCondition string = "Ready"
-
-	requeueInterval = 2 * time.Minute
 )
+
+var requeueInterval time.Duration = 2 * time.Minute
 
 type ConfigurationDomainController struct {
 	kubeClientset        kubernetes.Interface
@@ -234,8 +234,6 @@ func (c *ConfigurationDomainController) processNextWorkItem() bool {
 		c.workqueue.Forget(obj)
 		klog.Infof("Successfully synced '%s'", key)
 
-		//Requeue the processing after the configured interval
-		c.workqueue.AddAfter(key, requeueInterval)
 		return nil
 	}(obj)
 
@@ -312,6 +310,9 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
 			return err
 		}
+
+		//Requeue the processing after the configured interval
+		c.workqueue.AddAfter(key, requeueInterval)
 	}
 
 	// Finally, we update the status block of the ConfigurationDomain resource to reflect the
