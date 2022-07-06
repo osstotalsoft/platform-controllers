@@ -62,6 +62,8 @@ const (
 	ReadyCondition string = "Ready"
 )
 
+var requeueInterval time.Duration = 2 * time.Minute
+
 type ConfigurationDomainController struct {
 	kubeClientset        kubernetes.Interface
 	csiClientset         csiClientset.Interface
@@ -231,6 +233,7 @@ func (c *ConfigurationDomainController) processNextWorkItem() bool {
 		// get queued again until another change happens.
 		c.workqueue.Forget(obj)
 		klog.Infof("Successfully synced '%s'", key)
+
 		return nil
 	}(obj)
 
@@ -307,6 +310,9 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
 			return err
 		}
+
+		//Requeue the processing after the configured interval
+		c.workqueue.AddAfter(key, requeueInterval)
 	}
 
 	// Finally, we update the status block of the ConfigurationDomain resource to reflect the

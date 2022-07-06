@@ -438,6 +438,56 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Errorf("output SPC %s should be re-generated ", outputSpcName)
 		}
 	})
+
+	t.Run("should re-queue key when secrets synced", func(t *testing.T) {
+		// Arrange
+		platform, namespace, domain := "qa", "qa-t1", "domain1"
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace, platform, false, true),
+		}
+		configMaps := []runtime.Object{}
+		spcs := []runtime.Object{}
+		c := runController(platforms, configurationDomains, configMaps, spcs)
+
+		var oldGetSecrets = getSecrets
+		defer func() { getSecrets = oldGetSecrets }()
+		getSecrets = func(platform, namespace, domain, role string) ([]secretSpec, error) {
+			return []secretSpec{
+				{Key: "key1", Path: "path1"},
+				{Key: "key2", Path: "path2"},
+			}, nil
+		}
+
+		requeueInterval = 1 * time.Millisecond
+
+		// Act
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		time.Sleep(10 * time.Millisecond)
+
+		// Assert
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
+			return
+		}
+
+		obj, _ := c.workqueue.Get()
+		actualKey, _ := obj.(string)
+		expectedKey := encodeDomainKey(namespace, domain)
+
+		if actualKey != expectedKey {
+			t.Error("expected key", expectedKey, ", got", actualKey)
+		}
+	})
+
 }
 
 func newConfigurationDomain(name, namespace, platform string, aggregateConfigMaps, aggregateSecrets bool) *configurationv1.ConfigurationDomain {
