@@ -56,7 +56,6 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 					},
 					pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				)
-
 				if err != nil {
 					return err
 				}
@@ -66,14 +65,10 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroup
 
 				for _, domain := range dbSpec.Spec.Domains {
 					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-						dbSpec.Spec.Exports.UserName, pulumi.String(adminUser))
-					if err != nil {
-						return err
-					}
-				}
-				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-						dbSpec.Spec.Exports.Password, pulumi.String(adminPwd))
+						map[string]exportTemplateWithValue{
+							"username": {dbSpec.Spec.Exports.UserName, pulumi.String(adminUser)},
+							"password": {dbSpec.Spec.Exports.Password, pulumi.String(adminPwd)},
+							"server":   {dbSpec.Spec.Exports.Server, server.Name}})
 					if err != nil {
 						return err
 					}

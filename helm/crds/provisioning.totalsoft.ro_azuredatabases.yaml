@@ -68,6 +68,23 @@ spec:
                         - keyTemplate
                         type: object
                     type: object
+                  server:
+                    properties:
+                      toConfigMap:
+                        properties:
+                          keyTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        type: object
+                      toVault:
+                        properties:
+                          keyTemplate:
+                            type: string
+                        required:
+                        - keyTemplate
+                        type: object
+                    type: object
                   userName:
                     properties:
                       toConfigMap:

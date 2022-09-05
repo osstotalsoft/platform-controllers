@@ -57,6 +57,7 @@ func (in *AzureDatabaseExportsSpec) DeepCopyInto(out *AzureDatabaseExportsSpec) 
 	*out = *in
 	out.UserName = in.UserName
 	out.Password = in.Password
+	out.Server = in.Server
 	return
 }
 

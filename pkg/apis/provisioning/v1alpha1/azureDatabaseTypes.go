@@ -35,6 +35,8 @@ type AzureDatabaseExportsSpec struct {
 	UserName ValueExport `json:"userName,omitempty"`
 	// +optional
 	Password ValueExport `json:"password,omitempty"`
+	// +optional
+	Server ValueExport `json:"server,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
