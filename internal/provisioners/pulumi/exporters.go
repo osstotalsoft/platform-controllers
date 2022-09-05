@@ -1,7 +1,7 @@
 package pulumi
 
 import (
-	"fmt"
+	"encoding/json"
 	"strings"
 
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
@@ -21,8 +21,12 @@ const (
 	ConfigMapPlatformLabel = "platform.totalsoft.ro/platform"
 )
 
-type ValueExporterFunc func(exportContext ExportContext,
-	exportTemplate provisioningv1.ValueExport, value pulumi.StringInput) error
+type ValueExporterFunc func(exportContext ExportContext, values map[string]exportTemplateWithValue) error
+
+type exportTemplateWithValue struct {
+	valueExport provisioningv1.ValueExport
+	value       pulumi.StringInput
+}
 
 type ExportContext struct {
 	pulumiContext *pulumi.Context
@@ -55,53 +59,88 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 		Platform string
 	}
 
-	data := TemplateContext{TemplateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description}, platform}
-
-	return func(exportContext ExportContext, exportTemplate provisioningv1.ValueExport, value pulumi.StringInput) error {
-
-		if exportTemplate.ToVault != (provisioningv1.VaultSecretTemplate{}) {
+	templateContext := TemplateContext{TemplateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description}, platform}
+	return func(exportContext ExportContext, values map[string]exportTemplateWithValue) error {
+		v := onlyVaultValues(values)
+		if len(v) > 0 {
 			path := strings.Join([]string{platform, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.Name, exportContext.objectName}, "/")
-			return exportToVault(exportContext.pulumiContext, path, exportTemplate.ToVault.KeyTemplate, data, value)
+			err := exportToVault(exportContext.pulumiContext, path, templateContext, v)
+			if err != nil {
+				return err
+			}
 		}
 
-		if exportTemplate.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
+		v = onlyConfigMapValues(values)
+		if len(v) > 0 {
 			name := strings.Join([]string{exportContext.domain, tenant.Name, exportContext.objectName}, "-")
-			return exportToConfigMap(exportContext, name, exportTemplate.ToConfigMap.KeyTemplate,
-				data, platform, value)
+			err := exportToConfigMap(exportContext, name, templateContext, platform, v)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 }
 
-func exportToVault(ctx *pulumi.Context, secretPath, keyTemplate string,
-	templateContext interface{}, value pulumi.StringInput) error {
-	secretKey, err := template.ParseTemplate(keyTemplate, templateContext)
-	if err != nil {
-		return err
+func exportToVault(ctx *pulumi.Context, secretPath string, templateContext interface{},
+	values map[string]exportTemplateWithValue) error {
+
+	var parsedKeys = map[string]string{}
+	for k, v := range values {
+		secretKey, err := template.ParseTemplate(v.valueExport.ToVault.KeyTemplate, templateContext)
+		if err != nil {
+			return err
+		}
+		parsedKeys[k] = secretKey
 	}
 
-	dataJson := value.ToStringOutput().ApplyT(func(v string) string {
-		return fmt.Sprintf(`{"%s":"%s"}`, secretKey, v)
+	var pulumiValues = pulumi.StringMap{}
+	for k, v := range values {
+		pulumiValues[k] = v.value
+	}
+
+	dataJson := pulumiValues.ToStringMapOutput().ApplyT(func(vs map[string]string) string {
+		var m = map[string]string{}
+		for k, v := range vs {
+			m[parsedKeys[k]] = v
+		}
+		result, _ := json.Marshal(m)
+		return string(result)
 	}).(pulumi.StringOutput)
-	_, err = vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
+
+	_, err := vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
 		DataJson: dataJson,
 		Path:     pulumi.String(secretPath),
 	})
 	return err
 }
 
-func exportToConfigMap(exportContext ExportContext, configMapName, keyTemplate string,
-	templateContext interface{}, platform string, value pulumi.StringInput) error {
+func exportToConfigMap(exportContext ExportContext, configMapName string,
+	templateContext interface{}, platform string, values map[string]exportTemplateWithValue) error {
 
-	configMapKey, err := template.ParseTemplate(keyTemplate, templateContext)
-	if err != nil {
-		return err
+	var parsedKeys = map[string]string{}
+	for k, v := range values {
+		secretKey, err := template.ParseTemplate(v.valueExport.ToConfigMap.KeyTemplate, templateContext)
+		if err != nil {
+			return err
+		}
+		parsedKeys[k] = secretKey
 	}
-	data := value.ToStringOutput().ApplyT(func(v string) map[string]string {
-		return map[string]string{configMapKey: v}
+
+	var pulumiValues = pulumi.StringMap{}
+	for k, v := range values {
+		pulumiValues[k] = v.value
+	}
+
+	data := pulumiValues.ToStringMapOutput().ApplyT(func(vs map[string]string) map[string]string {
+		var m = map[string]string{}
+		for k, v := range vs {
+			m[parsedKeys[k]] = v
+		}
+		return m
 	}).(pulumi.StringMapOutput)
 
-	_, err = pulumiKube.NewConfigMap(exportContext.pulumiContext, configMapName, &pulumiKube.ConfigMapArgs{
+	_, err := pulumiKube.NewConfigMap(exportContext.pulumiContext, configMapName, &pulumiKube.ConfigMapArgs{
 		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
 			Name:      pulumi.String(configMapName),
 			Namespace: pulumi.String(exportContext.ownerMeta.Namespace),
@@ -115,6 +154,26 @@ func exportToConfigMap(exportContext ExportContext, configMapName, keyTemplate s
 		Data:      data,
 	})
 	return err
+}
+
+func onlyVaultValues(values map[string]exportTemplateWithValue) map[string]exportTemplateWithValue {
+	var output = map[string]exportTemplateWithValue{}
+	for k, v := range values {
+		if v.valueExport.ToVault != (provisioningv1.VaultSecretTemplate{}) {
+			output[k] = v
+		}
+	}
+	return output
+}
+
+func onlyConfigMapValues(values map[string]exportTemplateWithValue) map[string]exportTemplateWithValue {
+	var output = map[string]exportTemplateWithValue{}
+	for k, v := range values {
+		if v.valueExport.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
+			output[k] = v
+		}
+	}
+	return output
 }
 
 func mapOwnersToReferences(ownerMeta metav1.ObjectMeta, ownerKind k8sSchema.GroupVersionKind) pulumiKubeMetav1.OwnerReferenceArray {

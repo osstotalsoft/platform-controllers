@@ -38,14 +38,13 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreProps),
 			)
-
 			if err != nil {
 				return err
 			}
 
 			for _, domain := range dbSpec.Spec.Domains {
 				err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-					dbSpec.Spec.Exports.DbName, db.Name)
+					map[string]exportTemplateWithValue{"dbname": {dbSpec.Spec.Exports.DbName, db.Name}})
 				if err != nil {
 					return err
 				}
