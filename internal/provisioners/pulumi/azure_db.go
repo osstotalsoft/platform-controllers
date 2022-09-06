@@ -4,85 +4,74 @@ import (
 	"fmt"
 
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
-	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureDbDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName string,
+func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 	azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(platform, tenant)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureDatabase")
-	return func(ctx *pulumi.Context) error {
-		if len(azureDbs) > 0 {
-			const pwdKey = "pass"
-			const userKey = "user"
-			adminPwd := generatePassword()
-			adminUser := fmt.Sprintf("sqlUser%s", tenant.Name)
-			secretPath := fmt.Sprintf("%s/__provisioner/%s/azure-databases/server", platform, tenant.Name)
-			secret, err := vault.LookupSecret(ctx, &vault.LookupSecretArgs{Path: secretPath})
-			if secret != nil && secret.Data[pwdKey] != nil {
-				adminPwd = secret.Data[pwdKey].(string)
-			}
 
-			server, err := azureSql.NewServer(ctx, fmt.Sprintf("%s-sqlserver", tenant.Name),
-				&azureSql.ServerArgs{
-					ResourceGroupName:          pulumi.String(resourceGroupName),
-					AdministratorLogin:         pulumi.String(adminUser),
-					AdministratorLoginPassword: pulumi.String(adminPwd),
-					Version:                    pulumi.String("12.0"),
-				},
-				pulumi.RetainOnDelete(PulumiRetainOnDelete),
-			)
+	return func(ctx *pulumi.Context) error {
+		for _, dbSpec := range azureDbs {
+
+			server, err := azureSql.LookupServer(ctx, &azureSql.LookupServerArgs{
+				ResourceGroupName: dbSpec.Spec.SqlServer.ResourceGroupName,
+				ServerName:        dbSpec.Spec.SqlServer.ServerName,
+			})
 			if err != nil {
 				return err
 			}
+			if server == nil {
+				return fmt.Errorf("sqlServer %s not found", dbSpec.Spec.SqlServer.ServerName)
+			}
 
-			for _, dbSpec := range azureDbs {
+			dbArgs := &azureSql.DatabaseArgs{
+				ResourceGroupName: pulumi.String(dbSpec.Spec.SqlServer.ResourceGroupName),
+				ServerName:        pulumi.String(server.Name),
+			}
+
+			if dbSpec.Spec.SqlServer.ElasticPoolName != "" {
+				pool, err := azureSql.LookupElasticPool(ctx, &azureSql.LookupElasticPoolArgs{
+					ResourceGroupName: dbSpec.Spec.SqlServer.ResourceGroupName,
+					ServerName:        dbSpec.Spec.SqlServer.ServerName,
+					ElasticPoolName:   dbSpec.Spec.SqlServer.ElasticPoolName,
+				})
+				if err != nil {
+					return err
+				}
+				if pool == nil {
+					return fmt.Errorf("elasticPool %s not found", dbSpec.Spec.SqlServer.ElasticPoolName)
+				}
+				dbArgs.ElasticPoolId = pulumi.String(pool.Id)
+			} else {
 				sku := "S0"
 				if dbSpec.Spec.Sku != "" {
 					sku = dbSpec.Spec.Sku
 				}
+				dbArgs.Sku = &azureSql.SkuArgs{
+					Name: pulumi.String(sku),
+				}
+			}
 
-				db, err := azureSql.NewDatabase(ctx, dbSpec.Spec.DbName,
-					&azureSql.DatabaseArgs{
-						ResourceGroupName: pulumi.String(resourceGroupName),
-						ServerName:        server.Name,
-						Sku: &azureSql.SkuArgs{
-							Name: pulumi.String(sku),
-						},
-					},
-					pulumi.RetainOnDelete(PulumiRetainOnDelete),
-				)
+			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
+			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs, pulumi.RetainOnDelete(PulumiRetainOnDelete))
+			if err != nil {
+				return err
+			}
+			ctx.Export("azureDbName", db.Name)
+
+			for _, domain := range dbSpec.Spec.Domains {
+				err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
+					map[string]exportTemplateWithValue{
+						"dbName": {dbSpec.Spec.Exports.DbName, db.Name},
+						"server": {dbSpec.Spec.Exports.Server, pulumi.String(server.FullyQualifiedDomainName)}})
 				if err != nil {
 					return err
 				}
-
-				ctx.Export(fmt.Sprintf("azureDb:%s", dbSpec.Spec.DbName), db.Name)
-				//ctx.Export(fmt.Sprintf("azureDbPassword_%s", dbSpec.Spec.Name), pulumi.ToSecret(pwd))
-
-				for _, domain := range dbSpec.Spec.Domains {
-					err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-						map[string]exportTemplateWithValue{
-							"username": {dbSpec.Spec.Exports.UserName, pulumi.String(adminUser)},
-							"password": {dbSpec.Spec.Exports.Password, pulumi.String(adminPwd)},
-							"server":   {dbSpec.Spec.Exports.Server, server.Name}})
-					if err != nil {
-						return err
-					}
-				}
-			}
-			_, err = vault.NewSecret(ctx, secretPath,
-				&vault.SecretArgs{
-					DataJson: pulumi.String(fmt.Sprintf(`{"%s":"%s", "%s":"%s"}`, pwdKey, adminPwd, userKey, adminUser)),
-					Path:     pulumi.String(secretPath),
-				},
-				pulumi.RetainOnDelete(PulumiRetainOnDelete),
-			)
-			if err != nil {
-				return err
 			}
 		}
 		return nil

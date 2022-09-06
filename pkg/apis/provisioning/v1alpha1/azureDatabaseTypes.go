@@ -24,17 +24,26 @@ type AzureDatabaseSpec struct {
 	Domains []string `json:"domains"`
 	// Database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
+	// Azure Sql Server spec. New database will be created on this server
+	SqlServer SqlServerSpec `json:"sqlServer"`
 	// +optional
 	Sku string `json:"sku,omitempty"`
 	// +optional
 	Exports AzureDatabaseExportsSpec `json:"exports,omitempty"`
 }
 
+type SqlServerSpec struct {
+	// Azure Sql Server resource group.
+	ResourceGroupName string `json:"resourceGroupName"`
+	// Azure Sql Server name.
+	ServerName string `json:"serverName"`
+	// +optional
+	ElasticPoolName string `json:"elasticPoolName,omitempty"`
+}
+
 type AzureDatabaseExportsSpec struct {
 	// +optional
-	UserName ValueExport `json:"userName,omitempty"`
-	// +optional
-	Password ValueExport `json:"password,omitempty"`
+	DbName ValueExport `json:"dbName,omitempty"`
 	// +optional
 	Server ValueExport `json:"server,omitempty"`
 }

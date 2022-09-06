@@ -51,7 +51,7 @@ spec:
                 type: array
               exports:
                 properties:
-                  password:
+                  dbName:
                     properties:
                       toConfigMap:
                         properties:
@@ -85,33 +85,33 @@ spec:
                         - keyTemplate
                         type: object
                     type: object
-                  userName:
-                    properties:
-                      toConfigMap:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                      toVault:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                    type: object
                 type: object
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
               sku:
                 type: string
+              sqlServer:
+                description: Azure Sql Server spec. New database will be created on
+                  this server
+                properties:
+                  elasticPoolName:
+                    type: string
+                  resourceGroupName:
+                    description: Azure Sql Server resource group.
+                    type: string
+                  serverName:
+                    description: Azure Sql Server name.
+                    type: string
+                required:
+                - resourceGroupName
+                - serverName
+                type: object
             required:
             - dbName
             - domains
             - platformRef
+            - sqlServer
             type: object
         required:
         - spec
