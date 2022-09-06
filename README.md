@@ -59,6 +59,12 @@ spec:
       toConfigMap:
         keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
   platformRef: charismaonline.qa
+  sourceDatabaseId: /subscriptions/XXXXXX-b8a5-4967-a05a-2fa3c4295710/resourceGroups/SQLMI_RG/providers/Microsoft.Sql/servers/r7ddbsrv/databases/insurance_db
+  sqlServer:
+    elasticPoolName: dbpool
+    resourceGroupName: SQL_RG
+    serverName: r7ddbsrv
+
 ```
 
 > *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"

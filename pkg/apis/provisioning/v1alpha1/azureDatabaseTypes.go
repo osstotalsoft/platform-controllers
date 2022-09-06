@@ -28,6 +28,10 @@ type AzureDatabaseSpec struct {
 	SqlServer SqlServerSpec `json:"sqlServer"`
 	// +optional
 	Sku string `json:"sku,omitempty"`
+	// Source database from which a new database is copied
+	// eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
+	// +optional
+	SourceDatabaseId string `json:"sourceDatabaseId,omitempty"`
 	// +optional
 	Exports AzureDatabaseExportsSpec `json:"exports,omitempty"`
 }
@@ -44,8 +48,6 @@ type SqlServerSpec struct {
 type AzureDatabaseExportsSpec struct {
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
-	// +optional
-	Server ValueExport `json:"server,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
