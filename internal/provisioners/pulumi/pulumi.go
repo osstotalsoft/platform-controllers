@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	azureResources "github.com/pulumi/pulumi-azure-native/sdk/go/azure/resources"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
@@ -29,57 +28,21 @@ const (
 	PulumiRetainOnDelete     = true
 )
 
-func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) pulumi.RunFunc {
-	return func(ctx *pulumi.Context) error {
-		resourceGroup, err := azureResources.NewResourceGroup(ctx,
-			fmt.Sprintf("%s_%s_RG", platform, tenant.Name),
-			nil,
-			pulumi.RetainOnDelete(PulumiRetainOnDelete))
-
-		if err != nil {
-			return err
-		}
-
-		ctx.Export("azureRGName", resourceGroup.Name)
-
-		return nil
-	}
-}
-
 func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 	result := provisioners.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
-	azureRGStackName := fmt.Sprintf("%s_rg", tenant.Name)
 	emptyDeployFunc := func(ctx *pulumi.Context) error { return nil }
 
 	skipAzureDb, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureDb))
 	anyAzureDb := len(infra.AzureDbs) > 0
 	skipManagedAzureDb, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb))
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
-	skipResourceGroup := skipAzureDb && skipManagedAzureDb
-	anyResourceGroup := (!skipAzureDb && anyAzureDb) || (!skipAzureDb && anyManagedAzureDb)
-
-	if skipResourceGroup {
-		return result
-	}
-
-	if anyResourceGroup {
-		upRes, result.Error = updateStack(azureRGStackName, platform, azureRGDeployFunc(platform, tenant))
-		if result.Error != nil {
-			return result
-		}
-	}
 
 	if !skipAzureDb {
 		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Name)
 		if anyAzureDb {
-			azureRGName, ok := upRes.Outputs["azureRGName"].Value.(string)
-			if !ok {
-				klog.Errorf("Failed to get azureRGName: %s", upRes.StdErr)
-				return result
-			}
-			upRes, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, azureRGName, infra.AzureDbs))
+			upRes, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, infra.AzureDbs))
 			if result.Error != nil {
 				return result
 			}
@@ -108,13 +71,6 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 				return result
 			}
 			result.HasAzureManagedDbChanges = hasChanges(destroyRes.Summary)
-		}
-	}
-
-	if !anyResourceGroup {
-		destroyRes, result.Error = tryDestroyAndDeleteStack(azureRGStackName, platform, emptyDeployFunc)
-		if result.Error != nil {
-			return result
 		}
 	}
 
