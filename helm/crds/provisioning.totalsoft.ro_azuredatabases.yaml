@@ -68,28 +68,15 @@ spec:
                         - keyTemplate
                         type: object
                     type: object
-                  server:
-                    properties:
-                      toConfigMap:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                      toVault:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                    type: object
                 type: object
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
               sku:
+                type: string
+              sourceDatabaseId:
+                description: 'Source database from which a new database is copied
+                  eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb'
                 type: string
               sqlServer:
                 description: Azure Sql Server spec. New database will be created on

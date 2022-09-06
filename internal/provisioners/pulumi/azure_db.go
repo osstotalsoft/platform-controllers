@@ -34,6 +34,12 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				ServerName:        pulumi.String(server.Name),
 			}
 
+			if dbSpec.Spec.SourceDatabaseId != "" {
+				//https://www.pulumi.com/registry/packages/azure-native/api-docs/sql/database/#createmode_go
+				dbArgs.CreateMode = pulumi.String("Copy")
+				dbArgs.SourceDatabaseId = pulumi.String(dbSpec.Spec.SourceDatabaseId)
+			}
+
 			if dbSpec.Spec.SqlServer.ElasticPoolName != "" {
 				pool, err := azureSql.LookupElasticPool(ctx, &azureSql.LookupElasticPoolArgs{
 					ResourceGroupName: dbSpec.Spec.SqlServer.ResourceGroupName,
@@ -66,9 +72,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 
 			for _, domain := range dbSpec.Spec.Domains {
 				err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-					map[string]exportTemplateWithValue{
-						"dbName": {dbSpec.Spec.Exports.DbName, db.Name},
-						"server": {dbSpec.Spec.Exports.Server, pulumi.String(server.FullyQualifiedDomainName)}})
+					map[string]exportTemplateWithValue{"dbName": {dbSpec.Spec.Exports.DbName, db.Name}})
 				if err != nil {
 					return err
 				}

@@ -56,7 +56,6 @@ func (in *AzureDatabase) DeepCopyObject() runtime.Object {
 func (in *AzureDatabaseExportsSpec) DeepCopyInto(out *AzureDatabaseExportsSpec) {
 	*out = *in
 	out.DbName = in.DbName
-	out.Server = in.Server
 	return
 }
 
