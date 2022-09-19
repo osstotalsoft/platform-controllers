@@ -42,9 +42,9 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				return err
 			}
 
-			for _, domain := range dbSpec.Spec.Domains {
-				err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-					map[string]exportTemplateWithValue{"dbname": {dbSpec.Spec.Exports.DbName, db.Name}})
+			for _, exp := range dbSpec.Spec.Exports {
+				err = valueExporter(newExportContext(ctx, exp.Domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
+					map[string]exportTemplateWithValue{"dbname": {exp.DbName, db.Name}})
 				if err != nil {
 					return err
 				}

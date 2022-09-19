@@ -43,32 +43,34 @@ spec:
               dbName:
                 description: Database name prefix. Will have platform and tenant suffix.
                 type: string
-              domains:
-                description: The domain or bounded-context in which this database
-                  will be used.
-                items:
-                  type: string
-                type: array
               exports:
-                properties:
-                  dbName:
-                    properties:
-                      toConfigMap:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                      toVault:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                    type: object
-                type: object
+                items:
+                  properties:
+                    dbName:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    domain:
+                      description: The domain or bounded-context in which this database
+                        will be used.
+                      type: string
+                  required:
+                  - domain
+                  type: object
+                type: array
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
@@ -96,7 +98,6 @@ spec:
                 type: object
             required:
             - dbName
-            - domains
             - platformRef
             - sqlServer
             type: object
