@@ -78,8 +78,6 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
 spec:
   dbName: origination_db
-  domains:
-    - origination
   exports:
     - domain: origination
       dbName:
