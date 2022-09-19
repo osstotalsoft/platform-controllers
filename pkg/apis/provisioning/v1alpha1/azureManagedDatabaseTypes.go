@@ -20,8 +20,6 @@ type AzureManagedDatabase struct {
 type AzureManagedDatabaseSpec struct {
 	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
-	// The domain or bounded-context in which this database will be used.
-	Domains []string `json:"domains"`
 	// Managed database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Target managed instance spec.
@@ -31,7 +29,7 @@ type AzureManagedDatabaseSpec struct {
 	RestoreFrom AzureManagedDatabaseRestoreSpec `json:"restoreFrom,omitempty"`
 	// Export provisioning values spec.
 	// +optional
-	Exports AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
+	Exports []AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
 }
 type AzureManagedInstanceSpec struct {
 	// Managed instance name.
@@ -55,6 +53,8 @@ type AzureStorageContainerSpec struct {
 }
 
 type AzureManagedDatabaseExportsSpec struct {
+	// The domain or bounded-context in which this database will be used.
+	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
 }

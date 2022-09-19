@@ -20,8 +20,6 @@ type AzureDatabase struct {
 type AzureDatabaseSpec struct {
 	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
-	// The domain or bounded-context in which this database will be used.
-	Domains []string `json:"domains"`
 	// Database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Azure Sql Server spec. New database will be created on this server
@@ -33,7 +31,7 @@ type AzureDatabaseSpec struct {
 	// +optional
 	SourceDatabaseId string `json:"sourceDatabaseId,omitempty"`
 	// +optional
-	Exports AzureDatabaseExportsSpec `json:"exports,omitempty"`
+	Exports []AzureDatabaseExportsSpec `json:"exports,omitempty"`
 }
 
 type SqlServerSpec struct {
@@ -46,6 +44,8 @@ type SqlServerSpec struct {
 }
 
 type AzureDatabaseExportsSpec struct {
+	// The domain or bounded-context in which this database will be used.
+	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
 }

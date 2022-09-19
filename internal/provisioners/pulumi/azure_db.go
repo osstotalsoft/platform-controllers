@@ -70,9 +70,9 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 			}
 			ctx.Export("azureDbName", db.Name)
 
-			for _, domain := range dbSpec.Spec.Domains {
-				err = valueExporter(newExportContext(ctx, domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
-					map[string]exportTemplateWithValue{"dbName": {dbSpec.Spec.Exports.DbName, db.Name}})
+			for _, exp := range dbSpec.Spec.Exports {
+				err = valueExporter(newExportContext(ctx, exp.Domain, dbSpec.Name, dbSpec.ObjectMeta, gvk),
+					map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}})
 				if err != nil {
 					return err
 				}

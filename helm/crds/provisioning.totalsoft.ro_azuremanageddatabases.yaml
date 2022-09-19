@@ -44,33 +44,35 @@ spec:
                 description: Managed database name prefix. Will have platform and
                   tenant suffix.
                 type: string
-              domains:
-                description: The domain or bounded-context in which this database
-                  will be used.
-                items:
-                  type: string
-                type: array
               exports:
                 description: Export provisioning values spec.
-                properties:
-                  dbName:
-                    properties:
-                      toConfigMap:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                      toVault:
-                        properties:
-                          keyTemplate:
-                            type: string
-                        required:
-                        - keyTemplate
-                        type: object
-                    type: object
-                type: object
+                items:
+                  properties:
+                    dbName:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    domain:
+                      description: The domain or bounded-context in which this database
+                        will be used.
+                      type: string
+                  required:
+                  - domain
+                  type: object
+                type: array
               managedInstance:
                 description: Target managed instance spec.
                 properties:
@@ -114,7 +116,6 @@ spec:
                 type: object
             required:
             - dbName
-            - domains
             - managedInstance
             - platformRef
             type: object

@@ -52,12 +52,11 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureDatabase
 spec:
   dbName: origination_db
-  domains:
-    - origination
   exports:
-    dbName:
-      toConfigMap:
-        keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
+    - domain: origination
+      dbName:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
   platformRef: charismaonline.qa
   sourceDatabaseId: /subscriptions/XXXXXX-b8a5-4967-a05a-2fa3c4295710/resourceGroups/SQLMI_RG/providers/Microsoft.Sql/servers/r7ddbsrv/databases/insurance_db
   sqlServer:
@@ -82,9 +81,10 @@ spec:
   domains:
     - origination
   exports:
-    dbName:
-      toConfigMap:
-        keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Leasing_Database__Database
+    - domain: origination
+      dbName:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
