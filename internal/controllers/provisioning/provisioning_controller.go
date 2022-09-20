@@ -1,4 +1,4 @@
-package controllers
+package provisioning
 
 import (
 	"context"
@@ -18,7 +18,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	"totalsoft.ro/platform-controllers/internal/provisioners"
+	controllers "totalsoft.ro/platform-controllers/internal/controllers"
+	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -29,11 +30,7 @@ import (
 )
 
 const (
-	controllerAgentName = "provisioning-controller"
-	// SuccessSynced is used as part of the Event 'reason' when a Resource is synced
-	SuccessSynced = "Synced successfully"
-	ErrorSynced   = "Error"
-
+	controllerAgentName   = "provisioning-controller"
 	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 )
@@ -270,9 +267,9 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	if result.Error == nil {
-		c.recorder.Event(tenant, corev1.EventTypeNormal, SuccessSynced, SuccessSynced)
+		c.recorder.Event(tenant, corev1.EventTypeNormal, controllers.SuccessSynced, controllers.SuccessSynced)
 	} else {
-		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, result.Error.Error())
+		c.recorder.Event(tenant, corev1.EventTypeWarning, controllers.ErrorSynced, result.Error.Error())
 	}
 	_, e := c.updateTenantStatus(tenant, result.Error)
 	if e != nil {
@@ -294,15 +291,15 @@ func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, e
 		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
 			Type:    "Ready",
 			Status:  metav1.ConditionFalse,
-			Reason:  FailedReason,
+			Reason:  controllers.FailedReason,
 			Message: err.Error(),
 		})
 	} else {
 		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
 			Type:    "Ready",
 			Status:  metav1.ConditionTrue,
-			Reason:  SucceededReason,
-			Message: SuccessSynced,
+			Reason:  controllers.SucceededReason,
+			Message: controllers.SuccessSynced,
 		})
 	}
 

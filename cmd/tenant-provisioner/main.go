@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"path/filepath"
+
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/rest"
@@ -9,10 +11,10 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/homedir"
 	"k8s.io/klog/v2"
-	"path/filepath"
 	"totalsoft.ro/platform-controllers/internal/controllers"
-	"totalsoft.ro/platform-controllers/internal/migration"
-	"totalsoft.ro/platform-controllers/internal/provisioners/pulumi"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/migration"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi"
 	"totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	"totalsoft.ro/platform-controllers/pkg/signals"
 )
@@ -85,7 +87,7 @@ func main() {
 	eventBroadcaster.StartStructuredLogging(0)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
-	controller := controllers.NewProvisioningController(clientset, pulumi.Create,
+	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
 		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter), eventBroadcaster)
 	if err = controller.Run(5, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err)
