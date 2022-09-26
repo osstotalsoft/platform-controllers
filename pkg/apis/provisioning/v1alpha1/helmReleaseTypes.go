@@ -8,7 +8,6 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
-
 type HelmRelease struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
@@ -31,4 +30,12 @@ type HelmReleaseExportsSpec struct {
 	Domain string `json:"domain"`
 	// +optional
 	ReleaseName ValueExport `json:"releaseName,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type HelmReleaseList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []HelmRelease `json:"items"`
 }
