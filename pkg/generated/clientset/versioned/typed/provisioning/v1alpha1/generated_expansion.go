@@ -21,3 +21,5 @@ package v1alpha1
 type AzureDatabaseExpansion interface{}
 
 type AzureManagedDatabaseExpansion interface{}
+
+type HelmReleaseExpansion interface{}

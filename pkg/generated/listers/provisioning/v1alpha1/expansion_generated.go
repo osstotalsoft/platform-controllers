@@ -33,3 +33,11 @@ type AzureManagedDatabaseListerExpansion interface{}
 // AzureManagedDatabaseNamespaceListerExpansion allows custom methods to be added to
 // AzureManagedDatabaseNamespaceLister.
 type AzureManagedDatabaseNamespaceListerExpansion interface{}
+
+// HelmReleaseListerExpansion allows custom methods to be added to
+// HelmReleaseLister.
+type HelmReleaseListerExpansion interface{}
+
+// HelmReleaseNamespaceListerExpansion allows custom methods to be added to
+// HelmReleaseNamespaceLister.
+type HelmReleaseNamespaceListerExpansion interface{}
