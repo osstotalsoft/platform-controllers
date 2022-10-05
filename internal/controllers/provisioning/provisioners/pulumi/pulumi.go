@@ -25,6 +25,7 @@ import (
 const (
 	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
 	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
+	PulumiSkipHelmRelease    = "PULUMI_SKIP_HELM_RELEASE"
 	PulumiRetainOnDelete     = true
 )
 
@@ -38,6 +39,8 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	anyAzureDb := len(infra.AzureDbs) > 0
 	skipManagedAzureDb, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb))
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
+	skipHelmRelease, _ := strconv.ParseBool(os.Getenv(PulumiSkipHelmRelease))
+	anyHelmRelease := len(infra.HelmReleases) > 0
 
 	if !skipAzureDb {
 		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Name)
@@ -71,6 +74,24 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 				return result
 			}
 			result.HasAzureManagedDbChanges = hasChanges(destroyRes.Summary)
+		}
+	}
+
+	if !skipHelmRelease {
+		helmReleaseStackName := fmt.Sprintf("%s_helm_release", tenant.Name)
+
+		if anyHelmRelease {
+			upRes, result.Error = updateStack(helmReleaseStackName, platform, helmReleaseDeployFunc(platform, tenant, infra.HelmReleases))
+			if result.Error != nil {
+				return result
+			}
+			result.HasHelmReleaseChanges = hasChanges(upRes.Summary)
+		} else {
+			destroyRes, result.Error = tryDestroyAndDeleteStack(helmReleaseStackName, platform, emptyDeployFunc)
+			if result.Error != nil {
+				return result
+			}
+			result.HasHelmReleaseChanges = hasChanges(destroyRes.Summary)
 		}
 	}
 

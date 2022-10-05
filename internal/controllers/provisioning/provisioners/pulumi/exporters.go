@@ -36,6 +36,16 @@ type ExportContext struct {
 	ownerKind     k8sSchema.GroupVersionKind
 }
 
+type templateContext struct {
+	Tenant   templateContextTenant
+	Platform string
+}
+type templateContextTenant struct {
+	Id          string
+	Code        string
+	Description string
+}
+
 func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 	ownerMeta metav1.ObjectMeta, ownerKind k8sSchema.GroupVersionKind) ExportContext {
 	return ExportContext{
@@ -45,6 +55,14 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 		domain:        domain,
 		objectName:    objectName,
 	}
+}
+
+func newTemplateContext(platform string, tenant *platformv1.Tenant) templateContext {
+	tc := templateContext{
+		templateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description},
+		platform,
+	}
+	return tc
 }
 
 func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporterFunc {
@@ -59,7 +77,7 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 		Platform string
 	}
 
-	templateContext := TemplateContext{TemplateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description}, platform}
+	templateContext := newTemplateContext(platform, tenant)
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {

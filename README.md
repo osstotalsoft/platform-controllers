@@ -69,7 +69,7 @@ spec:
 > *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 
-#### AzureManagedDatabase
+### AzureManagedDatabase
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuremanageddatabases.yaml)
 
 Example:
@@ -92,6 +92,45 @@ spec:
       uri: https://my-blobstorage.blob.core.windows.net/backup-repository
       sasToken: my-saas-token
   platformRef: charismaonline.qa
+```
+> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
+
+
+### HelmRelease
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_helmreleases.yaml)
+
+Example:
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: HelmRelease
+metadata:
+  name: my-helm-release
+  namespace: my-namespace
+spec:
+  platformRef: radu.demo
+  release:
+    interval: 10m
+    releaseName: my-release
+    chart:
+      spec:
+        version: ">=0.1.0-0"
+        chart: my-chart
+        sourceRef:
+          kind: HelmRepository
+          name: my-helm-repo
+          namespace: my-namespace
+    upgrade:
+      remediation:
+        remediateLastFailure: false
+    values:
+      global:
+        vaultEnvironment: "false"
+
+        runtimeConfiguration:
+          enabled: false
+          configMap: origination-aggregate
+          csi:
+            secretProviderClass: origination-aggregate
 ```
 > *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 

@@ -12,10 +12,12 @@ type CreateInfrastructureFunc func(platform string,
 type InfrastructureManifests struct {
 	AzureDbs        []*provisioningv1.AzureDatabase
 	AzureManagedDbs []*provisioningv1.AzureManagedDatabase
+	HelmReleases    []*provisioningv1.HelmRelease
 }
 
 type ProvisioningResult struct {
 	Error                    error
 	HasAzureDbChanges        bool
 	HasAzureManagedDbChanges bool
+	HasHelmReleaseChanges    bool
 }

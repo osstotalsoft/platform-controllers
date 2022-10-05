@@ -3,6 +3,7 @@ module totalsoft.ro/platform-controllers
 go 1.18
 
 require (
+	github.com/blang/semver v3.5.1+incompatible
 	github.com/fluxcd/helm-controller/api v0.24.0
 	github.com/google/uuid v1.1.2
 	github.com/hashicorp/vault/api v1.6.0
@@ -11,7 +12,9 @@ require (
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.21.2
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.6.0
 	github.com/pulumi/pulumi/sdk/v3 v3.39.1
+	github.com/stretchr/testify v1.7.0
 	k8s.io/api v0.25.0
+	k8s.io/apiextensions-apiserver v0.25.0
 	k8s.io/apimachinery v0.25.0
 	k8s.io/client-go v0.25.0
 	k8s.io/klog/v2 v2.70.1
@@ -27,7 +30,6 @@ require (
 	github.com/aead/chacha20 v0.0.0-20180709150244-8b13a72661da // indirect
 	github.com/armon/go-metrics v0.3.9 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
-	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cenkalti/backoff/v3 v3.0.0 // indirect
 	github.com/cheggaaa/pb v1.0.18 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -100,6 +102,7 @@ require (
 	github.com/pierrec/lz4 v2.5.2+incompatible // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
@@ -130,7 +133,6 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/apiextensions-apiserver v0.25.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20220803162953-67bda5d908f1 // indirect
 	k8s.io/utils v0.0.0-20220728103510-ee6ede2d64ed // indirect
 	lukechampine.com/frand v1.4.2 // indirect
