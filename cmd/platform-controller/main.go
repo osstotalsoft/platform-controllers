@@ -15,7 +15,7 @@ import (
 	// Uncomment the following line to load the gcp plugin (only required to authenticate against GKE clusters).
 	// _ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 
-	"totalsoft.ro/platform-controllers/internal/controllers"
+	"totalsoft.ro/platform-controllers/internal/controllers/platform"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
 	"totalsoft.ro/platform-controllers/pkg/signals"
@@ -54,7 +54,7 @@ func main() {
 	eventBroadcaster.StartStructuredLogging(0)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
-	controller := controllers.NewPlatformController(kubeClient, platformClient,
+	controller := platform.NewPlatformController(kubeClient, platformClient,
 		kubeInformerFactory.Core().V1().ConfigMaps(),
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Platform().V1alpha1().Tenants(),

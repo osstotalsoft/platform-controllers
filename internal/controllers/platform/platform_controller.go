@@ -1,4 +1,4 @@
-package controllers
+package platform
 
 import (
 	"context"
@@ -22,6 +22,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	controllers "totalsoft.ro/platform-controllers/internal/controllers"
 	"totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -334,7 +335,7 @@ func (c *PlatformController) resetStatus(platform *platformv1.Platform) (*platfo
 	newCondition := metav1.Condition{
 		Type:    ReadyCondition,
 		Status:  metav1.ConditionUnknown,
-		Reason:  ProgressingReason,
+		Reason:  controllers.ProgressingReason,
 		Message: "config generation in progress",
 	}
 	apimeta.SetStatusCondition(&platform.Status.Conditions, newCondition)
@@ -349,10 +350,10 @@ func (c *PlatformController) updateStatus(platform *platformv1.Platform, isReady
 	var reason string
 	if isReady {
 		conditionStatus = metav1.ConditionTrue
-		reason = SucceededReason
+		reason = controllers.SucceededReason
 	} else {
 		conditionStatus = metav1.ConditionFalse
-		reason = FailedReason
+		reason = controllers.FailedReason
 	}
 
 	platform.Status.Conditions = []metav1.Condition{}
@@ -391,8 +392,8 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outputName,
 			Labels: map[string]string{
-				PlatformLabelName: platform.Name,
-				DomainLabelName:   GlobalDomainLabelValue,
+				controllers.PlatformLabelName: platform.Name,
+				controllers.DomainLabelName:   controllers.GlobalDomainLabelValue,
 			},
 			Namespace: platform.Spec.TargetNamespace,
 			OwnerReferences: []metav1.OwnerReference{

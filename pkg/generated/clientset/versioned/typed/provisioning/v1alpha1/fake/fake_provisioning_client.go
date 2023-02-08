@@ -36,6 +36,10 @@ func (c *FakeProvisioningV1alpha1) AzureManagedDatabases(namespace string) v1alp
 	return &FakeAzureManagedDatabases{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) HelmReleases(namespace string) v1alpha1.HelmReleaseInterface {
+	return &FakeHelmReleases{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeProvisioningV1alpha1) RESTClient() rest.Interface {

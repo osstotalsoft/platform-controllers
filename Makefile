@@ -41,3 +41,4 @@ test:
 
 include hack/generate_kube_crd.mk
 include docker/docker.mk
+include internal/controllers/provisioning/provisioners/pulumi/fluxcd/generate_pulumi_fluxcd_apis.mk

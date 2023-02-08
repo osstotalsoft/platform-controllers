@@ -1,4 +1,4 @@
-package controllers
+package provisioning
 
 import (
 	"context"
@@ -18,7 +18,8 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	"totalsoft.ro/platform-controllers/internal/provisioners"
+	controllers "totalsoft.ro/platform-controllers/internal/controllers"
+	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -29,11 +30,7 @@ import (
 )
 
 const (
-	controllerAgentName = "provisioning-controller"
-	// SuccessSynced is used as part of the Event 'reason' when a Resource is synced
-	SuccessSynced = "Synced successfully"
-	ErrorSynced   = "Error"
-
+	controllerAgentName   = "provisioning-controller"
 	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 )
@@ -60,6 +57,7 @@ type ProvisioningController struct {
 	tenantInformer         platformInformersv1.TenantInformer
 	azureDbInformer        provisioningInformersv1.AzureDatabaseInformer
 	azureManagedDbInformer provisioningInformersv1.AzureManagedDatabaseInformer
+	helmReleaseInformer    provisioningInformersv1.HelmReleaseInformer
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
@@ -84,6 +82,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		tenantInformer:         factory.Platform().V1alpha1().Tenants(),
 		azureDbInformer:        factory.Provisioning().V1alpha1().AzureDatabases(),
 		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
+		helmReleaseInformer:    factory.Provisioning().V1alpha1().HelmReleases(),
 
 		provisioner: provisioner,
 		clientset:   clientSet,
@@ -98,6 +97,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addPlatformHandlers(c.platformInformer)
 	addAzureDbHandlers(c.azureDbInformer, c.enqueueAllTenant)
 	addAzureManagedDbHandlers(c.azureManagedDbInformer, c.enqueueAllTenant)
+	addHelmReleaseHandlers(c.helmReleaseInformer, c.enqueueAllTenant)
 
 	return c
 }
@@ -208,6 +208,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			&provisioners.InfrastructureManifests{
 				AzureDbs:        []*provisioningv1.AzureDatabase{},
 				AzureManagedDbs: []*provisioningv1.AzureManagedDatabase{},
+				HelmReleases:    []*provisioningv1.HelmRelease{},
 			})
 		if cleanupResult.Error != nil {
 			utilruntime.HandleError(cleanupResult.Error)
@@ -253,9 +254,24 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureManagedDbs = azureManagedDbs[:n]
 
+	helmReleases, err := c.helmReleaseInformer.Lister().List(skipTenantLabelSelector)
+	if err != nil {
+		return err
+	}
+
+	n = 0
+	for _, hr := range helmReleases {
+		if hr.Spec.PlatformRef == platform {
+			helmReleases[n] = hr
+			n++
+		}
+	}
+	helmReleases = helmReleases[:n]
+
 	result := c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
 		AzureDbs:        azureDbs,
 		AzureManagedDbs: azureManagedDbs,
+		HelmReleases:    helmReleases,
 	})
 
 	if result.Error == nil {
@@ -270,9 +286,9 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	if result.Error == nil {
-		c.recorder.Event(tenant, corev1.EventTypeNormal, SuccessSynced, SuccessSynced)
+		c.recorder.Event(tenant, corev1.EventTypeNormal, controllers.SuccessSynced, controllers.SuccessSynced)
 	} else {
-		c.recorder.Event(tenant, corev1.EventTypeWarning, ErrorSynced, result.Error.Error())
+		c.recorder.Event(tenant, corev1.EventTypeWarning, controllers.ErrorSynced, result.Error.Error())
 	}
 	_, e := c.updateTenantStatus(tenant, result.Error)
 	if e != nil {
@@ -294,15 +310,15 @@ func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, e
 		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
 			Type:    "Ready",
 			Status:  metav1.ConditionFalse,
-			Reason:  FailedReason,
+			Reason:  controllers.FailedReason,
 			Message: err.Error(),
 		})
 	} else {
 		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
 			Type:    "Ready",
 			Status:  metav1.ConditionTrue,
-			Reason:  SucceededReason,
-			Message: SuccessSynced,
+			Reason:  controllers.SucceededReason,
+			Message: controllers.SuccessSynced,
 		})
 	}
 
@@ -478,6 +494,42 @@ func addAzureManagedDbHandlers(informer provisioningInformersv1.AzureManagedData
 	})
 }
 
+func addHelmReleaseHandlers(informer provisioningInformersv1.HelmReleaseInformer, handler func(platform string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.HelmRelease)
+			if platform, ok := getHelmReleasePlatform(comp); ok {
+				klog.V(4).InfoS("Helm release added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldComp := oldObj.(*provisioningv1.HelmRelease)
+			newComp := newObj.(*provisioningv1.HelmRelease)
+			oldPlatform, oldOk := getHelmReleasePlatform(oldComp)
+			newPlatform, newOk := getHelmReleasePlatform(newComp)
+			platformChanged := oldPlatform != newPlatform
+
+			if oldOk && platformChanged {
+				klog.V(4).InfoS("Helm release invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
+				handler(oldPlatform)
+			}
+
+			if newOk {
+				klog.V(4).InfoS("Helm release updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
+				handler(newPlatform)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.HelmRelease)
+			if platform, ok := getHelmReleasePlatform(comp); ok {
+				klog.V(4).InfoS("Helm release deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
+		},
+	})
+}
+
 func getTenantPlatform(tenant *platformv1.Tenant) (platform string, ok bool) {
 	platform = tenant.Spec.PlatformRef
 	if len(platform) == 0 {
@@ -498,6 +550,15 @@ func getAzureDbPlatform(azureDb *provisioningv1.AzureDatabase) (platform string,
 
 func getAzureManagedDbPlatform(azureManagedDb *provisioningv1.AzureManagedDatabase) (platform string, ok bool) {
 	platform = azureManagedDb.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, false
+	}
+
+	return platform, true
+}
+
+func getHelmReleasePlatform(helmRelease *provisioningv1.HelmRelease) (platform string, ok bool) {
+	platform = helmRelease.Spec.PlatformRef
 	if len(platform) == 0 {
 		return platform, false
 	}

@@ -1,4 +1,4 @@
-package controllers
+package provisioning
 
 import (
 	"sync"
@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"totalsoft.ro/platform-controllers/internal/provisioners"
+	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
