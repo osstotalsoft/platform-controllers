@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"fmt"
+	"strings"
 
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -16,7 +17,8 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
-			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
+			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
+			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			args := azureSql.ManagedDatabaseArgs{
 				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
 				ResourceGroupName:   pulumi.String(dbSpec.Spec.ManagedInstance.ResourceGroup),
@@ -29,14 +31,15 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				args.StorageContainerSasToken = pulumi.String(restoreFrom.StorageContainer.SasToken)
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
-			ignoreProps := []string{}
+			ignoreChanges := []string{}
 			if PulumiRetainOnDelete {
-				ignoreProps = []string{"lastBackupName", "storageContainerUri"}
+				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri"}
 			}
 
 			db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
 				pulumi.RetainOnDelete(PulumiRetainOnDelete),
-				pulumi.IgnoreChanges(ignoreProps),
+				pulumi.IgnoreChanges(ignoreChanges),
+				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
 			)
 			if err != nil {
 				return err
