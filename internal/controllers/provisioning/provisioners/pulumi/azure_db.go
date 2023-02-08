@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"fmt"
+	"strings"
 
 	azureSql "github.com/pulumi/pulumi-azure-native/sdk/go/azure/sql"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -63,8 +64,18 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				}
 			}
 
-			dbName := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
-			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs, pulumi.RetainOnDelete(PulumiRetainOnDelete))
+			ignoreChanges := []string{}
+			if PulumiRetainOnDelete {
+				ignoreChanges = []string{"createMode", "sourceDatabaseId"}
+			}
+
+			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
+			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
+			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
+				pulumi.RetainOnDelete(PulumiRetainOnDelete),
+				pulumi.IgnoreChanges(ignoreChanges),
+				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
+			)
 			if err != nil {
 				return err
 			}
