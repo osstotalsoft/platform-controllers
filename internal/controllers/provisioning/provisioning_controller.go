@@ -327,7 +327,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			platform:          platform,
 			error:             result.Error.Error(),
 		}
-		err = c.messagingPublisher(context.TODO(), "PlatformControllers.ProvisioningController.TenantProvisionningFailed", ev, platform)
+		err = c.messagingPublisher(context.TODO(), tenantProvisionningFailedTopic, ev, platform)
 		if err != nil {
 			klog.ErrorS(err, "message publisher error")
 		}
