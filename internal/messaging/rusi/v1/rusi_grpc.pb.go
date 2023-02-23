@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.21.12
-// source: internal/rusi/v1/rusi.proto
+// source: internal/messaging/rusi/v1/rusi.proto
 
 package v1
 
@@ -175,5 +175,5 @@ var Rusi_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "internal/rusi/v1/rusi.proto",
+	Metadata: "internal/messaging/rusi/v1/rusi.proto",
 }
