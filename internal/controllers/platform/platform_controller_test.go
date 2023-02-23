@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
+	messaging "totalsoft.ro/platform-controllers/internal/messaging/mock"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
@@ -24,7 +25,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant1 := _newTenant("tenant1", "charismaonline.qa")
 		tenant2 := _newTenant("tenant2", "charismaonline.qa")
 
-		c := _runController([]runtime.Object{platform, tenant1, tenant2})
+		c, msgChan := _runController([]runtime.Object{platform, tenant1, tenant2})
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 		}
@@ -54,6 +55,11 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("orphan tenants", func(t *testing.T) {
@@ -61,7 +67,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant1 := _newTenant("tenant1", "charismaonline.qa")
 		tenant2 := _newTenant("tenant2", "charismaonline.qa")
 
-		c := _runController([]runtime.Object{tenant1, tenant2})
+		c, _ := _runController([]runtime.Object{tenant1, tenant2})
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 		}
@@ -84,7 +90,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		// Arrange
 		platform := _newPlatform("qa", "charismaonline.qa")
 
-		c := _runController([]runtime.Object{platform})
+		c, msgChan := _runController([]runtime.Object{platform})
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 		}
@@ -109,6 +115,11 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("tenant platformRef updated", func(t *testing.T) {
@@ -117,7 +128,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		platformUat := _newPlatform("uat", "charismaonline.uat")
 		tenant1 := _newTenant("tenant1", "charismaonline.qa")
 
-		c := _runController([]runtime.Object{platformQa, platformUat, tenant1})
+		c, msgChan := _runController([]runtime.Object{platformQa, platformUat, tenant1})
 		if c.workqueue.Len() != 2 {
 			t.Error("queue should have 2 items, but it has", c.workqueue.Len())
 		}
@@ -126,9 +137,12 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
+		<-msgChan
+
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
+		<-msgChan
 
 		t1, err := c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Get(context.TODO(), "tenant1", metav1.GetOptions{})
 		if err != nil {
@@ -142,6 +156,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
+
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
@@ -162,6 +177,11 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", qaConfigMap.Data)
 		}
 
+		qaMsg := <-msgChan
+		if qaMsg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", qaMsg.Topic)
+		}
+
 		uatConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("uat").Get(context.TODO(), "charismaonline.uat-tenants", metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
@@ -174,6 +194,11 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}; !reflect.DeepEqual(uatConfigMap.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", uatConfigMap.Data)
 		}
+
+		uatMsg := <-msgChan
+		if uatMsg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", uatMsg.Topic)
+		}
 	})
 
 	t.Run("tenant deleted", func(t *testing.T) {
@@ -181,7 +206,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		platformQa := _newPlatform("qa", "charismaonline.qa")
 		tenant1 := _newTenant("tenant1", "charismaonline.qa")
 
-		c := _runController([]runtime.Object{platformQa, tenant1})
+		c, msgChan := _runController([]runtime.Object{platformQa, tenant1})
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
 		}
@@ -190,6 +215,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
+		<-msgChan
 
 		// t1, err := c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Get(context.TODO(), "tenant1", metav1.GetOptions{})
 		// if err != nil {
@@ -222,6 +248,10 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", configMap.Data)
 		}
 
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 }
 
@@ -253,20 +283,23 @@ func _newTenant(name, platform string) *platformv1.Tenant {
 	}
 }
 
-func _runController(objects []runtime.Object) *PlatformController {
+func _runController(objects []runtime.Object) (*PlatformController, chan messaging.RcvMsg) {
 	kubeClient := kubeFakeClientSet.NewSimpleClientset()
 	platformClient := fakeClientset.NewSimpleClientset(objects...)
 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	platformInformerFactory := informers.NewSharedInformerFactory(platformClient, time.Second*30)
 
+	msgChan := make(chan messaging.RcvMsg)
+	msgPublisher := messaging.MessagingPublisherMock(msgChan)
+
 	c := NewPlatformController(kubeClient, platformClient, kubeInformerFactory.Core().V1().ConfigMaps(),
-		platformInformerFactory.Platform().V1alpha1().Platforms(), platformInformerFactory.Platform().V1alpha1().Tenants(), nil)
+		platformInformerFactory.Platform().V1alpha1().Platforms(), platformInformerFactory.Platform().V1alpha1().Tenants(), nil, msgPublisher)
 	kubeInformerFactory.Start(nil)
 	platformInformerFactory.Start(nil)
 
 	kubeInformerFactory.WaitForCacheSync(nil)
 	platformInformerFactory.WaitForCacheSync(nil)
 
-	return c
+	return c, msgChan
 }

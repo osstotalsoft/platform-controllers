@@ -11,6 +11,11 @@ spec:
       app: platform-controller
   template:
     metadata:
+      annotations:
+        {{- if .Values.global.rusi.enabled }}
+        rusi.io/app-id: Platform.Controller
+        rusi.io/enabled: "true"
+        {{- end }}
       labels:
         app: platform-controller
         app.kubernetes.io/name: {{ .Release.Name }}

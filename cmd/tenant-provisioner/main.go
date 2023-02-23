@@ -15,6 +15,7 @@ import (
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/migration"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi"
+	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 	"totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	"totalsoft.ro/platform-controllers/pkg/signals"
 )
@@ -88,7 +89,7 @@ func main() {
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
 	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
-		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter), eventBroadcaster)
+		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter), eventBroadcaster, messaging.DefaultMessagingPublisher())
 	if err = controller.Run(5, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err)
 	}

@@ -20,6 +20,7 @@ import (
 	"k8s.io/klog/v2"
 	controllers "totalsoft.ro/platform-controllers/internal/controllers"
 	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
+	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -33,6 +34,9 @@ const (
 	controllerAgentName   = "provisioning-controller"
 	SkipTenantLabelFormat = "provisioning.totalsoft.ro/skip-tenant-%s"
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
+
+	tenantProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.TenantProvisionedSuccessfully"
+	tenantProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.TenantProvisionningFailed"
 )
 
 // ProvisioningController is the controller implementation for Tenant resources
@@ -58,12 +62,15 @@ type ProvisioningController struct {
 	azureDbInformer        provisioningInformersv1.AzureDatabaseInformer
 	azureManagedDbInformer provisioningInformersv1.AzureManagedDatabaseInformer
 	helmReleaseInformer    provisioningInformersv1.HelmReleaseInformer
+
+	messagingPublisher messaging.MessagingPublisher
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
 	provisioner provisioners.CreateInfrastructureFunc,
 	migrator func(platform string, tenant *platformv1.Tenant) error,
-	eventBroadcaster record.EventBroadcaster) *ProvisioningController {
+	eventBroadcaster record.EventBroadcaster,
+	messagingPublisher messaging.MessagingPublisher) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
 
@@ -84,9 +91,10 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 		helmReleaseInformer:    factory.Provisioning().V1alpha1().HelmReleases(),
 
-		provisioner: provisioner,
-		clientset:   clientSet,
-		migrator:    migrator,
+		provisioner:        provisioner,
+		clientset:          clientSet,
+		migrator:           migrator,
+		messagingPublisher: messagingPublisher,
 	}
 
 	if eventBroadcaster != nil {
@@ -287,8 +295,42 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	if result.Error == nil {
 		c.recorder.Event(tenant, corev1.EventTypeNormal, controllers.SuccessSynced, controllers.SuccessSynced)
+
+		var ev = struct {
+			tenantId          string
+			tenantName        string
+			tenantDescription string
+			platform          string
+		}{
+			tenantId:          tenant.Spec.Id,
+			tenantName:        tenant.Name,
+			tenantDescription: tenant.Spec.Description,
+			platform:          platform,
+		}
+		err = c.messagingPublisher(context.TODO(), tenantProvisionedSuccessfullyTopic, ev, platform)
+		if err != nil {
+			klog.ErrorS(err, "message publisher error")
+		}
 	} else {
 		c.recorder.Event(tenant, corev1.EventTypeWarning, controllers.ErrorSynced, result.Error.Error())
+
+		var ev = struct {
+			tenantId          string
+			tenantName        string
+			tenantDescription string
+			platform          string
+			error             string
+		}{
+			tenantId:          tenant.Spec.Id,
+			tenantName:        tenant.Name,
+			tenantDescription: tenant.Spec.Description,
+			platform:          platform,
+			error:             result.Error.Error(),
+		}
+		err = c.messagingPublisher(context.TODO(), tenantProvisionningFailedTopic, ev, platform)
+		if err != nil {
+			klog.ErrorS(err, "message publisher error")
+		}
 	}
 	_, e := c.updateTenantStatus(tenant, result.Error)
 	if e != nil {

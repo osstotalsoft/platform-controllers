@@ -23,6 +23,7 @@ import (
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
 
 	"totalsoft.ro/platform-controllers/internal/controllers"
+	messaging "totalsoft.ro/platform-controllers/internal/messaging/mock"
 )
 
 func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
@@ -41,7 +42,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			newPlatform(platform, platform),
 		}
 		spcs := []runtime.Object{}
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -67,6 +68,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("aggregate domain specific and global config map", func(t *testing.T) {
@@ -84,7 +90,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 		if c.workqueue.Len() != 1 {
 			items := c.workqueue.Len()
 			t.Error("queue should have only 1 item, but it has", items)
@@ -112,6 +118,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("aggregate platform config map", func(t *testing.T) {
@@ -130,7 +141,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -157,6 +168,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("should update output when platform changes", func(t *testing.T) {
@@ -175,7 +191,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -185,6 +201,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
+		<-msgChan
 
 		foundConfigurationDomain, err := c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Get(context.TODO(), domain, metav1.GetOptions{})
 		if err != nil {
@@ -222,6 +239,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(foundConfigMap.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", foundConfigMap.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("should perform cleanup when aggregateConfigMaps is false", func(t *testing.T) {
@@ -239,7 +261,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, _ := runController(platforms, configurationDomains, configMaps, spcs)
 
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
@@ -285,7 +307,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 		if c.workqueue.Len() != 2 {
 			items := c.workqueue.Len()
 			t.Error("queue should have 2 items, but it has", items)
@@ -317,6 +339,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output2.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output2.Data)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("aggregate two secrets", func(t *testing.T) {
@@ -330,7 +357,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -371,6 +398,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if output.Spec.Parameters["objects"] != expectedOutput {
 			t.Error("expected output secret objects", expectedOutput, ", got", output.Spec.Parameters["objects"])
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("should re-generate SPC on delete", func(t *testing.T) {
@@ -384,7 +416,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -402,6 +434,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
+		<-msgChan
+
 		outputSpcName := getOutputSpcName(domain)
 		_, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
 		if err != nil {
@@ -437,6 +471,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if output == nil || err != nil {
 			t.Errorf("output SPC %s should be re-generated ", outputSpcName)
 		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
 	})
 
 	t.Run("should re-queue key when secrets synced", func(t *testing.T) {
@@ -450,7 +489,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
-		c := runController(platforms, configurationDomains, configMaps, spcs)
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -471,7 +510,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("processing failed")
 		}
 
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(30 * time.Millisecond)
 
 		// Assert
 		if c.workqueue.Len() != 1 {
@@ -485,6 +524,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 
 		if actualKey != expectedKey {
 			t.Error("expected key", expectedKey, ", got", actualKey)
+		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 
@@ -532,7 +576,7 @@ func newConfigMap(name, domain, namespace, platform string, data map[string]stri
 	}
 }
 
-func runController(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, spcs []runtime.Object) *ConfigurationDomainController {
+func runController(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, spcs []runtime.Object) (*ConfigurationDomainController, chan messaging.RcvMsg) {
 	platformClient := fakeClientset.NewSimpleClientset(append(platforms, configurationDomains...)...)
 	kubeClient := kubeFakeClientSet.NewSimpleClientset(configMaps...)
 	csiClient := fakeCsiClientSet.NewSimpleClientset(spcs...)
@@ -541,12 +585,17 @@ func runController(platforms []runtime.Object, configurationDomains, configMaps 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	csiInformerFactory := csiinformers.NewSharedInformerFactory(csiClient, time.Second*30)
 
+	msgChan := make(chan messaging.RcvMsg)
+	msgPublisher := messaging.MessagingPublisherMock(msgChan)
+
 	c := NewConfigurationDomainController(platformClient, kubeClient, csiClient,
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Configuration().V1alpha1().ConfigurationDomains(),
 		kubeInformerFactory.Core().V1().ConfigMaps(),
 		csiInformerFactory.Secretsstore().V1().SecretProviderClasses(),
-		nil)
+		nil,
+		msgPublisher,
+	)
 
 	platformInformerFactory.Start(nil)
 	kubeInformerFactory.Start(nil)
@@ -556,5 +605,5 @@ func runController(platforms []runtime.Object, configurationDomains, configMaps 
 	kubeInformerFactory.WaitForCacheSync(nil)
 	csiInformerFactory.WaitForCacheSync(nil)
 
-	return c
+	return c, msgChan
 }
