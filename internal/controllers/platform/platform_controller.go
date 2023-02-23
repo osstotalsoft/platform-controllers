@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	controllers "totalsoft.ro/platform-controllers/internal/controllers"
+	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 	"totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -38,7 +39,9 @@ const (
 	// ReadyCondition indicates the resource is ready and fully reconciled.
 	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
 	// representation of actual state.
-	ReadyCondition string = "Ready"
+	ReadyCondition = "Ready"
+
+	syncedSuccessfullyTopic string = "PlatformControllers.PlatformController.SyncedSuccessfully"
 )
 
 type PlatformController struct {
@@ -63,6 +66,8 @@ type PlatformController struct {
 	// time, and makes it easy to ensure we are never processing the same item
 	// simultaneously in two different workers.
 	workqueue workqueue.RateLimitingInterface
+
+	messagingPublisher messaging.MessagingPublisher
 }
 
 func NewPlatformController(
@@ -72,6 +77,7 @@ func NewPlatformController(
 	platformInformer informers.PlatformInformer,
 	tenantInformer informers.TenantInformer,
 	eventBroadcaster record.EventBroadcaster,
+	messagingPublisher messaging.MessagingPublisher,
 ) *PlatformController {
 	controller := &PlatformController{
 		kubeClientset:     kubeClientset,
@@ -85,8 +91,9 @@ func NewPlatformController(
 		tenantsLister:     tenantInformer.Lister(),
 		tenantsSynced:     tenantInformer.Informer().HasSynced,
 
-		recorder:  &record.FakeRecorder{},
-		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "platform"),
+		recorder:           &record.FakeRecorder{},
+		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "platform"),
+		messagingPublisher: messagingPublisher,
 	}
 
 	utilruntime.Must(clientsetScheme.AddToScheme(scheme.Scheme))
@@ -322,6 +329,15 @@ func (c *PlatformController) syncHandler(key string) error {
 	// current state of the world
 	c.updateStatus(platform, true, "Synced successfully")
 	c.recorder.Event(platform, corev1.EventTypeNormal, "Synced successfully", "Synced successfully")
+	var ev = struct {
+		platform string
+	}{
+		platform: platform.Name,
+	}
+	err = c.messagingPublisher(context.TODO(), syncedSuccessfullyTopic, ev, platform.Name)
+	if err != nil {
+		klog.ErrorS(err, "message publisher error")
+	}
 	return nil
 
 }

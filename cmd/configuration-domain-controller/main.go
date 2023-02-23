@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/util/homedir"
+	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 )
 
 var (
@@ -67,7 +68,8 @@ func main() {
 		platformInformerFactory.Configuration().V1alpha1().ConfigurationDomains(),
 		kubeInformerFactory.Core().V1().ConfigMaps(),
 		csiInformerFactory.Secretsstore().V1().SecretProviderClasses(),
-		eventBroadcaster)
+		eventBroadcaster,
+		messaging.DefaultMessagingPublisher())
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)
 	// Start method is non-blocking and runs all registered informers in a dedicated goroutine.

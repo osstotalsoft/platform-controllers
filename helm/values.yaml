@@ -7,3 +7,5 @@ global:
   vault:
     enabled: true
     address: http://vault.vault:8200
+  rusi:
+    enabled: true

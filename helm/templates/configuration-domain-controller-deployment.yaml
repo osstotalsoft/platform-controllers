@@ -11,6 +11,11 @@ spec:
       app: configuration-domain-controller
   template:
     metadata:
+      annotations:
+        {{- if .Values.global.rusi.enabled }}
+        rusi.io/app-id: ConfigurationDomain.Controller
+        rusi.io/enabled: "true"
+        {{- end }}
       labels:
         app: configuration-domain-controller
         app.kubernetes.io/name: {{ .Release.Name }}

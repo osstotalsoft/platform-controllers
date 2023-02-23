@@ -36,6 +36,13 @@ upgrade-all:
 	go get -u ./...
 	go mod tidy
 
+init-proto:
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+gen-proto:
+	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/messaging/rusi/v1/rusi.proto
+
 test:
 	CGO_ENABLED=0 go test -v `go list ./... | grep -v 'platform-controllers/pkg/generated'`
 
