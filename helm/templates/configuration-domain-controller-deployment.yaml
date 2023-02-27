@@ -33,6 +33,8 @@ spec:
               fieldPath: metadata.namespace
         - name: VAULT_ADDR
           value: "{{ .Values.global.vault.address }}"
+        - name: RUSI_ENABLED
+          value: "{{ .Values.global.rusi.enabled }}"
         command:
         - "/configuration-domain-controller"
         args:

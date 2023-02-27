@@ -69,7 +69,9 @@ spec:
             secretKeyRef:
               name:  provisioner-secrets
               key: vaultAccessToken
-        {{- end }}              
+        {{- end }}
+        - name: RUSI_ENABLED
+          value: "{{ .Values.global.rusi.enabled }}"            
         command:
         - "/tenant-provisioner"
         args:
