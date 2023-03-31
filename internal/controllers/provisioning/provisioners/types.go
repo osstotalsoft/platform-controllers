@@ -16,8 +16,6 @@ type InfrastructureManifests struct {
 }
 
 type ProvisioningResult struct {
-	Error                    error
-	HasAzureDbChanges        bool
-	HasAzureManagedDbChanges bool
-	HasHelmReleaseChanges    bool
+	Error      error
+	HasChanges bool
 }
