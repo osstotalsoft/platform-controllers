@@ -33,13 +33,30 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 			}
 			ignoreChanges := []string{}
 			if PulumiRetainOnDelete {
-				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri"}
+				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}
+			}
+
+			existingDb, err := azureSql.LookupManagedDatabase(ctx, &azureSql.LookupManagedDatabaseArgs{
+				DatabaseName:        dbName,
+				ResourceGroupName:   dbSpec.Spec.ManagedInstance.ResourceGroup,
+				ManagedInstanceName: dbSpec.Spec.ManagedInstance.Name,
+			})
+			if err != nil { //if not found
+				existingDb, err = azureSql.LookupManagedDatabase(ctx, &azureSql.LookupManagedDatabaseArgs{
+					DatabaseName:        dbNameV1,
+					ResourceGroupName:   dbSpec.Spec.ManagedInstance.ResourceGroup,
+					ManagedInstanceName: dbSpec.Spec.ManagedInstance.Name,
+				})
+			}
+			if err != nil {
+				return err
 			}
 
 			db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
 				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreChanges),
 				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
+				pulumi.Import(pulumi.ID(existingDb.Id)),
 			)
 			if err != nil {
 				return err
