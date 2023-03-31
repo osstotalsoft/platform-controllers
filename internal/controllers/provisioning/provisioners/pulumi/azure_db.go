@@ -66,15 +66,33 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 
 			ignoreChanges := []string{}
 			if PulumiRetainOnDelete {
-				ignoreChanges = []string{"resourceGroupName", "serverName", "createMode", "sourceDatabaseId"}
+				ignoreChanges = []string{"resourceGroupName", "serverName", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
 			}
 
 			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
+
+			existingDb, err := azureSql.LookupDatabase(ctx, &azureSql.LookupDatabaseArgs{
+				DatabaseName:      dbName,
+				ResourceGroupName: dbSpec.Spec.SqlServer.ResourceGroupName,
+				ServerName:        dbSpec.Spec.SqlServer.ServerName,
+			})
+			if err != nil { //if not found
+				existingDb, err = azureSql.LookupDatabase(ctx, &azureSql.LookupDatabaseArgs{
+					DatabaseName:      dbNameV1,
+					ResourceGroupName: dbSpec.Spec.SqlServer.ResourceGroupName,
+					ServerName:        dbSpec.Spec.SqlServer.ServerName,
+				})
+			}
+			if err != nil {
+				return err
+			}
+
 			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
 				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreChanges),
 				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
+				pulumi.Import(pulumi.ID(existingDb.Id)),
 			)
 			if err != nil {
 				return err
