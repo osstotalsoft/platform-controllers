@@ -33,7 +33,7 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 			}
 			ignoreChanges := []string{}
 			if PulumiRetainOnDelete {
-				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri"}
+				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}
 			}
 
 			db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
