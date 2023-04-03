@@ -36,6 +36,10 @@ func (c *FakeProvisioningV1alpha1) AzureManagedDatabases(namespace string) v1alp
 	return &FakeAzureManagedDatabases{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) AzureVirtualMachines(namespace string) v1alpha1.AzureVirtualMachineInterface {
+	return &FakeAzureVirtualMachines{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) HelmReleases(namespace string) v1alpha1.HelmReleaseInterface {
 	return &FakeHelmReleases{c, namespace}
 }

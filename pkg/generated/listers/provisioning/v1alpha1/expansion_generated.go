@@ -34,6 +34,14 @@ type AzureManagedDatabaseListerExpansion interface{}
 // AzureManagedDatabaseNamespaceLister.
 type AzureManagedDatabaseNamespaceListerExpansion interface{}
 
+// AzureVirtualMachineListerExpansion allows custom methods to be added to
+// AzureVirtualMachineLister.
+type AzureVirtualMachineListerExpansion interface{}
+
+// AzureVirtualMachineNamespaceListerExpansion allows custom methods to be added to
+// AzureVirtualMachineNamespaceLister.
+type AzureVirtualMachineNamespaceListerExpansion interface{}
+
 // HelmReleaseListerExpansion allows custom methods to be added to
 // HelmReleaseLister.
 type HelmReleaseListerExpansion interface{}

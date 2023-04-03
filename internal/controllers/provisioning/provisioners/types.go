@@ -10,9 +10,10 @@ type CreateInfrastructureFunc func(platform string,
 	infra *InfrastructureManifests) ProvisioningResult
 
 type InfrastructureManifests struct {
-	AzureDbs        []*provisioningv1.AzureDatabase
-	AzureManagedDbs []*provisioningv1.AzureManagedDatabase
-	HelmReleases    []*provisioningv1.HelmRelease
+	AzureDbs             []*provisioningv1.AzureDatabase
+	AzureManagedDbs      []*provisioningv1.AzureManagedDatabase
+	HelmReleases         []*provisioningv1.HelmRelease
+	AzureVirtualMachines []*provisioningv1.AzureVirtualMachine
 }
 
 type ProvisioningResult struct {

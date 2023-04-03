@@ -26,6 +26,7 @@ const (
 	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
 	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
 	PulumiSkipHelmRelease    = "PULUMI_SKIP_HELM_RELEASE"
+	PulumiSkipVirtualMachine = "PULUMI_SKIP_VIRTUAL_MACHINE"
 	PulumiRetainOnDelete     = true
 )
 
@@ -41,6 +42,8 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
 	skipHelmRelease, _ := strconv.ParseBool(os.Getenv(PulumiSkipHelmRelease))
 	anyHelmRelease := len(infra.HelmReleases) > 0
+	skipVirtualMachine, _ := strconv.ParseBool(os.Getenv(PulumiSkipVirtualMachine))
+	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 
 	if !skipAzureDb {
 		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Name)
@@ -88,6 +91,24 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			result.HasHelmReleaseChanges = hasChanges(upRes.Summary)
 		} else {
 			destroyRes, result.Error = tryDestroyAndDeleteStack(helmReleaseStackName, platform, emptyDeployFunc)
+			if result.Error != nil {
+				return result
+			}
+			result.HasHelmReleaseChanges = hasChanges(destroyRes.Summary)
+		}
+	}
+
+	if !skipVirtualMachine {
+		virtualMacineStackName := fmt.Sprintf("%s_azure_virtual_machine", tenant.Name)
+
+		if anyVirtualMachine {
+			upRes, result.Error = updateStack(virtualMacineStackName, platform, azureVirtualMachineDeployFunc(platform, tenant, infra.AzureVirtualMachines))
+			if result.Error != nil {
+				return result
+			}
+			result.HasHelmReleaseChanges = hasChanges(upRes.Summary)
+		} else {
+			destroyRes, result.Error = tryDestroyAndDeleteStack(virtualMacineStackName, platform, emptyDeployFunc)
 			if result.Error != nil {
 				return result
 			}
@@ -183,6 +204,11 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	err = w.InstallPlugin(ctx, "azure-native", "v1.74.0")
 	if err != nil {
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
+		return auto.Stack{}, err
+	}
+	err = w.InstallPlugin(ctx, "random", "v4.12.0")
+	if err != nil {
+		klog.Errorf("Failed to install random plugin: %v", err)
 		return auto.Stack{}, err
 	}
 	err = w.InstallPlugin(ctx, "vault", "v5.6.0")
