@@ -4,14 +4,10 @@ package pulumi
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 
-	"math/rand"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
@@ -36,66 +32,27 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	destroyRes := auto.DestroyResult{}
 	emptyDeployFunc := func(ctx *pulumi.Context) error { return nil }
 
-	skipAzureDb, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureDb))
 	anyAzureDb := len(infra.AzureDbs) > 0
-	skipManagedAzureDb, _ := strconv.ParseBool(os.Getenv(PulumiSkipAzureManagedDb))
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
-	skipHelmRelease, _ := strconv.ParseBool(os.Getenv(PulumiSkipHelmRelease))
 	anyHelmRelease := len(infra.HelmReleases) > 0
 	skipVirtualMachine, _ := strconv.ParseBool(os.Getenv(PulumiSkipVirtualMachine))
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 
-	if !skipAzureDb {
-		azureDbStackName := fmt.Sprintf("%s_azure_db", tenant.Name)
-		if anyAzureDb {
-			upRes, result.Error = updateStack(azureDbStackName, platform, azureDbDeployFunc(platform, tenant, infra.AzureDbs))
-			if result.Error != nil {
-				return result
-			}
-			result.HasAzureDbChanges = hasChanges(upRes.Summary)
-		} else {
-			destroyRes, result.Error = tryDestroyAndDeleteStack(azureDbStackName, platform, emptyDeployFunc)
-			if result.Error != nil {
-				return result
-			}
-			result.HasAzureDbChanges = hasChanges(destroyRes.Summary)
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease
+
+	stackName := tenant.Name
+	if anyResource {
+		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, infra))
+		if result.Error != nil {
+			return result
 		}
-	}
-
-	if !skipManagedAzureDb {
-		azureManagedDbStackName := fmt.Sprintf("%s_azure_managed_db", tenant.Name)
-
-		if anyManagedAzureDb {
-			upRes, result.Error = updateStack(azureManagedDbStackName, platform, azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs))
-			if result.Error != nil {
-				return result
-			}
-			result.HasAzureManagedDbChanges = hasChanges(upRes.Summary)
-		} else {
-			destroyRes, result.Error = tryDestroyAndDeleteStack(azureManagedDbStackName, platform, emptyDeployFunc)
-			if result.Error != nil {
-				return result
-			}
-			result.HasAzureManagedDbChanges = hasChanges(destroyRes.Summary)
+		result.HasChanges = hasChanges(upRes.Summary)
+	} else {
+		destroyRes, result.Error = tryDestroyAndDeleteStack(stackName, platform, emptyDeployFunc)
+		if result.Error != nil {
+			return result
 		}
-	}
-
-	if !skipHelmRelease {
-		helmReleaseStackName := fmt.Sprintf("%s_helm_release", tenant.Name)
-
-		if anyHelmRelease {
-			upRes, result.Error = updateStack(helmReleaseStackName, platform, helmReleaseDeployFunc(platform, tenant, infra.HelmReleases))
-			if result.Error != nil {
-				return result
-			}
-			result.HasHelmReleaseChanges = hasChanges(upRes.Summary)
-		} else {
-			destroyRes, result.Error = tryDestroyAndDeleteStack(helmReleaseStackName, platform, emptyDeployFunc)
-			if result.Error != nil {
-				return result
-			}
-			result.HasHelmReleaseChanges = hasChanges(destroyRes.Summary)
-		}
+		result.HasChanges = hasChanges(destroyRes.Summary)
 	}
 
 	if !skipVirtualMachine {
@@ -244,22 +201,25 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	return s, nil
 }
 
-func generatePassword() string {
-	rand.Seed(time.Now().UnixNano())
-	digits := "0123456789"
-	specials := "~=+%^*/()[]{}/!@#$?|"
-	all := "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-		"abcdefghijklmnopqrstuvwxyz" +
-		digits + specials
-	length := 24
-	buf := make([]byte, length)
-	buf[0] = digits[rand.Intn(len(digits))]
-	buf[1] = specials[rand.Intn(len(specials))]
-	for i := 2; i < length; i++ {
-		buf[i] = all[rand.Intn(len(all))]
+func deployFunc(platform string, tenant *platformv1.Tenant,
+	infra *provisioners.InfrastructureManifests) pulumi.RunFunc {
+
+	return func(ctx *pulumi.Context) error {
+		err := azureDbDeployFunc(platform, tenant, infra.AzureDbs)(ctx)
+		if err != nil {
+			return err
+		}
+
+		err = azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs)(ctx)
+		if err != nil {
+			return err
+		}
+
+		err = helmReleaseDeployFunc(platform, tenant, infra.HelmReleases)(ctx)
+		if err != nil {
+			return err
+		}
+
+		return nil
 	}
-	rand.Shuffle(len(buf), func(i, j int) {
-		buf[i], buf[j] = buf[j], buf[i]
-	})
-	return string(buf)
 }
