@@ -62,7 +62,7 @@ func newVm(name, platform string) *provisioningv1.AzureVirtualMachine {
 			OSDiskType:             "Standard_LRS",
 			SourceImageId:          "/subscriptions/.../my-image/versions/1.0.0",
 			SubnetId:               "/subscriptions/.../my-vnet/subnets/default",
-			NetworkSecurityGroupId: "/subscriptions/.../my-nsg",
+			RdpSourceAddressPrefix: "128.12.2.11/24",
 			EnableTrustedLaunch:    false,
 			Exports: []provisioningv1.AzureVirtualMachineExportsSpec{
 				{
