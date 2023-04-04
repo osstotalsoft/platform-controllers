@@ -10,7 +10,7 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureVirtualMachineSnapshotDeployFunc(platform string, tenant *platformv1.Tenant,
+func azureVirtualMachineSnapshotDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName pulumi.StringOutput,
 	azureVms []*provisioningv1.AzureVirtualMachine) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(platform, tenant)
@@ -27,10 +27,10 @@ func azureVirtualMachineSnapshotDeployFunc(platform string, tenant *platformv1.T
 			}
 
 			disk, err := compute.NewDisk(ctx, osDiskName, &compute.DiskArgs{
-				ResourceGroupName: pulumi.String(vmSpec.Spec.ResourceGroup),
+				ResourceGroupName: resourceGroupName,
 				CreationData: compute.CreationDataArgs{
 					CreateOption:     pulumi.String("Copy"),
-					SourceResourceId: pulumi.String(vmSpec.Spec.SourceSnapshotId),
+					SourceResourceId: pulumi.String(vmSpec.Spec.SourceImageId),
 				},
 			},
 				pulumi.RetainOnDelete(PulumiRetainOnDelete),
@@ -42,7 +42,7 @@ func azureVirtualMachineSnapshotDeployFunc(platform string, tenant *platformv1.T
 			}
 
 			args := compute.VirtualMachineArgs{
-				ResourceGroupName: pulumi.String(vmSpec.Spec.ResourceGroup),
+				ResourceGroupName: resourceGroupName,
 				HardwareProfile: compute.HardwareProfileArgs{
 					VmSize: pulumi.String(vmSpec.Spec.VmSize),
 				},
@@ -96,7 +96,7 @@ func azureVirtualMachineSnapshotDeployFunc(platform string, tenant *platformv1.T
 						ManagedDisk: compute.ManagedDiskParametersArgs{
 							Id: disk.ID(),
 						},
-						OsType: compute.OperatingSystemTypesPtr(vmSpec.Spec.OsType),
+						//OsType: compute.OperatingSystemTypesPtr(vmSpec.Spec.OsType),
 					},
 				},
 			}

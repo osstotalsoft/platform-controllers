@@ -19,11 +19,7 @@ import (
 )
 
 const (
-	PulumiSkipAzureManagedDb = "PULUMI_SKIP_AZURE_MANAGED_DB"
-	PulumiSkipAzureDb        = "PULUMI_SKIP_AZURE_DB"
-	PulumiSkipHelmRelease    = "PULUMI_SKIP_HELM_RELEASE"
-	PulumiSkipVirtualMachine = "PULUMI_SKIP_VIRTUAL_MACHINE"
-	PulumiRetainOnDelete     = true
+	PulumiRetainOnDelete = true
 )
 
 func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
@@ -35,14 +31,14 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	anyAzureDb := len(infra.AzureDbs) > 0
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
 	anyHelmRelease := len(infra.HelmReleases) > 0
-	skipVirtualMachine, _ := strconv.ParseBool(os.Getenv(PulumiSkipVirtualMachine))
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine
+	needsResourceGroup := anyVirtualMachine
 
 	stackName := tenant.Name
 	if anyResource {
-		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, infra))
+		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, infra, needsResourceGroup))
 		if result.Error != nil {
 			return result
 		}
@@ -53,24 +49,6 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 			return result
 		}
 		result.HasChanges = hasChanges(destroyRes.Summary)
-	}
-
-	if !skipVirtualMachine {
-		virtualMacineStackName := fmt.Sprintf("%s_azure_virtual_machine", tenant.Name)
-
-		if anyVirtualMachine {
-			upRes, result.Error = updateStack(virtualMacineStackName, platform, azureVirtualMachineDeployFunc(platform, tenant, infra.AzureVirtualMachines))
-			if result.Error != nil {
-				return result
-			}
-			result.HasHelmReleaseChanges = hasChanges(upRes.Summary)
-		} else {
-			destroyRes, result.Error = tryDestroyAndDeleteStack(virtualMacineStackName, platform, emptyDeployFunc)
-			if result.Error != nil {
-				return result
-			}
-			result.HasHelmReleaseChanges = hasChanges(destroyRes.Summary)
-		}
 	}
 
 	return result
@@ -202,7 +180,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 }
 
 func deployFunc(platform string, tenant *platformv1.Tenant,
-	infra *provisioners.InfrastructureManifests) pulumi.RunFunc {
+	infra *provisioners.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {
 		err := azureDbDeployFunc(platform, tenant, infra.AzureDbs)(ctx)
@@ -218,6 +196,18 @@ func deployFunc(platform string, tenant *platformv1.Tenant,
 		err = helmReleaseDeployFunc(platform, tenant, infra.HelmReleases)(ctx)
 		if err != nil {
 			return err
+		}
+
+		if needsResourceGroup {
+			rgName, err := azureRGDeployFunc(platform, tenant)(ctx)
+			if err != nil {
+				return err
+			}
+
+			err = azureVirtualMachineDeployFunc(platform, tenant, rgName, infra.AzureVirtualMachines)(ctx)
+			if err != nil {
+				return err
+			}
 		}
 
 		return nil

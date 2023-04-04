@@ -1,0 +1,7 @@
+config:
+  azure-native:clientId: ""
+  azure-native:clientSecret:
+    secure: AAABANW+WicWq1OLCWG3/stRykSJ8jkbE2GNvQJIVnk=
+  azure-native:location: West Europe
+  azure-native:subscriptionId: ""
+  azure-native:tenantId: ""

@@ -306,6 +306,8 @@ func (in *AzureVirtualMachineExportsSpec) DeepCopyInto(out *AzureVirtualMachineE
 	out.VmName = in.VmName
 	out.ComputerName = in.ComputerName
 	out.PublicAddress = in.PublicAddress
+	out.AdminUserName = in.AdminUserName
+	out.AdminPassword = in.AdminPassword
 	return
 }
 

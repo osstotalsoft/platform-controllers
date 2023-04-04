@@ -19,27 +19,29 @@ type AzureVirtualMachineSpec struct {
 	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
 	// Virtual Machine name prefix. Will have platform and tenant suffix.
-	VmName       string `json:"vmName"`
-	VmSize       string `json:"vmSize"`
-	ComputerName string `json:"computerName"`
-	// Resource group of the resulting VM and associated resources
-	ResourceGroup string `json:"resourceGroup"`
+	VmName string `json:"vmName"`
+
+	// The virtual machine size. Options available: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+	VmSize string `json:"vmSize"`
+
+	// Possible values are Standard_LRS, StandardSSD_LRS or Premium_LRS.
+	// +kubebuilder:validation:Enum=Standard_LRS;StandardSSD_LRS;Premium_LRS
+	OSDiskType string `json:"osDiskType"`
 
 	// Source OS disk snapshot
-	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/snapshots/myvm1_snapshot
-	SourceSnapshotId string `json:"sourceSnapshot"`
+	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0
+	SourceImageId string `json:"sourceImageId"`
 
 	// Subnet of the VNet used by the virtual machine
-	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Network/virtualNetworks/myVm-vnet/subnets/default
+	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
 	SubnetId string `json:"subnetId"`
 
 	// Network Security Group
-	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Network/networkSecurityGroups/myVm-nsg
+	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/networkSecurityGroups/virtual-machine-nsg
 	NetworkSecurityGroupId string `json:"networkSecurityGroupId"`
 
-	// Operating System type (Windows or Linux)
-	// +kubebuilder:validation:Enum=Windows;Linux
-	OsType string `json:"osType"`
+	// Enable Trusted Launch security
+	EnableTrustedLaunch bool `json:"enableTrustedLaunch"`
 
 	// +optional
 	Exports []AzureVirtualMachineExportsSpec `json:"exports,omitempty"`
@@ -54,6 +56,10 @@ type AzureVirtualMachineExportsSpec struct {
 	ComputerName ValueExport `json:"computerName,omitempty"`
 	// +optional
 	PublicAddress ValueExport `json:"publicAddress,omitempty"`
+	// +optional
+	AdminUserName ValueExport `json:"adminUserName,omitempty"`
+	// +optional
+	AdminPassword ValueExport `json:"adminPassword,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
