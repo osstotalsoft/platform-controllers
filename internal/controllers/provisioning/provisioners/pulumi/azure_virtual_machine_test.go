@@ -24,7 +24,7 @@ func TestAzureVMDeployFunc(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("helm release with nil exports spec", func(t *testing.T) {
+	t.Run("virtual machine with nil exports spec", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := vm.DeepCopy()
 			hr.Spec.Exports = nil
@@ -35,7 +35,7 @@ func TestAzureVMDeployFunc(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("helm release with trusted launch security", func(t *testing.T) {
+	t.Run("virtual machine with trusted launch security", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := vm.DeepCopy()
 			hr.Spec.EnableTrustedLaunch = true
