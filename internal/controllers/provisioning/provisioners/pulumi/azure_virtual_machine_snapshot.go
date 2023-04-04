@@ -61,7 +61,7 @@ func azureVirtualMachineSnapshotDeployFunc(platform string, tenant *platformv1.T
 						compute.VirtualMachineNetworkInterfaceConfigurationArgs{
 							Name: pulumi.String(fmt.Sprintf("%s-net-if", vmName)),
 							NetworkSecurityGroup: compute.SubResourceArgs{
-								Id: pulumi.String(vmSpec.Spec.NetworkSecurityGroupId),
+								Id: pulumi.String(vmSpec.Spec.RdpSourceAddressPrefix),
 							},
 							Primary: pulumi.BoolPtr(true),
 							IpConfigurations: compute.VirtualMachineNetworkInterfaceIPConfigurationArray{

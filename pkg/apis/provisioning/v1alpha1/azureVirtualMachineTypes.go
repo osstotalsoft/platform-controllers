@@ -36,9 +36,9 @@ type AzureVirtualMachineSpec struct {
 	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
 	SubnetId string `json:"subnetId"`
 
-	// Network Security Group
-	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/networkSecurityGroups/virtual-machine-nsg
-	NetworkSecurityGroupId string `json:"networkSecurityGroupId"`
+	// RDP inbound connection CIDR or source IP range or * to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’ and ‘Internet’ can also be used.
+	// eg: 128.0.57.0/25
+	RdpSourceAddressPrefix string `json:"rdpSourceAddressPrefix"`
 
 	// Enable Trusted Launch security
 	EnableTrustedLaunch bool `json:"enableTrustedLaunch"`

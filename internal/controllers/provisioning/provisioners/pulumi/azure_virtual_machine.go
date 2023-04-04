@@ -57,6 +57,28 @@ func azureVirtualMachineDeployFunc(platform string, tenant *platformv1.Tenant, r
 					DomainNameLabel: pulumi.String(vmName),
 				},
 			})
+
+			if err != nil {
+				return err
+			}
+
+			networkSecurityGroup, err := network.NewNetworkSecurityGroup(ctx, fmt.Sprintf("%s-nsg", vmName), &network.NetworkSecurityGroupArgs{
+				ResourceGroupName: resourceGroupName,
+				SecurityRules: network.SecurityRuleTypeArray{
+					network.SecurityRuleTypeArgs{
+						Name:                     pulumi.String("RDP"),
+						Protocol:                 pulumi.String(network.SecurityRuleProtocolTcp),
+						SourceAddressPrefix:      pulumi.String(azureVM.Spec.RdpSourceAddressPrefix),
+						SourcePortRange:          pulumi.String("*"),
+						DestinationAddressPrefix: pulumi.String("*"),
+						DestinationPortRange:     pulumi.String("3389"),
+						Access:                   pulumi.String(network.SecurityRuleAccessAllow),
+						Priority:                 pulumi.Int(300),
+						Direction:                pulumi.String(network.AccessRuleDirectionInbound),
+					},
+				},
+			})
+
 			if err != nil {
 				return err
 			}
@@ -76,7 +98,7 @@ func azureVirtualMachineDeployFunc(platform string, tenant *platformv1.Tenant, r
 					},
 				},
 				NetworkSecurityGroup: network.NetworkSecurityGroupTypeArgs{
-					Id: pulumi.String(azureVM.Spec.NetworkSecurityGroupId),
+					Id: networkSecurityGroup.ID(),
 				},
 			})
 			if err != nil {

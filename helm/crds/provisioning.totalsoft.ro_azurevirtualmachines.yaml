@@ -136,9 +136,6 @@ spec:
                   - domain
                   type: object
                 type: array
-              networkSecurityGroupId:
-                description: 'Network Security Group eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/networkSecurityGroups/virtual-machine-nsg'
-                type: string
               osDiskType:
                 description: Possible values are Standard_LRS, StandardSSD_LRS or
                   Premium_LRS.
@@ -149,6 +146,11 @@ spec:
                 type: string
               platformRef:
                 description: Target platform (custom resource name).
+                type: string
+              rdpSourceAddressPrefix:
+                description: 'RDP inbound connection CIDR or source IP range or *
+                  to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’
+                  and ‘Internet’ can also be used. eg: 128.0.57.0/25'
                 type: string
               sourceImageId:
                 description: 'Source OS disk snapshot eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0'
@@ -165,9 +167,9 @@ spec:
                 type: string
             required:
             - enableTrustedLaunch
-            - networkSecurityGroupId
             - osDiskType
             - platformRef
+            - rdpSourceAddressPrefix
             - sourceImageId
             - subnetId
             - vmName
