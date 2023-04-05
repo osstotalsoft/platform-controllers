@@ -135,6 +135,52 @@ spec:
 > *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 
+### AzureVirtualMachine
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurevirtualmachines.yaml)
+
+Example:
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureVirtualMachine
+metadata:
+  name: charisma-client-vm
+  namespace: qa-lsng
+spec:
+  enableTrustedLaunch: false
+  exports:
+    - domain: origination
+      adminPassword:
+        toVault:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_Admin_Password
+      adminUserName:
+        toVault:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_Admin_UserName
+      computerName:
+        toConfigMap:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_ComputerName      
+      publicAddress:
+        toConfigMap:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_PublicAddress
+      vmName:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_VM_Name
+  osDiskType: Standard_LRS
+  platformRef: charismaonline.qa
+  rdpSourceAddressPrefix: 128.0.57.0/25
+  sourceImageId: >-
+    /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0
+  subnetId: >-
+    /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
+  vmName: charisma-client
+  vmSize: Standard_B1s
+
+```
+> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
+
 ## configuration.totalsoft.ro
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.
 
