@@ -33,6 +33,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&AzureDatabaseList{},
 		&AzureManagedDatabase{},
 		&AzureManagedDatabaseList{},
+		&AzureVirtualMachine{},
+		&AzureVirtualMachineList{},
 		&HelmRelease{},
 		&HelmReleaseList{},
 		&metav1.Status{},

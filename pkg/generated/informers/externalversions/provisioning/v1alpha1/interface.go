@@ -28,6 +28,8 @@ type Interface interface {
 	AzureDatabases() AzureDatabaseInformer
 	// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
 	AzureManagedDatabases() AzureManagedDatabaseInformer
+	// AzureVirtualMachines returns a AzureVirtualMachineInformer.
+	AzureVirtualMachines() AzureVirtualMachineInformer
 	// HelmReleases returns a HelmReleaseInformer.
 	HelmReleases() HelmReleaseInformer
 }
@@ -51,6 +53,11 @@ func (v *version) AzureDatabases() AzureDatabaseInformer {
 // AzureManagedDatabases returns a AzureManagedDatabaseInformer.
 func (v *version) AzureManagedDatabases() AzureManagedDatabaseInformer {
 	return &azureManagedDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// AzureVirtualMachines returns a AzureVirtualMachineInformer.
+func (v *version) AzureVirtualMachines() AzureVirtualMachineInformer {
+	return &azureVirtualMachineInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // HelmReleases returns a HelmReleaseInformer.

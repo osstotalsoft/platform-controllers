@@ -22,4 +22,6 @@ type AzureDatabaseExpansion interface{}
 
 type AzureManagedDatabaseExpansion interface{}
 
+type AzureVirtualMachineExpansion interface{}
+
 type HelmReleaseExpansion interface{}

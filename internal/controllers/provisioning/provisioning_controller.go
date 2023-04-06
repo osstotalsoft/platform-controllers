@@ -57,11 +57,12 @@ type ProvisioningController struct {
 
 	provisioner provisioners.CreateInfrastructureFunc
 
-	platformInformer       platformInformersv1.PlatformInformer
-	tenantInformer         platformInformersv1.TenantInformer
-	azureDbInformer        provisioningInformersv1.AzureDatabaseInformer
-	azureManagedDbInformer provisioningInformersv1.AzureManagedDatabaseInformer
-	helmReleaseInformer    provisioningInformersv1.HelmReleaseInformer
+	platformInformer            platformInformersv1.PlatformInformer
+	tenantInformer              platformInformersv1.TenantInformer
+	azureDbInformer             provisioningInformersv1.AzureDatabaseInformer
+	azureManagedDbInformer      provisioningInformersv1.AzureManagedDatabaseInformer
+	helmReleaseInformer         provisioningInformersv1.HelmReleaseInformer
+	azureVirtualMachineInformer provisioningInformersv1.AzureVirtualMachineInformer
 
 	messagingPublisher messaging.MessagingPublisher
 }
@@ -85,11 +86,12 @@ func NewProvisioningController(clientSet clientset.Interface,
 		recorder:  &record.FakeRecorder{},
 		factory:   factory,
 
-		platformInformer:       factory.Platform().V1alpha1().Platforms(),
-		tenantInformer:         factory.Platform().V1alpha1().Tenants(),
-		azureDbInformer:        factory.Provisioning().V1alpha1().AzureDatabases(),
-		azureManagedDbInformer: factory.Provisioning().V1alpha1().AzureManagedDatabases(),
-		helmReleaseInformer:    factory.Provisioning().V1alpha1().HelmReleases(),
+		platformInformer:            factory.Platform().V1alpha1().Platforms(),
+		tenantInformer:              factory.Platform().V1alpha1().Tenants(),
+		azureDbInformer:             factory.Provisioning().V1alpha1().AzureDatabases(),
+		azureManagedDbInformer:      factory.Provisioning().V1alpha1().AzureManagedDatabases(),
+		helmReleaseInformer:         factory.Provisioning().V1alpha1().HelmReleases(),
+		azureVirtualMachineInformer: factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 
 		provisioner:        provisioner,
 		clientset:          clientSet,
@@ -106,6 +108,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addAzureDbHandlers(c.azureDbInformer, c.enqueueAllTenant)
 	addAzureManagedDbHandlers(c.azureManagedDbInformer, c.enqueueAllTenant)
 	addHelmReleaseHandlers(c.helmReleaseInformer, c.enqueueAllTenant)
+	addAzureVirtualMachineHandlers(c.azureVirtualMachineInformer, c.enqueueAllTenant)
 
 	return c
 }
@@ -214,9 +217,10 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			ObjectMeta: metav1.ObjectMeta{Name: name},
 			Spec:       platformv1.TenantSpec{PlatformRef: platform}},
 			&provisioners.InfrastructureManifests{
-				AzureDbs:        []*provisioningv1.AzureDatabase{},
-				AzureManagedDbs: []*provisioningv1.AzureManagedDatabase{},
-				HelmReleases:    []*provisioningv1.HelmRelease{},
+				AzureDbs:             []*provisioningv1.AzureDatabase{},
+				AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
+				HelmReleases:         []*provisioningv1.HelmRelease{},
+				AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
 			})
 		if cleanupResult.Error != nil {
 			utilruntime.HandleError(cleanupResult.Error)
@@ -276,10 +280,25 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	helmReleases = helmReleases[:n]
 
+	azureVirtualMachines, err := c.azureVirtualMachineInformer.Lister().List(skipTenantLabelSelector)
+	if err != nil {
+		return err
+	}
+
+	n = 0
+	for _, vm := range azureVirtualMachines {
+		if vm.Spec.PlatformRef == platform {
+			azureVirtualMachines[n] = vm
+			n++
+		}
+	}
+	azureVirtualMachines = azureVirtualMachines[:n]
+
 	result := c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
-		AzureDbs:        azureDbs,
-		AzureManagedDbs: azureManagedDbs,
-		HelmReleases:    helmReleases,
+		AzureDbs:             azureDbs,
+		AzureManagedDbs:      azureManagedDbs,
+		HelmReleases:         helmReleases,
+		AzureVirtualMachines: azureVirtualMachines,
 	})
 
 	if result.Error == nil {
@@ -572,6 +591,42 @@ func addHelmReleaseHandlers(informer provisioningInformersv1.HelmReleaseInformer
 	})
 }
 
+func addAzureVirtualMachineHandlers(informer provisioningInformersv1.AzureVirtualMachineInformer, handler func(platform string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.AzureVirtualMachine)
+			if platform, ok := getAzureVirtualMachinePlatform(comp); ok {
+				klog.V(4).InfoS("Azure virtual machine added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldComp := oldObj.(*provisioningv1.AzureVirtualMachine)
+			newComp := newObj.(*provisioningv1.AzureVirtualMachine)
+			oldPlatform, oldOk := getAzureVirtualMachinePlatform(oldComp)
+			newPlatform, newOk := getAzureVirtualMachinePlatform(newComp)
+			platformChanged := oldPlatform != newPlatform
+
+			if oldOk && platformChanged {
+				klog.V(4).InfoS("Azure virtual machine invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
+				handler(oldPlatform)
+			}
+
+			if newOk {
+				klog.V(4).InfoS("Azure virtual machine updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
+				handler(newPlatform)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.AzureVirtualMachine)
+			if platform, ok := getAzureVirtualMachinePlatform(comp); ok {
+				klog.V(4).InfoS("Azure virtual machine deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
+		},
+	})
+}
+
 func getTenantPlatform(tenant *platformv1.Tenant) (platform string, ok bool) {
 	platform = tenant.Spec.PlatformRef
 	if len(platform) == 0 {
@@ -601,6 +656,15 @@ func getAzureManagedDbPlatform(azureManagedDb *provisioningv1.AzureManagedDataba
 
 func getHelmReleasePlatform(helmRelease *provisioningv1.HelmRelease) (platform string, ok bool) {
 	platform = helmRelease.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, false
+	}
+
+	return platform, true
+}
+
+func getAzureVirtualMachinePlatform(azureVirtualMachine *provisioningv1.AzureVirtualMachine) (platform string, ok bool) {
+	platform = azureVirtualMachine.Spec.PlatformRef
 	if len(platform) == 0 {
 		return platform, false
 	}
