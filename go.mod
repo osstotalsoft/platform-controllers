@@ -9,7 +9,10 @@ require (
 	github.com/hashicorp/vault/api v1.9.1
 	github.com/hashicorp/vault/api/auth/kubernetes v0.4.0
 	github.com/json-iterator/go v1.1.12
-	github.com/pulumi/pulumi-azure-native/sdk v1.93.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute v1.102.0
+	github.com/pulumi/pulumi-azure-native-sdk/network v1.102.0
+	github.com/pulumi/pulumi-azure-native-sdk/resources v1.102.0
+	github.com/pulumi/pulumi-azure-native-sdk/sql v1.102.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.28.0
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.11.0
@@ -94,6 +97,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk v1.102.0 // indirect
 	github.com/rivo/uniseg v0.4.4 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect

@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	compute "github.com/pulumi/pulumi-azure-native/sdk/go/azure/compute"
-	"github.com/pulumi/pulumi-azure-native/sdk/go/azure/network"
+	compute "github.com/pulumi/pulumi-azure-native-sdk/compute"
+	"github.com/pulumi/pulumi-azure-native-sdk/network"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
