@@ -12,7 +12,7 @@ spec:
     listKind: ProductList
     plural: products
     singular: product
-  scope: Cluster
+  scope: Namespaced
   versions:
   - name: v1alpha1
     schema:

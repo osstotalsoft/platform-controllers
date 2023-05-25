@@ -26,6 +26,10 @@ type PlatformListerExpansion interface{}
 // ProductLister.
 type ProductListerExpansion interface{}
 
+// ProductNamespaceListerExpansion allows custom methods to be added to
+// ProductNamespaceLister.
+type ProductNamespaceListerExpansion interface{}
+
 // TenantListerExpansion allows custom methods to be added to
 // TenantLister.
 type TenantListerExpansion interface{}

@@ -35,9 +35,10 @@ type ProductApplyConfiguration struct {
 
 // Product constructs an declarative configuration of the Product type for use with
 // apply.
-func Product(name string) *ProductApplyConfiguration {
+func Product(name, namespace string) *ProductApplyConfiguration {
 	b := &ProductApplyConfiguration{}
 	b.WithName(name)
+	b.WithNamespace(namespace)
 	b.WithKind("Product")
 	b.WithAPIVersion("platform.totalsoft.ro/v1alpha1")
 	return b

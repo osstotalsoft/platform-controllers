@@ -31,9 +31,8 @@ type ProductLister interface {
 	// List lists all Products in the indexer.
 	// Objects returned here must be treated as read-only.
 	List(selector labels.Selector) (ret []*v1alpha1.Product, err error)
-	// Get retrieves the Product from the index for a given name.
-	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1alpha1.Product, error)
+	// Products returns an object that can list and get Products.
+	Products(namespace string) ProductNamespaceLister
 	ProductListerExpansion
 }
 
@@ -55,9 +54,41 @@ func (s *productLister) List(selector labels.Selector) (ret []*v1alpha1.Product,
 	return ret, err
 }
 
-// Get retrieves the Product from the index for a given name.
-func (s *productLister) Get(name string) (*v1alpha1.Product, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
+// Products returns an object that can list and get Products.
+func (s *productLister) Products(namespace string) ProductNamespaceLister {
+	return productNamespaceLister{indexer: s.indexer, namespace: namespace}
+}
+
+// ProductNamespaceLister helps list and get Products.
+// All objects returned here must be treated as read-only.
+type ProductNamespaceLister interface {
+	// List lists all Products in the indexer for a given namespace.
+	// Objects returned here must be treated as read-only.
+	List(selector labels.Selector) (ret []*v1alpha1.Product, err error)
+	// Get retrieves the Product from the indexer for a given namespace and name.
+	// Objects returned here must be treated as read-only.
+	Get(name string) (*v1alpha1.Product, error)
+	ProductNamespaceListerExpansion
+}
+
+// productNamespaceLister implements the ProductNamespaceLister
+// interface.
+type productNamespaceLister struct {
+	indexer   cache.Indexer
+	namespace string
+}
+
+// List lists all Products in the indexer for a given namespace.
+func (s productNamespaceLister) List(selector labels.Selector) (ret []*v1alpha1.Product, err error) {
+	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
+		ret = append(ret, m.(*v1alpha1.Product))
+	})
+	return ret, err
+}
+
+// Get retrieves the Product from the indexer for a given namespace and name.
+func (s productNamespaceLister) Get(name string) (*v1alpha1.Product, error) {
+	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
 	if err != nil {
 		return nil, err
 	}

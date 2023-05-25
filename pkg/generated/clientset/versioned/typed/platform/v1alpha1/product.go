@@ -36,7 +36,7 @@ import (
 // ProductsGetter has a method to return a ProductInterface.
 // A group's client should implement this interface.
 type ProductsGetter interface {
-	Products() ProductInterface
+	Products(namespace string) ProductInterface
 }
 
 // ProductInterface has methods to work with Product resources.
@@ -56,12 +56,14 @@ type ProductInterface interface {
 // products implements ProductInterface
 type products struct {
 	client rest.Interface
+	ns     string
 }
 
 // newProducts returns a Products
-func newProducts(c *PlatformV1alpha1Client) *products {
+func newProducts(c *PlatformV1alpha1Client, namespace string) *products {
 	return &products{
 		client: c.RESTClient(),
+		ns:     namespace,
 	}
 }
 
@@ -69,6 +71,7 @@ func newProducts(c *PlatformV1alpha1Client) *products {
 func (c *products) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Product, err error) {
 	result = &v1alpha1.Product{}
 	err = c.client.Get().
+		Namespace(c.ns).
 		Resource("products").
 		Name(name).
 		VersionedParams(&options, scheme.ParameterCodec).
@@ -85,6 +88,7 @@ func (c *products) List(ctx context.Context, opts v1.ListOptions) (result *v1alp
 	}
 	result = &v1alpha1.ProductList{}
 	err = c.client.Get().
+		Namespace(c.ns).
 		Resource("products").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -101,6 +105,7 @@ func (c *products) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interf
 	}
 	opts.Watch = true
 	return c.client.Get().
+		Namespace(c.ns).
 		Resource("products").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -111,6 +116,7 @@ func (c *products) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interf
 func (c *products) Create(ctx context.Context, product *v1alpha1.Product, opts v1.CreateOptions) (result *v1alpha1.Product, err error) {
 	result = &v1alpha1.Product{}
 	err = c.client.Post().
+		Namespace(c.ns).
 		Resource("products").
 		VersionedParams(&opts, scheme.ParameterCodec).
 		Body(product).
@@ -123,6 +129,7 @@ func (c *products) Create(ctx context.Context, product *v1alpha1.Product, opts v
 func (c *products) Update(ctx context.Context, product *v1alpha1.Product, opts v1.UpdateOptions) (result *v1alpha1.Product, err error) {
 	result = &v1alpha1.Product{}
 	err = c.client.Put().
+		Namespace(c.ns).
 		Resource("products").
 		Name(product.Name).
 		VersionedParams(&opts, scheme.ParameterCodec).
@@ -135,6 +142,7 @@ func (c *products) Update(ctx context.Context, product *v1alpha1.Product, opts v
 // Delete takes name of the product and deletes it. Returns an error if one occurs.
 func (c *products) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	return c.client.Delete().
+		Namespace(c.ns).
 		Resource("products").
 		Name(name).
 		Body(&opts).
@@ -149,6 +157,7 @@ func (c *products) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, 
 		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
 	}
 	return c.client.Delete().
+		Namespace(c.ns).
 		Resource("products").
 		VersionedParams(&listOpts, scheme.ParameterCodec).
 		Timeout(timeout).
@@ -161,6 +170,7 @@ func (c *products) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, 
 func (c *products) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Product, err error) {
 	result = &v1alpha1.Product{}
 	err = c.client.Patch(pt).
+		Namespace(c.ns).
 		Resource("products").
 		Name(name).
 		SubResource(subresources...).
@@ -187,6 +197,7 @@ func (c *products) Apply(ctx context.Context, product *platformv1alpha1.ProductA
 	}
 	result = &v1alpha1.Product{}
 	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
 		Resource("products").
 		Name(*name).
 		VersionedParams(&patchOpts, scheme.ParameterCodec).

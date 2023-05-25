@@ -42,8 +42,8 @@ func (c *PlatformV1alpha1Client) Platforms() PlatformInterface {
 	return newPlatforms(c)
 }
 
-func (c *PlatformV1alpha1Client) Products() ProductInterface {
-	return newProducts(c)
+func (c *PlatformV1alpha1Client) Products(namespace string) ProductInterface {
+	return newProducts(c, namespace)
 }
 
 func (c *PlatformV1alpha1Client) Tenants(namespace string) TenantInterface {

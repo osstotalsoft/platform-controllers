@@ -50,7 +50,7 @@ func (v *version) Platforms() PlatformInformer {
 
 // Products returns a ProductInformer.
 func (v *version) Products() ProductInformer {
-	return &productInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+	return &productInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Tenants returns a TenantInformer.

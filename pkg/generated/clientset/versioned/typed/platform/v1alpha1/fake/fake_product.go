@@ -35,6 +35,7 @@ import (
 // FakeProducts implements ProductInterface
 type FakeProducts struct {
 	Fake *FakePlatformV1alpha1
+	ns   string
 }
 
 var productsResource = v1alpha1.SchemeGroupVersion.WithResource("products")
@@ -44,7 +45,8 @@ var productsKind = v1alpha1.SchemeGroupVersion.WithKind("Product")
 // Get takes name of the product, and returns the corresponding product object, and an error if there is any.
 func (c *FakeProducts) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Product, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(productsResource, name), &v1alpha1.Product{})
+		Invokes(testing.NewGetAction(productsResource, c.ns, name), &v1alpha1.Product{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -54,7 +56,8 @@ func (c *FakeProducts) Get(ctx context.Context, name string, options v1.GetOptio
 // List takes label and field selectors, and returns the list of Products that match those selectors.
 func (c *FakeProducts) List(ctx context.Context, opts v1.ListOptions) (result *v1alpha1.ProductList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(productsResource, productsKind, opts), &v1alpha1.ProductList{})
+		Invokes(testing.NewListAction(productsResource, productsKind, c.ns, opts), &v1alpha1.ProductList{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -75,13 +78,15 @@ func (c *FakeProducts) List(ctx context.Context, opts v1.ListOptions) (result *v
 // Watch returns a watch.Interface that watches the requested products.
 func (c *FakeProducts) Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(productsResource, opts))
+		InvokesWatch(testing.NewWatchAction(productsResource, c.ns, opts))
+
 }
 
 // Create takes the representation of a product and creates it.  Returns the server's representation of the product, and an error, if there is any.
 func (c *FakeProducts) Create(ctx context.Context, product *v1alpha1.Product, opts v1.CreateOptions) (result *v1alpha1.Product, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(productsResource, product), &v1alpha1.Product{})
+		Invokes(testing.NewCreateAction(productsResource, c.ns, product), &v1alpha1.Product{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -91,7 +96,8 @@ func (c *FakeProducts) Create(ctx context.Context, product *v1alpha1.Product, op
 // Update takes the representation of a product and updates it. Returns the server's representation of the product, and an error, if there is any.
 func (c *FakeProducts) Update(ctx context.Context, product *v1alpha1.Product, opts v1.UpdateOptions) (result *v1alpha1.Product, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(productsResource, product), &v1alpha1.Product{})
+		Invokes(testing.NewUpdateAction(productsResource, c.ns, product), &v1alpha1.Product{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -101,13 +107,14 @@ func (c *FakeProducts) Update(ctx context.Context, product *v1alpha1.Product, op
 // Delete takes name of the product and deletes it. Returns an error if one occurs.
 func (c *FakeProducts) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(productsResource, name, opts), &v1alpha1.Product{})
+		Invokes(testing.NewDeleteActionWithOptions(productsResource, c.ns, name, opts), &v1alpha1.Product{})
+
 	return err
 }
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeProducts) DeleteCollection(ctx context.Context, opts v1.DeleteOptions, listOpts v1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(productsResource, listOpts)
+	action := testing.NewDeleteCollectionAction(productsResource, c.ns, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1alpha1.ProductList{})
 	return err
@@ -116,7 +123,8 @@ func (c *FakeProducts) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 // Patch applies the patch and returns the patched product.
 func (c *FakeProducts) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Product, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(productsResource, name, pt, data, subresources...), &v1alpha1.Product{})
+		Invokes(testing.NewPatchSubresourceAction(productsResource, c.ns, name, pt, data, subresources...), &v1alpha1.Product{})
+
 	if obj == nil {
 		return nil, err
 	}
@@ -137,7 +145,8 @@ func (c *FakeProducts) Apply(ctx context.Context, product *platformv1alpha1.Prod
 		return nil, fmt.Errorf("product.Name must be provided to Apply")
 	}
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(productsResource, *name, types.ApplyPatchType, data), &v1alpha1.Product{})
+		Invokes(testing.NewPatchSubresourceAction(productsResource, c.ns, *name, types.ApplyPatchType, data), &v1alpha1.Product{})
+
 	if obj == nil {
 		return nil, err
 	}
