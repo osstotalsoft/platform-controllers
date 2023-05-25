@@ -136,22 +136,22 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	w := s.Workspace()
 
 	// for inline source programs, we must manage plugins ourselves
-	err = w.InstallPlugin(ctx, "azure-native", "v1.74.0")
+	err = w.InstallPlugin(ctx, "azure-native", "v1.102.0")
 	if err != nil {
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "random", "v4.12.0")
+	err = w.InstallPlugin(ctx, "random", "v4.13.2")
 	if err != nil {
 		klog.Errorf("Failed to install random plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "vault", "v5.6.0")
+	err = w.InstallPlugin(ctx, "vault", "v5.11.0")
 	if err != nil {
 		klog.Errorf("Failed to install vault plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "kubernetes", "v3.21.2")
+	err = w.InstallPlugin(ctx, "kubernetes", "v3.28.1")
 	if err != nil {
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
