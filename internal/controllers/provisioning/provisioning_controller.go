@@ -3,6 +3,7 @@ package provisioning
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/strings/slices"
 	"reflect"
 	"strings"
 	"time"
@@ -246,7 +247,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n := 0
 	for _, db := range azureDbs {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ProductRefs, db.Spec.ProductRef) {
 			azureDbs[n] = db
 			n++
 		}
@@ -260,7 +261,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, db := range azureManagedDbs {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ProductRefs, db.Spec.ProductRef) {
 			azureManagedDbs[n] = db
 			n++
 		}
@@ -274,7 +275,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, hr := range helmReleases {
-		if hr.Spec.PlatformRef == platform {
+		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ProductRefs, hr.Spec.ProductRef) {
 			helmReleases[n] = hr
 			n++
 		}
@@ -288,7 +289,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, vm := range azureVirtualMachines {
-		if vm.Spec.PlatformRef == platform {
+		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ProductRefs, vm.Spec.ProductRef) {
 			azureVirtualMachines[n] = vm
 			n++
 		}
