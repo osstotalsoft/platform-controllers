@@ -13,7 +13,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network v1.102.0
 	github.com/pulumi/pulumi-azure-native-sdk/resources v1.102.0
 	github.com/pulumi/pulumi-azure-native-sdk/sql v1.102.0
-	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.28.0
+	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.28.1
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.11.0
 	github.com/pulumi/pulumi/sdk/v3 v3.68.0
@@ -120,14 +120,14 @@ require (
 	golang.org/x/time v0.3.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
+	google.golang.org/genproto v0.0.0-20230524185152-1884fd1fac28 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20230523194449-df37dd07aa00 // indirect
+	k8s.io/kube-openapi v0.0.0-20230524182850-78281498afbb // indirect
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106 // indirect
 	lukechampine.com/frand v1.4.2 // indirect
 	sigs.k8s.io/controller-runtime v0.15.0 // indirect
