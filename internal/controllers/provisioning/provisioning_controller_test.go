@@ -237,10 +237,10 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
-	t.Run("filter resource by product", func(t *testing.T) {
+	t.Run("filter resource by Service", func(t *testing.T) {
 
-		tenant := newTenantWithProduct("dev1", "dev", "p1")
-		azureDb := newAzureDbWithProduct("db1", "dev", "p2")
+		tenant := newTenantWithService("dev1", "dev", "p1")
+		azureDb := newAzureDbWithService("db1", "dev", "p2")
 		objects := []runtime.Object{
 			tenant,
 			azureDb,
@@ -270,7 +270,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 }
 
-func newTenantWithProduct(name, platform, product string) *platformv1.Tenant {
+func newTenantWithService(name, platform, service string) *platformv1.Tenant {
 	return &platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -280,16 +280,16 @@ func newTenantWithProduct(name, platform, product string) *platformv1.Tenant {
 		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
 			Description: name + " description",
-			ProductRefs: []string{product},
+			ServiceRefs: []string{service},
 		},
 	}
 }
 
 func newTenant(name, platform string) *platformv1.Tenant {
-	return newTenantWithProduct(name, platform, "")
+	return newTenantWithService(name, platform, "")
 }
 
-func newAzureDbWithProduct(name, platform, product string) *provisioningv1.AzureDatabase {
+func newAzureDbWithService(name, platform, service string) *provisioningv1.AzureDatabase {
 	return &provisioningv1.AzureDatabase{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -299,13 +299,13 @@ func newAzureDbWithProduct(name, platform, product string) *provisioningv1.Azure
 		Spec: provisioningv1.AzureDatabaseSpec{
 			PlatformRef: platform,
 			DbName:      name,
-			ProductRef:  product,
+			ServiceRef:  service,
 		},
 	}
 }
 
 func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
-	return newAzureDbWithProduct(name, platform, "")
+	return newAzureDbWithService(name, platform, "")
 }
 
 func newAzureManagedDb(dbName, platform string) *provisioningv1.AzureManagedDatabase {

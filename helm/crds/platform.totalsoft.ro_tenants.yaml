@@ -62,7 +62,7 @@ spec:
                 type: string
               platformRef:
                 type: string
-              productRefs:
+              serviceRefs:
                 items:
                   type: string
                 type: array

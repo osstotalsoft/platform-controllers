@@ -26,8 +26,8 @@ import (
 type Interface interface {
 	// Platforms returns a PlatformInformer.
 	Platforms() PlatformInformer
-	// Products returns a ProductInformer.
-	Products() ProductInformer
+	// Services returns a ServiceInformer.
+	Services() ServiceInformer
 	// Tenants returns a TenantInformer.
 	Tenants() TenantInformer
 }
@@ -48,9 +48,9 @@ func (v *version) Platforms() PlatformInformer {
 	return &platformInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// Products returns a ProductInformer.
-func (v *version) Products() ProductInformer {
-	return &productInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+// Services returns a ServiceInformer.
+func (v *version) Services() ServiceInformer {
+	return &serviceInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Tenants returns a TenantInformer.

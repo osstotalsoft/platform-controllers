@@ -73,8 +73,8 @@ spec:
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
-              productRef:
-                description: Business product that this resource is provision for.
+              serviceRef:
+                description: Business Service that this resource is provision for.
                 type: string
               sku:
                 type: string
@@ -101,7 +101,7 @@ spec:
             required:
             - dbName
             - platformRef
-            - productRef
+            - serviceRef
             - sqlServer
             type: object
         required:

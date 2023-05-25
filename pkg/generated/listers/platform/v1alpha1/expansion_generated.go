@@ -22,13 +22,13 @@ package v1alpha1
 // PlatformLister.
 type PlatformListerExpansion interface{}
 
-// ProductListerExpansion allows custom methods to be added to
-// ProductLister.
-type ProductListerExpansion interface{}
+// ServiceListerExpansion allows custom methods to be added to
+// ServiceLister.
+type ServiceListerExpansion interface{}
 
-// ProductNamespaceListerExpansion allows custom methods to be added to
-// ProductNamespaceLister.
-type ProductNamespaceListerExpansion interface{}
+// ServiceNamespaceListerExpansion allows custom methods to be added to
+// ServiceNamespaceLister.
+type ServiceNamespaceListerExpansion interface{}
 
 // TenantListerExpansion allows custom methods to be added to
 // TenantLister.

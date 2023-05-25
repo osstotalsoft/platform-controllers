@@ -22,7 +22,7 @@ package v1alpha1
 // with apply.
 type AzureManagedDatabaseSpecApplyConfiguration struct {
 	PlatformRef     *string                                             `json:"platformRef,omitempty"`
-	ProductRef      *string                                             `json:"productRef,omitempty"`
+	ServiceRef      *string                                             `json:"serviceRef,omitempty"`
 	DbName          *string                                             `json:"dbName,omitempty"`
 	ManagedInstance *AzureManagedInstanceSpecApplyConfiguration         `json:"managedInstance,omitempty"`
 	RestoreFrom     *AzureManagedDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
@@ -43,11 +43,11 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithPlatformRef(value strin
 	return b
 }
 
-// WithProductRef sets the ProductRef field in the declarative configuration to the given value
+// WithServiceRef sets the ServiceRef field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ProductRef field is set to the value of the last call.
-func (b *AzureManagedDatabaseSpecApplyConfiguration) WithProductRef(value string) *AzureManagedDatabaseSpecApplyConfiguration {
-	b.ProductRef = &value
+// If called multiple times, the ServiceRef field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithServiceRef(value string) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.ServiceRef = &value
 	return b
 }
 

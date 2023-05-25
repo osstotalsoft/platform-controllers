@@ -33,7 +33,7 @@ type TenantSpec struct {
 	// +kubebuilder:default:=true
 	Enabled bool `json:"enabled"`
 	// +optional
-	ProductRefs []string `json:"productRefs,omitempty"`
+	ServiceRefs []string `json:"serviceRefs,omitempty"`
 }
 
 // TenantStatus is the status for a tenant.

@@ -67,9 +67,6 @@ spec:
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
-              productRef:
-                description: Business product that this resource is provision for.
-                type: string
               release:
                 description: helm release spec
                 properties:
@@ -827,10 +824,13 @@ spec:
                 - chart
                 - interval
                 type: object
+              serviceRef:
+                description: Business Service that this resource is provision for.
+                type: string
             required:
             - platformRef
-            - productRef
             - release
+            - serviceRef
             type: object
         required:
         - spec

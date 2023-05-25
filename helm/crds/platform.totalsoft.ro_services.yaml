@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: products.platform.totalsoft.ro
+  name: services.platform.totalsoft.ro
 spec:
   group: platform.totalsoft.ro
   names:
-    kind: Product
-    listKind: ProductList
-    plural: products
-    singular: product
+    kind: Service
+    listKind: ServiceList
+    plural: services
+    singular: service
   scope: Namespaced
   versions:
   - name: v1alpha1

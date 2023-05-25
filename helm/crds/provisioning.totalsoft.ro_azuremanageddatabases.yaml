@@ -88,9 +88,6 @@ spec:
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
-              productRef:
-                description: Business product that this resource is provision for.
-                type: string
               restoreFrom:
                 description: Restore from external backup. Leave empty for a new empty
                   database.
@@ -116,11 +113,14 @@ spec:
                 - backupFileName
                 - storageContainer
                 type: object
+              serviceRef:
+                description: Business Service that this resource is provision for.
+                type: string
             required:
             - dbName
             - managedInstance
             - platformRef
-            - productRef
+            - serviceRef
             type: object
         type: object
     served: true

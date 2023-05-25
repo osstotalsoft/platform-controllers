@@ -29,7 +29,7 @@ import (
 type PlatformV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	PlatformsGetter
-	ProductsGetter
+	ServicesGetter
 	TenantsGetter
 }
 
@@ -42,8 +42,8 @@ func (c *PlatformV1alpha1Client) Platforms() PlatformInterface {
 	return newPlatforms(c)
 }
 
-func (c *PlatformV1alpha1Client) Products(namespace string) ProductInterface {
-	return newProducts(c, namespace)
+func (c *PlatformV1alpha1Client) Services(namespace string) ServiceInterface {
+	return newServices(c, namespace)
 }
 
 func (c *PlatformV1alpha1Client) Tenants(namespace string) TenantInterface {

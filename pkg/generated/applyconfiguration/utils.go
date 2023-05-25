@@ -47,8 +47,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationplatformv1alpha1.PlatformSpecApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("PlatformStatus"):
 		return &applyconfigurationplatformv1alpha1.PlatformStatusApplyConfiguration{}
-	case platformv1alpha1.SchemeGroupVersion.WithKind("Product"):
-		return &applyconfigurationplatformv1alpha1.ProductApplyConfiguration{}
+	case platformv1alpha1.SchemeGroupVersion.WithKind("Service"):
+		return &applyconfigurationplatformv1alpha1.ServiceApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Tenant"):
 		return &applyconfigurationplatformv1alpha1.TenantApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("TenantSpec"):

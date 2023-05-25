@@ -22,7 +22,7 @@ package v1alpha1
 // with apply.
 type AzureDatabaseSpecApplyConfiguration struct {
 	PlatformRef      *string                                      `json:"platformRef,omitempty"`
-	ProductRef       *string                                      `json:"productRef,omitempty"`
+	ServiceRef       *string                                      `json:"serviceRef,omitempty"`
 	DbName           *string                                      `json:"dbName,omitempty"`
 	SqlServer        *SqlServerSpecApplyConfiguration             `json:"sqlServer,omitempty"`
 	Sku              *string                                      `json:"sku,omitempty"`
@@ -44,11 +44,11 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *Azu
 	return b
 }
 
-// WithProductRef sets the ProductRef field in the declarative configuration to the given value
+// WithServiceRef sets the ServiceRef field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ProductRef field is set to the value of the last call.
-func (b *AzureDatabaseSpecApplyConfiguration) WithProductRef(value string) *AzureDatabaseSpecApplyConfiguration {
-	b.ProductRef = &value
+// If called multiple times, the ServiceRef field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithServiceRef(value string) *AzureDatabaseSpecApplyConfiguration {
+	b.ServiceRef = &value
 	return b
 }
 
