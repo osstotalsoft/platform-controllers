@@ -20,6 +20,8 @@ package v1alpha1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/provisioning/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -46,6 +49,7 @@ type AzureDatabaseInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.AzureDatabaseList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AzureDatabase, err error)
+	Apply(ctx context.Context, azureDatabase *provisioningv1alpha1.AzureDatabaseApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureDatabase, err error)
 	AzureDatabaseExpansion
 }
 
@@ -171,6 +175,32 @@ func (c *azureDatabases) Patch(ctx context.Context, name string, pt types.PatchT
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied azureDatabase.
+func (c *azureDatabases) Apply(ctx context.Context, azureDatabase *provisioningv1alpha1.AzureDatabaseApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureDatabase, err error) {
+	if azureDatabase == nil {
+		return nil, fmt.Errorf("azureDatabase provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(azureDatabase)
+	if err != nil {
+		return nil, err
+	}
+	name := azureDatabase.Name
+	if name == nil {
+		return nil, fmt.Errorf("azureDatabase.Name must be provided to Apply")
+	}
+	result = &v1alpha1.AzureDatabase{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("azuredatabases").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

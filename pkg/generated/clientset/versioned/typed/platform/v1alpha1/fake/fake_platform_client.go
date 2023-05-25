@@ -32,6 +32,10 @@ func (c *FakePlatformV1alpha1) Platforms() v1alpha1.PlatformInterface {
 	return &FakePlatforms{c}
 }
 
+func (c *FakePlatformV1alpha1) Products() v1alpha1.ProductInterface {
+	return &FakeProducts{c}
+}
+
 func (c *FakePlatformV1alpha1) Tenants(namespace string) v1alpha1.TenantInterface {
 	return &FakeTenants{c, namespace}
 }

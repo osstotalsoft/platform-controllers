@@ -1,6 +1,6 @@
 ## Prerequisites
 
-1. Install go v1.17 from [here](https://golang.org/doc/install)
+1. Install go v1.20 from [here](https://golang.org/doc/install)
 
 2. Install make 
 ```bash
@@ -8,8 +8,8 @@ apt install make
 ```
 3. Install the kubernetes code generator (from outside the project folder):
 ```bash
-go get k8s.io/code-generator@v0.23.5
-sudo chmod 777 ~/go/pkg/mod/k8s.io/code-generator@v0.23.5/generate-groups.sh
+go get k8s.io/code-generator@v0.27.2
+sudo chmod 777 ~/go/pkg/mod/k8s.io/code-generator@v0.27.2/generate-groups.sh
 ```
 
 

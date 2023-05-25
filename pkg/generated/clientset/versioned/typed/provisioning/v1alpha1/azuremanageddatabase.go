@@ -20,6 +20,8 @@ package v1alpha1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/provisioning/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -46,6 +49,7 @@ type AzureManagedDatabaseInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.AzureManagedDatabaseList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AzureManagedDatabase, err error)
+	Apply(ctx context.Context, azureManagedDatabase *provisioningv1alpha1.AzureManagedDatabaseApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureManagedDatabase, err error)
 	AzureManagedDatabaseExpansion
 }
 
@@ -171,6 +175,32 @@ func (c *azureManagedDatabases) Patch(ctx context.Context, name string, pt types
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied azureManagedDatabase.
+func (c *azureManagedDatabases) Apply(ctx context.Context, azureManagedDatabase *provisioningv1alpha1.AzureManagedDatabaseApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureManagedDatabase, err error) {
+	if azureManagedDatabase == nil {
+		return nil, fmt.Errorf("azureManagedDatabase provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(azureManagedDatabase)
+	if err != nil {
+		return nil, err
+	}
+	name := azureManagedDatabase.Name
+	if name == nil {
+		return nil, fmt.Errorf("azureManagedDatabase.Name must be provided to Apply")
+	}
+	result = &v1alpha1.AzureManagedDatabase{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("azuremanageddatabases").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

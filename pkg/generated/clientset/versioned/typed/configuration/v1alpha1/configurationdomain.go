@@ -20,6 +20,8 @@ package v1alpha1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
+	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/configuration/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -47,6 +50,8 @@ type ConfigurationDomainInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.ConfigurationDomainList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.ConfigurationDomain, err error)
+	Apply(ctx context.Context, configurationDomain *configurationv1alpha1.ConfigurationDomainApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.ConfigurationDomain, err error)
+	ApplyStatus(ctx context.Context, configurationDomain *configurationv1alpha1.ConfigurationDomainApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.ConfigurationDomain, err error)
 	ConfigurationDomainExpansion
 }
 
@@ -188,6 +193,62 @@ func (c *configurationDomains) Patch(ctx context.Context, name string, pt types.
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied configurationDomain.
+func (c *configurationDomains) Apply(ctx context.Context, configurationDomain *configurationv1alpha1.ConfigurationDomainApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.ConfigurationDomain, err error) {
+	if configurationDomain == nil {
+		return nil, fmt.Errorf("configurationDomain provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(configurationDomain)
+	if err != nil {
+		return nil, err
+	}
+	name := configurationDomain.Name
+	if name == nil {
+		return nil, fmt.Errorf("configurationDomain.Name must be provided to Apply")
+	}
+	result = &v1alpha1.ConfigurationDomain{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("configurationdomains").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *configurationDomains) ApplyStatus(ctx context.Context, configurationDomain *configurationv1alpha1.ConfigurationDomainApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.ConfigurationDomain, err error) {
+	if configurationDomain == nil {
+		return nil, fmt.Errorf("configurationDomain provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(configurationDomain)
+	if err != nil {
+		return nil, err
+	}
+
+	name := configurationDomain.Name
+	if name == nil {
+		return nil, fmt.Errorf("configurationDomain.Name must be provided to Apply")
+	}
+
+	result = &v1alpha1.ConfigurationDomain{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("configurationdomains").
+		Name(*name).
+		SubResource("status").
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

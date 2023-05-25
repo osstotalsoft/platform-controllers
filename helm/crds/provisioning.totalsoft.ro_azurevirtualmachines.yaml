@@ -3,8 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.8.0
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.12.0
   name: azurevirtualmachines.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
@@ -147,6 +146,9 @@ spec:
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
+              productRef:
+                description: Business product that this resource is provision for.
+                type: string
               rdpSourceAddressPrefix:
                 description: 'RDP inbound connection CIDR or source IP range or *
                   to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’
@@ -169,6 +171,7 @@ spec:
             - enableTrustedLaunch
             - osDiskType
             - platformRef
+            - productRef
             - rdpSourceAddressPrefix
             - sourceImageId
             - subnetId
@@ -179,9 +182,3 @@ spec:
     served: true
     storage: true
     subresources: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

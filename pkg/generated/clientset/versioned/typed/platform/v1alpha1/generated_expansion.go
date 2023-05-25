@@ -20,4 +20,6 @@ package v1alpha1
 
 type PlatformExpansion interface{}
 
+type ProductExpansion interface{}
+
 type TenantExpansion interface{}

@@ -20,14 +20,16 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
+	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/configuration/v1alpha1"
 )
 
 // FakeConfigurationDomains implements ConfigurationDomainInterface
@@ -36,9 +38,9 @@ type FakeConfigurationDomains struct {
 	ns   string
 }
 
-var configurationdomainsResource = schema.GroupVersionResource{Group: "configuration.totalsoft.ro", Version: "v1alpha1", Resource: "configurationdomains"}
+var configurationdomainsResource = v1alpha1.SchemeGroupVersion.WithResource("configurationdomains")
 
-var configurationdomainsKind = schema.GroupVersionKind{Group: "configuration.totalsoft.ro", Version: "v1alpha1", Kind: "ConfigurationDomain"}
+var configurationdomainsKind = v1alpha1.SchemeGroupVersion.WithKind("ConfigurationDomain")
 
 // Get takes name of the configurationDomain, and returns the corresponding configurationDomain object, and an error if there is any.
 func (c *FakeConfigurationDomains) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.ConfigurationDomain, err error) {
@@ -134,6 +136,51 @@ func (c *FakeConfigurationDomains) DeleteCollection(ctx context.Context, opts v1
 func (c *FakeConfigurationDomains) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.ConfigurationDomain, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(configurationdomainsResource, c.ns, name, pt, data, subresources...), &v1alpha1.ConfigurationDomain{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.ConfigurationDomain), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied configurationDomain.
+func (c *FakeConfigurationDomains) Apply(ctx context.Context, configurationDomain *configurationv1alpha1.ConfigurationDomainApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.ConfigurationDomain, err error) {
+	if configurationDomain == nil {
+		return nil, fmt.Errorf("configurationDomain provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(configurationDomain)
+	if err != nil {
+		return nil, err
+	}
+	name := configurationDomain.Name
+	if name == nil {
+		return nil, fmt.Errorf("configurationDomain.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(configurationdomainsResource, c.ns, *name, types.ApplyPatchType, data), &v1alpha1.ConfigurationDomain{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.ConfigurationDomain), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeConfigurationDomains) ApplyStatus(ctx context.Context, configurationDomain *configurationv1alpha1.ConfigurationDomainApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.ConfigurationDomain, err error) {
+	if configurationDomain == nil {
+		return nil, fmt.Errorf("configurationDomain provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(configurationDomain)
+	if err != nil {
+		return nil, err
+	}
+	name := configurationDomain.Name
+	if name == nil {
+		return nil, fmt.Errorf("configurationDomain.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(configurationdomainsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1alpha1.ConfigurationDomain{})
 
 	if obj == nil {
 		return nil, err
