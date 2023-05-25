@@ -113,7 +113,7 @@ func NewPlatformController(
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldT := oldObj.(*platformv1.Tenant)
 			newT := newObj.(*platformv1.Tenant)
-			specChanged := reflect.DeepEqual(oldT.Spec, newT.Spec)
+			specChanged := !reflect.DeepEqual(oldT.Spec, newT.Spec)
 			if specChanged {
 				klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
 				controller.enqueuePlatformByTenant(newT)

@@ -464,7 +464,7 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 			oldPlatform, oldOk := getTenantPlatform(oldT)
 			newPlatform, newOk := getTenantPlatform(newT)
 			platformChanged := oldPlatform != newPlatform
-			specChanged := reflect.DeepEqual(oldT.Spec, newT.Spec)
+			specChanged := !reflect.DeepEqual(oldT.Spec, newT.Spec)
 			if oldOk && platformChanged {
 				klog.V(4).InfoS("Tenant invalidated", "name", oldT.Name, "namespace", oldT.Namespace, "platform", oldPlatform)
 				handler(oldT)
