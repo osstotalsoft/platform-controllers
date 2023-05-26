@@ -22,7 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	v1 "k8s.io/client-go/applyconfigurations/meta/v1"
-	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 // ServiceApplyConfiguration represents an declarative configuration of the Service type for use
@@ -30,7 +29,7 @@ import (
 type ServiceApplyConfiguration struct {
 	v1.TypeMetaApplyConfiguration    `json:",inline"`
 	*v1.ObjectMetaApplyConfiguration `json:"metadata,omitempty"`
-	Spec                             *v1alpha1.ServiceSpec `json:"spec,omitempty"`
+	Spec                             *ServiceSpecApplyConfiguration `json:"spec,omitempty"`
 }
 
 // Service constructs an declarative configuration of the Service type for use with
@@ -205,7 +204,7 @@ func (b *ServiceApplyConfiguration) ensureObjectMetaApplyConfigurationExists() {
 // WithSpec sets the Spec field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Spec field is set to the value of the last call.
-func (b *ServiceApplyConfiguration) WithSpec(value v1alpha1.ServiceSpec) *ServiceApplyConfiguration {
-	b.Spec = &value
+func (b *ServiceApplyConfiguration) WithSpec(value *ServiceSpecApplyConfiguration) *ServiceApplyConfiguration {
+	b.Spec = value
 	return b
 }

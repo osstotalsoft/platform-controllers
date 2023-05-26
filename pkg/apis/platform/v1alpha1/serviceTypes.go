@@ -11,11 +11,14 @@ type Service struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec ServiceSpec `json:"spec,omitempty"`
+	// +required
+	Spec ServiceSpec `json:"spec"`
 }
 
 type ServiceSpec struct {
+	// PlatformRef is the target platform.
+	// +required
+	PlatformRef string `json:"platformRef"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

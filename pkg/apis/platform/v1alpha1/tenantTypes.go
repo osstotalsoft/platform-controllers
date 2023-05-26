@@ -20,7 +20,8 @@ type Tenant struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   TenantSpec   `json:"spec,omitempty"`
+	// +required
+	Spec   TenantSpec   `json:"spec"`
 	Status TenantStatus `json:"status,omitempty"`
 }
 
@@ -28,6 +29,8 @@ type Tenant struct {
 type TenantSpec struct {
 	Id          string `json:"id"`
 	Description string `json:"description"`
+	// PlatformRef is the target platform.
+	// +required
 	PlatformRef string `json:"platformRef"`
 
 	// +kubebuilder:default:=true

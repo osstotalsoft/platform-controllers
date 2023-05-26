@@ -31,7 +31,15 @@ spec:
           metadata:
             type: object
           spec:
+            properties:
+              platformRef:
+                description: PlatformRef is the target platform.
+                type: string
+            required:
+            - platformRef
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true

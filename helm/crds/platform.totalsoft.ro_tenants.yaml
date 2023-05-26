@@ -61,6 +61,7 @@ spec:
               id:
                 type: string
               platformRef:
+                description: PlatformRef is the target platform.
                 type: string
               serviceRefs:
                 items:
@@ -154,6 +155,8 @@ spec:
                 format: date-time
                 type: string
             type: object
+        required:
+        - spec
         type: object
     served: true
     storage: true
