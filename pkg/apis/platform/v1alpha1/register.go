@@ -31,6 +31,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		SchemeGroupVersion,
 		&Platform{},
 		&PlatformList{},
+		&Service{},
+		&ServiceList{},
 		&Tenant{},
 		&TenantList{},
 		&metav1.Status{},

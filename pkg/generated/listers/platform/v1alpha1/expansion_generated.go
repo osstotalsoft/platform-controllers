@@ -18,9 +18,25 @@ limitations under the License.
 
 package v1alpha1
 
+// DomainListerExpansion allows custom methods to be added to
+// DomainLister.
+type DomainListerExpansion interface{}
+
+// DomainNamespaceListerExpansion allows custom methods to be added to
+// DomainNamespaceLister.
+type DomainNamespaceListerExpansion interface{}
+
 // PlatformListerExpansion allows custom methods to be added to
 // PlatformLister.
 type PlatformListerExpansion interface{}
+
+// ServiceListerExpansion allows custom methods to be added to
+// ServiceLister.
+type ServiceListerExpansion interface{}
+
+// ServiceNamespaceListerExpansion allows custom methods to be added to
+// ServiceNamespaceLister.
+type ServiceNamespaceListerExpansion interface{}
 
 // TenantListerExpansion allows custom methods to be added to
 // TenantLister.

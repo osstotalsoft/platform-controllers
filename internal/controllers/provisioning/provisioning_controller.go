@@ -3,6 +3,8 @@ package provisioning
 import (
 	"context"
 	"fmt"
+	"k8s.io/utils/strings/slices"
+	"reflect"
 	"strings"
 	"time"
 
@@ -245,7 +247,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n := 0
 	for _, db := range azureDbs {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
 			azureDbs[n] = db
 			n++
 		}
@@ -259,7 +261,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, db := range azureManagedDbs {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
 			azureManagedDbs[n] = db
 			n++
 		}
@@ -273,7 +275,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, hr := range helmReleases {
-		if hr.Spec.PlatformRef == platform {
+		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, hr.Spec.DomainRef) {
 			helmReleases[n] = hr
 			n++
 		}
@@ -287,7 +289,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, vm := range azureVirtualMachines {
-		if vm.Spec.PlatformRef == platform {
+		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
 			azureVirtualMachines[n] = vm
 			n++
 		}
@@ -462,7 +464,7 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 			oldPlatform, oldOk := getTenantPlatform(oldT)
 			newPlatform, newOk := getTenantPlatform(newT)
 			platformChanged := oldPlatform != newPlatform
-			specChanged := oldT.Spec != newT.Spec
+			specChanged := !reflect.DeepEqual(oldT.Spec, newT.Spec)
 			if oldOk && platformChanged {
 				klog.V(4).InfoS("Tenant invalidated", "name", oldT.Name, "namespace", oldT.Namespace, "platform", oldPlatform)
 				handler(oldT)

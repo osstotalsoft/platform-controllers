@@ -20,14 +20,16 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/provisioning/v1alpha1"
 )
 
 // FakeAzureVirtualMachines implements AzureVirtualMachineInterface
@@ -36,9 +38,9 @@ type FakeAzureVirtualMachines struct {
 	ns   string
 }
 
-var azurevirtualmachinesResource = schema.GroupVersionResource{Group: "provisioning.totalsoft.ro", Version: "v1alpha1", Resource: "azurevirtualmachines"}
+var azurevirtualmachinesResource = v1alpha1.SchemeGroupVersion.WithResource("azurevirtualmachines")
 
-var azurevirtualmachinesKind = schema.GroupVersionKind{Group: "provisioning.totalsoft.ro", Version: "v1alpha1", Kind: "AzureVirtualMachine"}
+var azurevirtualmachinesKind = v1alpha1.SchemeGroupVersion.WithKind("AzureVirtualMachine")
 
 // Get takes name of the azureVirtualMachine, and returns the corresponding azureVirtualMachine object, and an error if there is any.
 func (c *FakeAzureVirtualMachines) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.AzureVirtualMachine, err error) {
@@ -122,6 +124,28 @@ func (c *FakeAzureVirtualMachines) DeleteCollection(ctx context.Context, opts v1
 func (c *FakeAzureVirtualMachines) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AzureVirtualMachine, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(azurevirtualmachinesResource, c.ns, name, pt, data, subresources...), &v1alpha1.AzureVirtualMachine{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.AzureVirtualMachine), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied azureVirtualMachine.
+func (c *FakeAzureVirtualMachines) Apply(ctx context.Context, azureVirtualMachine *provisioningv1alpha1.AzureVirtualMachineApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureVirtualMachine, err error) {
+	if azureVirtualMachine == nil {
+		return nil, fmt.Errorf("azureVirtualMachine provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(azureVirtualMachine)
+	if err != nil {
+		return nil, err
+	}
+	name := azureVirtualMachine.Name
+	if name == nil {
+		return nil, fmt.Errorf("azureVirtualMachine.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(azurevirtualmachinesResource, c.ns, *name, types.ApplyPatchType, data), &v1alpha1.AzureVirtualMachine{})
 
 	if obj == nil {
 		return nil, err

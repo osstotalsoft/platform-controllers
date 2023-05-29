@@ -20,6 +20,8 @@ package v1alpha1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/platform/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -47,6 +50,8 @@ type TenantInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.TenantList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Tenant, err error)
+	Apply(ctx context.Context, tenant *platformv1alpha1.TenantApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Tenant, err error)
+	ApplyStatus(ctx context.Context, tenant *platformv1alpha1.TenantApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Tenant, err error)
 	TenantExpansion
 }
 
@@ -188,6 +193,62 @@ func (c *tenants) Patch(ctx context.Context, name string, pt types.PatchType, da
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied tenant.
+func (c *tenants) Apply(ctx context.Context, tenant *platformv1alpha1.TenantApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Tenant, err error) {
+	if tenant == nil {
+		return nil, fmt.Errorf("tenant provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(tenant)
+	if err != nil {
+		return nil, err
+	}
+	name := tenant.Name
+	if name == nil {
+		return nil, fmt.Errorf("tenant.Name must be provided to Apply")
+	}
+	result = &v1alpha1.Tenant{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("tenants").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *tenants) ApplyStatus(ctx context.Context, tenant *platformv1alpha1.TenantApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Tenant, err error) {
+	if tenant == nil {
+		return nil, fmt.Errorf("tenant provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	name := tenant.Name
+	if name == nil {
+		return nil, fmt.Errorf("tenant.Name must be provided to Apply")
+	}
+
+	result = &v1alpha1.Tenant{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("tenants").
+		Name(*name).
+		SubResource("status").
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)
