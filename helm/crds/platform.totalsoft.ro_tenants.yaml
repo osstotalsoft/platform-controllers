@@ -55,6 +55,12 @@ spec:
             properties:
               description:
                 type: string
+              domainRefs:
+                description: DomainRefs are the business domains associated to this
+                  tenant.
+                items:
+                  type: string
+                type: array
               enabled:
                 default: true
                 type: boolean
@@ -63,10 +69,6 @@ spec:
               platformRef:
                 description: PlatformRef is the target platform.
                 type: string
-              serviceRefs:
-                items:
-                  type: string
-                type: array
             required:
             - description
             - enabled

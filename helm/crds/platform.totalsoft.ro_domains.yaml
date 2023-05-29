@@ -4,20 +4,19 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.12.0
-  name: services.platform.totalsoft.ro
+  name: domains.platform.totalsoft.ro
 spec:
   group: platform.totalsoft.ro
   names:
-    kind: Service
-    listKind: ServiceList
-    plural: services
-    singular: service
+    kind: Domain
+    listKind: DomainList
+    plural: domains
+    singular: domain
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Service describes a business service.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -33,24 +32,11 @@ spec:
             type: object
           spec:
             properties:
-              optionalDomainRefs:
-                description: OptionalDomainRefs are the optional business domains
-                  associated to this service.
-                items:
-                  type: string
-                type: array
               platformRef:
                 description: PlatformRef is the target platform.
                 type: string
-              requiredDomainRefs:
-                description: RequiredDomainRefs are the required business domains
-                  associated to this service.
-                items:
-                  type: string
-                type: array
             required:
             - platformRef
-            - requiredDomainRefs
             type: object
         required:
         - spec

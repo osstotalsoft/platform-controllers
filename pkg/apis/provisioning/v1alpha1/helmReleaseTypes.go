@@ -20,9 +20,9 @@ type HelmReleaseSpec struct {
 	// Target platform (custom resource name).
 	// +required
 	PlatformRef string `json:"platformRef"`
-	// Business Service that this resource is provision for.
+	// Business Domain that this resource is provision for.
 	// +required
-	ServiceRef string `json:"serviceRef"`
+	DomainRef string `json:"domainRef"`
 	// +optional
 	Exports []HelmReleaseExportsSpec `json:"exports,omitempty"`
 	// helm release spec

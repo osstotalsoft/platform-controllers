@@ -7,6 +7,7 @@ import (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
+// Service describes a business service.
 type Service struct {
 	metav1.TypeMeta `json:",inline"`
 	// +optional
@@ -19,6 +20,12 @@ type ServiceSpec struct {
 	// PlatformRef is the target platform.
 	// +required
 	PlatformRef string `json:"platformRef"`
+	// RequiredDomainRefs are the required business domains associated to this service.
+	// +required
+	RequiredDomainRefs []string `json:"requiredDomainRefs"`
+	// OptionalDomainRefs are the optional business domains associated to this service.
+	// +optional
+	OptionalDomainRefs []string `json:"optionalDomainRefs,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

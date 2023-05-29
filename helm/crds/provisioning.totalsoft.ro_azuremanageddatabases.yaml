@@ -43,6 +43,9 @@ spec:
                 description: Managed database name prefix. Will have platform and
                   tenant suffix.
                 type: string
+              domainRef:
+                description: Business Domain that this resource is provision for.
+                type: string
               exports:
                 description: Export provisioning values spec.
                 items:
@@ -113,14 +116,11 @@ spec:
                 - backupFileName
                 - storageContainer
                 type: object
-              serviceRef:
-                description: Business Service that this resource is provision for.
-                type: string
             required:
             - dbName
+            - domainRef
             - managedInstance
             - platformRef
-            - serviceRef
             type: object
         type: object
     served: true

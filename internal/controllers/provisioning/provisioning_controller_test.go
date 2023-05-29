@@ -237,7 +237,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
-	t.Run("filter resource by Service", func(t *testing.T) {
+	t.Run("filter resource by Domain", func(t *testing.T) {
 
 		tenant := newTenantWithService("dev1", "dev", "p1")
 		azureDb := newAzureDbWithService("db1", "dev", "p2")
@@ -270,7 +270,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 }
 
-func newTenantWithService(name, platform, service string) *platformv1.Tenant {
+func newTenantWithService(name, platform, domain string) *platformv1.Tenant {
 	return &platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -280,7 +280,7 @@ func newTenantWithService(name, platform, service string) *platformv1.Tenant {
 		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
 			Description: name + " description",
-			ServiceRefs: []string{service},
+			DomainRefs:  []string{domain},
 		},
 	}
 }
@@ -289,7 +289,7 @@ func newTenant(name, platform string) *platformv1.Tenant {
 	return newTenantWithService(name, platform, "")
 }
 
-func newAzureDbWithService(name, platform, service string) *provisioningv1.AzureDatabase {
+func newAzureDbWithService(name, platform, domain string) *provisioningv1.AzureDatabase {
 	return &provisioningv1.AzureDatabase{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -299,7 +299,7 @@ func newAzureDbWithService(name, platform, service string) *provisioningv1.Azure
 		Spec: provisioningv1.AzureDatabaseSpec{
 			PlatformRef: platform,
 			DbName:      name,
-			ServiceRef:  service,
+			DomainRef:   domain,
 		},
 	}
 }

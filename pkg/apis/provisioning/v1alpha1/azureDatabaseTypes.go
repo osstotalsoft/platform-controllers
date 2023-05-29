@@ -21,9 +21,9 @@ type AzureDatabaseSpec struct {
 	// Target platform (custom resource name).
 	// +required
 	PlatformRef string `json:"platformRef"`
-	// Business Service that this resource is provision for.
+	// Business Domain that this resource is provision for.
 	// +required
-	ServiceRef string `json:"serviceRef"`
+	DomainRef string `json:"domainRef"`
 	// Database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Azure Sql Server spec. New database will be created on this server

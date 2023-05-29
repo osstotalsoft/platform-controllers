@@ -28,6 +28,7 @@ import (
 
 type PlatformV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	DomainsGetter
 	PlatformsGetter
 	ServicesGetter
 	TenantsGetter
@@ -36,6 +37,10 @@ type PlatformV1alpha1Interface interface {
 // PlatformV1alpha1Client is used to interact with features provided by the platform.totalsoft.ro group.
 type PlatformV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *PlatformV1alpha1Client) Domains(namespace string) DomainInterface {
+	return newDomains(c, namespace)
 }
 
 func (c *PlatformV1alpha1Client) Platforms() PlatformInterface {

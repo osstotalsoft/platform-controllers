@@ -21,7 +21,9 @@ package v1alpha1
 // ServiceSpecApplyConfiguration represents an declarative configuration of the ServiceSpec type for use
 // with apply.
 type ServiceSpecApplyConfiguration struct {
-	PlatformRef *string `json:"platformRef,omitempty"`
+	PlatformRef        *string  `json:"platformRef,omitempty"`
+	RequiredDomainRefs []string `json:"requiredDomainRefs,omitempty"`
+	OptionalDomainRefs []string `json:"optionalDomainRefs,omitempty"`
 }
 
 // ServiceSpecApplyConfiguration constructs an declarative configuration of the ServiceSpec type for use with
@@ -35,5 +37,25 @@ func ServiceSpec() *ServiceSpecApplyConfiguration {
 // If called multiple times, the PlatformRef field is set to the value of the last call.
 func (b *ServiceSpecApplyConfiguration) WithPlatformRef(value string) *ServiceSpecApplyConfiguration {
 	b.PlatformRef = &value
+	return b
+}
+
+// WithRequiredDomainRefs adds the given value to the RequiredDomainRefs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the RequiredDomainRefs field.
+func (b *ServiceSpecApplyConfiguration) WithRequiredDomainRefs(values ...string) *ServiceSpecApplyConfiguration {
+	for i := range values {
+		b.RequiredDomainRefs = append(b.RequiredDomainRefs, values[i])
+	}
+	return b
+}
+
+// WithOptionalDomainRefs adds the given value to the OptionalDomainRefs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the OptionalDomainRefs field.
+func (b *ServiceSpecApplyConfiguration) WithOptionalDomainRefs(values ...string) *ServiceSpecApplyConfiguration {
+	for i := range values {
+		b.OptionalDomainRefs = append(b.OptionalDomainRefs, values[i])
+	}
 	return b
 }

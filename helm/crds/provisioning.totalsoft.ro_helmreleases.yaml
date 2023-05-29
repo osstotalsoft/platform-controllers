@@ -36,6 +36,9 @@ spec:
             type: object
           spec:
             properties:
+              domainRef:
+                description: Business Domain that this resource is provision for.
+                type: string
               exports:
                 items:
                   properties:
@@ -824,13 +827,10 @@ spec:
                 - chart
                 - interval
                 type: object
-              serviceRef:
-                description: Business Service that this resource is provision for.
-                type: string
             required:
+            - domainRef
             - platformRef
             - release
-            - serviceRef
             type: object
         required:
         - spec

@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// Domains returns a DomainInformer.
+	Domains() DomainInformer
 	// Platforms returns a PlatformInformer.
 	Platforms() PlatformInformer
 	// Services returns a ServiceInformer.
@@ -41,6 +43,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// Domains returns a DomainInformer.
+func (v *version) Domains() DomainInformer {
+	return &domainInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // Platforms returns a PlatformInformer.

@@ -247,7 +247,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n := 0
 	for _, db := range azureDbs {
-		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ServiceRefs, db.Spec.ServiceRef) {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
 			azureDbs[n] = db
 			n++
 		}
@@ -261,7 +261,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, db := range azureManagedDbs {
-		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ServiceRefs, db.Spec.ServiceRef) {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
 			azureManagedDbs[n] = db
 			n++
 		}
@@ -275,7 +275,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, hr := range helmReleases {
-		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ServiceRefs, hr.Spec.ServiceRef) {
+		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, hr.Spec.DomainRef) {
 			helmReleases[n] = hr
 			n++
 		}
@@ -289,7 +289,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, vm := range azureVirtualMachines {
-		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.ServiceRefs, vm.Spec.ServiceRef) {
+		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
 			azureVirtualMachines[n] = vm
 			n++
 		}

@@ -28,6 +28,10 @@ type FakePlatformV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakePlatformV1alpha1) Domains(namespace string) v1alpha1.DomainInterface {
+	return &FakeDomains{c, namespace}
+}
+
 func (c *FakePlatformV1alpha1) Platforms() v1alpha1.PlatformInterface {
 	return &FakePlatforms{c}
 }

@@ -25,7 +25,7 @@ type TenantSpecApplyConfiguration struct {
 	Description *string  `json:"description,omitempty"`
 	PlatformRef *string  `json:"platformRef,omitempty"`
 	Enabled     *bool    `json:"enabled,omitempty"`
-	ServiceRefs []string `json:"serviceRefs,omitempty"`
+	DomainRefs  []string `json:"domainRefs,omitempty"`
 }
 
 // TenantSpecApplyConfiguration constructs an declarative configuration of the TenantSpec type for use with
@@ -66,12 +66,12 @@ func (b *TenantSpecApplyConfiguration) WithEnabled(value bool) *TenantSpecApplyC
 	return b
 }
 
-// WithServiceRefs adds the given value to the ServiceRefs field in the declarative configuration
+// WithDomainRefs adds the given value to the DomainRefs field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
-// If called multiple times, values provided by each call will be appended to the ServiceRefs field.
-func (b *TenantSpecApplyConfiguration) WithServiceRefs(values ...string) *TenantSpecApplyConfiguration {
+// If called multiple times, values provided by each call will be appended to the DomainRefs field.
+func (b *TenantSpecApplyConfiguration) WithDomainRefs(values ...string) *TenantSpecApplyConfiguration {
 	for i := range values {
-		b.ServiceRefs = append(b.ServiceRefs, values[i])
+		b.DomainRefs = append(b.DomainRefs, values[i])
 	}
 	return b
 }

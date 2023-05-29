@@ -36,6 +36,9 @@ spec:
             type: object
           spec:
             properties:
+              domainRef:
+                description: Business Domain that this resource is provision for.
+                type: string
               enableTrustedLaunch:
                 description: Enable Trusted Launch security
                 type: boolean
@@ -151,9 +154,6 @@ spec:
                   to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’
                   and ‘Internet’ can also be used. eg: 128.0.57.0/25'
                 type: string
-              serviceRef:
-                description: Business Service that this resource is provision for.
-                type: string
               sourceImageId:
                 description: 'Source OS disk snapshot eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0'
                 type: string
@@ -168,11 +168,11 @@ spec:
                 description: 'The virtual machine size. Options available: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes'
                 type: string
             required:
+            - domainRef
             - enableTrustedLaunch
             - osDiskType
             - platformRef
             - rdpSourceAddressPrefix
-            - serviceRef
             - sourceImageId
             - subnetId
             - vmName

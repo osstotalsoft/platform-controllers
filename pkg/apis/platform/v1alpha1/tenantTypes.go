@@ -35,8 +35,9 @@ type TenantSpec struct {
 
 	// +kubebuilder:default:=true
 	Enabled bool `json:"enabled"`
+	// DomainRefs are the business domains associated to this tenant.
 	// +optional
-	ServiceRefs []string `json:"serviceRefs,omitempty"`
+	DomainRefs []string `json:"domainRefs,omitempty"`
 }
 
 // TenantStatus is the status for a tenant.

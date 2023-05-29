@@ -26,7 +26,7 @@ import (
 // with apply.
 type HelmReleaseSpecApplyConfiguration struct {
 	PlatformRef *string                                    `json:"platformRef,omitempty"`
-	ServiceRef  *string                                    `json:"serviceRef,omitempty"`
+	DomainRef   *string                                    `json:"domainRef,omitempty"`
 	Exports     []HelmReleaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	Release     *v2beta1.HelmReleaseSpec                   `json:"release,omitempty"`
 }
@@ -45,11 +45,11 @@ func (b *HelmReleaseSpecApplyConfiguration) WithPlatformRef(value string) *HelmR
 	return b
 }
 
-// WithServiceRef sets the ServiceRef field in the declarative configuration to the given value
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ServiceRef field is set to the value of the last call.
-func (b *HelmReleaseSpecApplyConfiguration) WithServiceRef(value string) *HelmReleaseSpecApplyConfiguration {
-	b.ServiceRef = &value
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *HelmReleaseSpecApplyConfiguration) WithDomainRef(value string) *HelmReleaseSpecApplyConfiguration {
+	b.DomainRef = &value
 	return b
 }
 
