@@ -7,6 +7,6 @@ FROM gcr.io/distroless/static:debug-nonroot
 ARG PKG_FILES
 WORKDIR /
 COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=alpine /root/.pulumi/ /home/nonroot/.pulumi/
-COPY /$PKG_FILES /
+COPY --from=alpine --chown=nonroot /root/.pulumi/ /home/nonroot/.pulumi/
+COPY  --chown=nonroot /$PKG_FILES /
 ENV PATH="/home/nonroot/.pulumi/bin:${PATH}"
