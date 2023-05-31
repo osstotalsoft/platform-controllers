@@ -63,6 +63,7 @@ type ProvisioningController struct {
 	azureManagedDbInformer      provisioningInformersv1.AzureManagedDatabaseInformer
 	helmReleaseInformer         provisioningInformersv1.HelmReleaseInformer
 	azureVirtualMachineInformer provisioningInformersv1.AzureVirtualMachineInformer
+	azureVirtualDesktopInformer provisioningInformersv1.AzureVirtualDesktopInformer
 
 	messagingPublisher messaging.MessagingPublisher
 }
@@ -92,6 +93,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureManagedDbInformer:      factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 		helmReleaseInformer:         factory.Provisioning().V1alpha1().HelmReleases(),
 		azureVirtualMachineInformer: factory.Provisioning().V1alpha1().AzureVirtualMachines(),
+		azureVirtualDesktopInformer: factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 
 		provisioner:        provisioner,
 		clientset:          clientSet,
@@ -109,6 +111,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addAzureManagedDbHandlers(c.azureManagedDbInformer, c.enqueueAllTenant)
 	addHelmReleaseHandlers(c.helmReleaseInformer, c.enqueueAllTenant)
 	addAzureVirtualMachineHandlers(c.azureVirtualMachineInformer, c.enqueueAllTenant)
+	addAzureVirtualDesktopHandlers(c.azureVirtualDesktopInformer, c.enqueueAllTenant)
 
 	return c
 }
@@ -221,6 +224,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 				AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
 				HelmReleases:         []*provisioningv1.HelmRelease{},
 				AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
+				AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
 			})
 		if cleanupResult.Error != nil {
 			utilruntime.HandleError(cleanupResult.Error)
@@ -294,11 +298,26 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 	azureVirtualMachines = azureVirtualMachines[:n]
 
+	azureVirtualDesktops, err := c.azureVirtualDesktopInformer.Lister().List(skipTenantLabelSelector)
+	if err != nil {
+		return err
+	}
+
+	n = 0
+	for _, vm := range azureVirtualDesktops {
+		if vm.Spec.PlatformRef == platform {
+			azureVirtualDesktops[n] = vm
+			n++
+		}
+	}
+	azureVirtualDesktops = azureVirtualDesktops[:n]
+
 	result := c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
 		AzureDbs:             azureDbs,
 		AzureManagedDbs:      azureManagedDbs,
 		HelmReleases:         helmReleases,
 		AzureVirtualMachines: azureVirtualMachines,
+		AzureVirtualDesktops: azureVirtualDesktops,
 	})
 
 	if result.Error == nil {
@@ -591,6 +610,42 @@ func addHelmReleaseHandlers(informer provisioningInformersv1.HelmReleaseInformer
 	})
 }
 
+func addAzureVirtualDesktopHandlers(informer provisioningInformersv1.AzureVirtualDesktopInformer, handler func(platform string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.AzureVirtualDesktop)
+			if platform, ok := getAzureVirtualDesktopPlatform(comp); ok {
+				klog.V(4).InfoS("Azure virtual Desktop added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldComp := oldObj.(*provisioningv1.AzureVirtualDesktop)
+			newComp := newObj.(*provisioningv1.AzureVirtualDesktop)
+			oldPlatform, oldOk := getAzureVirtualDesktopPlatform(oldComp)
+			newPlatform, newOk := getAzureVirtualDesktopPlatform(newComp)
+			platformChanged := oldPlatform != newPlatform
+
+			if oldOk && platformChanged {
+				klog.V(4).InfoS("Azure virtual desktop invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
+				handler(oldPlatform)
+			}
+
+			if newOk {
+				klog.V(4).InfoS("Azure virtual desktop updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
+				handler(newPlatform)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*provisioningv1.AzureVirtualDesktop)
+			if platform, ok := getAzureVirtualDesktopPlatform(comp); ok {
+				klog.V(4).InfoS("Azure virtual desktop deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
+				handler(platform)
+			}
+		},
+	})
+}
+
 func addAzureVirtualMachineHandlers(informer provisioningInformersv1.AzureVirtualMachineInformer, handler func(platform string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -665,6 +720,15 @@ func getHelmReleasePlatform(helmRelease *provisioningv1.HelmRelease) (platform s
 
 func getAzureVirtualMachinePlatform(azureVirtualMachine *provisioningv1.AzureVirtualMachine) (platform string, ok bool) {
 	platform = azureVirtualMachine.Spec.PlatformRef
+	if len(platform) == 0 {
+		return platform, false
+	}
+
+	return platform, true
+}
+
+func getAzureVirtualDesktopPlatform(azureVirtualDesktop *provisioningv1.AzureVirtualDesktop) (platform string, ok bool) {
+	platform = azureVirtualDesktop.Spec.PlatformRef
 	if len(platform) == 0 {
 		return platform, false
 	}

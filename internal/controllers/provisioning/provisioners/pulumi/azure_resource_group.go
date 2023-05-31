@@ -13,7 +13,7 @@ func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) func(ctx *pul
 		resourceGroupName := fmt.Sprintf("%s-%s", platform, tenant.Name)
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, resourceGroupName, &azureResources.ResourceGroupArgs{
 			ResourceGroupName: pulumi.String(resourceGroupName),
-		})
+		}, pulumi.RetainOnDelete(true))
 		if err != nil {
 			return pulumi.StringOutput{}, err
 		}

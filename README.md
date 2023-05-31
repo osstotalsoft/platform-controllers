@@ -181,6 +181,10 @@ spec:
 ```
 > *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
+
+### AzureVirtualDesktop
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurevirtualdesktops.yaml)
+
 ## configuration.totalsoft.ro
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.
 

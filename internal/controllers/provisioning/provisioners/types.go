@@ -14,6 +14,7 @@ type InfrastructureManifests struct {
 	AzureManagedDbs      []*provisioningv1.AzureManagedDatabase
 	HelmReleases         []*provisioningv1.HelmRelease
 	AzureVirtualMachines []*provisioningv1.AzureVirtualMachine
+	AzureVirtualDesktops []*provisioningv1.AzureVirtualDesktop
 }
 
 type ProvisioningResult struct {

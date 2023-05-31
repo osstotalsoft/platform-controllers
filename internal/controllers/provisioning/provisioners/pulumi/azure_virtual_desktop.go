@@ -1,0 +1,709 @@
+package pulumi
+
+import (
+	"fmt"
+	"math"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/pulumi/pulumi-azure-native/sdk/go/azure/authorization"
+	"github.com/pulumi/pulumi-azure-native/sdk/go/azure/compute"
+	"github.com/pulumi/pulumi-azure-native/sdk/go/azure/desktopvirtualization"
+	"github.com/pulumi/pulumi-azure-native/sdk/go/azure/network"
+	"github.com/pulumi/pulumi-azure-native/sdk/go/azure/storage"
+	"github.com/pulumi/pulumi-azuread/sdk/v5/go/azuread"
+	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+)
+
+type AzureVirtualDesktop struct {
+	pulumi.ResourceState
+
+	HostPool                     *desktopvirtualization.HostPool
+	Workspace                    *desktopvirtualization.Workspace
+	DesktopAppGroup              *desktopvirtualization.ApplicationGroup
+	RemoteAppGroup               *desktopvirtualization.ApplicationGroup
+	RemoteAppGroupAssignment     *authorization.RoleAssignment
+	RemoteDesktopGroupAssignment *authorization.RoleAssignment
+}
+
+type AzureVirtualDesktopVM struct {
+	pulumi.ResourceState
+
+	VirtualMachine   *compute.VirtualMachine
+	NetworkInterface *network.NetworkInterface
+	ComputerName     pulumi.StringOutput
+	AdminPassword    *random.RandomPassword
+}
+
+type AzureVirtualDesktopVMArgs struct {
+	// A required username for the VM login.
+	TenantName pulumi.StringInput
+
+	HostPoolName pulumi.StringInput
+
+	RegistrationToken pulumi.StringInput
+
+	// An optional VM size; if unspecified, Standard_A0 (micro) will be used.
+	VMSize pulumi.StringInput
+
+	// A required Resource Group in which to create the VM
+	ResourceGroupName pulumi.StringInput
+
+	// Applications UserGroup ID
+	LoginUserGroupId pulumi.StringInput
+
+	// Admin UserGroup ID
+	LoginAdminGroupId pulumi.StringInput
+
+	// A required Subnet in which to deploy the VM
+	SubnetID pulumi.StringInput
+
+	ProfileFileServer pulumi.StringInput
+
+	ProfileShare pulumi.StringInput
+
+	ProfileUser pulumi.StringInput
+
+	ProfileSecret pulumi.StringInput
+
+	Spec provisioningv1.AzureVirtualDesktopSpec
+}
+
+func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtualDesktopVMArgs, opts ...pulumi.ResourceOption) (*AzureVirtualDesktopVM, error) {
+
+	avdVM := &AzureVirtualDesktopVM{}
+
+	err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktopVM", name, avdVM, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	computerName, err := random.NewRandomPet(ctx, fmt.Sprintf("%s-computer-name", name), &random.RandomPetArgs{
+		Length:    pulumi.Int(2),
+		Separator: pulumi.String("-"),
+	}, pulumi.Parent(avdVM))
+
+	if err != nil {
+		return nil, err
+	}
+
+	avdVM.ComputerName = computerName.ID().ToStringOutput().ApplyT(func(name string) (string, error) {
+		return name[:int32(math.Min(float64(len(name)), 15))], nil
+	}).(pulumi.StringOutput)
+
+	avdVM.AdminPassword, err = random.NewRandomPassword(ctx, fmt.Sprintf("%s-admin-password", name), &random.RandomPasswordArgs{
+		Length:     pulumi.Int(10),
+		Upper:      pulumi.Bool(true),
+		MinUpper:   pulumi.Int(1),
+		Lower:      pulumi.Bool(true),
+		MinLower:   pulumi.Int(1),
+		Numeric:    pulumi.Bool(true),
+		MinNumeric: pulumi.Int(1),
+		Special:    pulumi.Bool(true),
+		MinSpecial: pulumi.Int(1),
+	}, pulumi.Parent(avdVM))
+
+	if err != nil {
+		return nil, err
+	}
+
+	avdVM.NetworkInterface, err = network.NewNetworkInterface(ctx, fmt.Sprintf("%s-net-if", name), &network.NetworkInterfaceArgs{
+		ResourceGroupName: args.ResourceGroupName,
+		IpConfigurations: network.NetworkInterfaceIPConfigurationArray{
+			network.NetworkInterfaceIPConfigurationArgs{
+				Name: pulumi.String(fmt.Sprintf("%s-net-if", name)),
+				Subnet: network.SubnetTypeArgs{
+					Id: args.SubnetID,
+				},
+			},
+		},
+	}, pulumi.Parent(avdVM))
+	if err != nil {
+		return nil, err
+	}
+
+	vmArgs := compute.VirtualMachineArgs{
+		VmName:            pulumi.String(name),
+		ResourceGroupName: args.ResourceGroupName,
+		HardwareProfile: compute.HardwareProfileArgs{
+			VmSize: args.VMSize,
+		},
+		Identity: compute.VirtualMachineIdentityArgs{
+			Type: compute.ResourceIdentityTypeSystemAssigned,
+		},
+		OsProfile: compute.OSProfileArgs{
+			ComputerName:  avdVM.ComputerName,
+			AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", args.TenantName)),
+			AdminPassword: avdVM.AdminPassword.Result,
+			WindowsConfiguration: compute.WindowsConfigurationArgs{
+				EnableAutomaticUpdates: pulumi.Bool(false),
+				PatchSettings: compute.PatchSettingsArgs{
+					PatchMode: pulumi.String(compute.WindowsVMGuestPatchModeManual),
+				},
+			},
+		},
+		NetworkProfile: compute.NetworkProfileArgs{
+			NetworkInterfaces: compute.NetworkInterfaceReferenceArray{
+				compute.NetworkInterfaceReferenceArgs{
+					Id:      avdVM.NetworkInterface.ID(),
+					Primary: pulumi.Bool(true),
+				},
+			},
+		},
+		StorageProfile: compute.StorageProfileArgs{
+			ImageReference: compute.ImageReferenceArgs{
+				Id: pulumi.String(args.Spec.SourceImageId),
+			},
+			OsDisk: compute.OSDiskArgs{
+				Name:         pulumi.String(fmt.Sprintf("%s-os-disk", name)),
+				CreateOption: pulumi.String(compute.DiskCreateOptionFromImage),
+				DeleteOption: pulumi.String(compute.DeleteOptionsDetach),
+				ManagedDisk: compute.ManagedDiskParametersArgs{
+					StorageAccountType: pulumi.String(args.Spec.OSDiskType),
+				},
+			},
+		},
+	}
+
+	if args.Spec.EnableTrustedLaunch {
+		vmArgs.SecurityProfile = compute.SecurityProfileArgs{
+			SecurityType: pulumi.String(compute.SecurityTypesTrustedLaunch),
+			UefiSettings: compute.UefiSettingsArgs{
+				SecureBootEnabled: pulumi.BoolPtr(true),
+				VTpmEnabled:       pulumi.BoolPtr(true),
+			},
+		}
+	}
+
+	avdVM.VirtualMachine, err = compute.NewVirtualMachine(ctx, name, &vmArgs, pulumi.Parent(avdVM))
+	if err != nil {
+		return nil, err
+	}
+
+	vmUserLoginRole, err := authorization.LookupRoleDefinition(ctx, &authorization.LookupRoleDefinitionArgs{
+		RoleDefinitionId: "fb879df8-f326-4884-b1cf-06f3ad86be52", // Virtual Machine User Login
+		Scope:            "/",
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-user-assignment", name), &authorization.RoleAssignmentArgs{
+		PrincipalId:      args.LoginUserGroupId,
+		PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+		RoleDefinitionId: pulumi.String(vmUserLoginRole.Id),
+		Scope:            avdVM.VirtualMachine.ID(),
+	}, pulumi.Parent(avdVM.VirtualMachine))
+
+	if err != nil {
+		return nil, err
+	}
+
+	vmAdminLoginRole, err := authorization.LookupRoleDefinition(ctx, &authorization.LookupRoleDefinitionArgs{
+		RoleDefinitionId: "1c0163c0-47e6-4577-8991-ea5c82e286e4", // Virtual Machine Administrator Login
+		Scope:            "/",
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-admin-assignment", name), &authorization.RoleAssignmentArgs{
+		PrincipalId:      args.LoginAdminGroupId,
+		PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+		RoleDefinitionId: pulumi.String(vmAdminLoginRole.Id),
+		Scope:            avdVM.VirtualMachine.ID(),
+	}, pulumi.Parent(avdVM.VirtualMachine))
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = compute.NewVirtualMachineExtension(ctx, fmt.Sprintf("%s-aad", name), &compute.VirtualMachineExtensionArgs{
+		ResourceGroupName:       args.ResourceGroupName,
+		VmExtensionName:         pulumi.String("AADLoginForWindows"),
+		VmName:                  pulumi.String(name),
+		AutoUpgradeMinorVersion: pulumi.Bool(true),
+		Type:                    pulumi.String("AADLoginForWindows"),
+		TypeHandlerVersion:      pulumi.String("2.0"),
+		Publisher:               pulumi.String("Microsoft.Azure.ActiveDirectory"),
+	}, pulumi.Parent(avdVM.VirtualMachine))
+
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = compute.NewVirtualMachineExtension(ctx, fmt.Sprintf("%s-dsc", name), &compute.VirtualMachineExtensionArgs{
+		ResourceGroupName:       args.ResourceGroupName,
+		VmExtensionName:         pulumi.String("Microsoft.PowerShell.DSC"),
+		VmName:                  pulumi.String(name),
+		AutoUpgradeMinorVersion: pulumi.Bool(true),
+		Type:                    pulumi.String("DSC"),
+		TypeHandlerVersion:      pulumi.String("2.73"),
+		Publisher:               pulumi.String("Microsoft.Powershell"),
+		Settings: pulumi.Map{
+			"modulesUrl":            pulumi.String("https://wvdportalstorageblob.blob.core.windows.net/galleryartifacts/Configuration_01-19-2023.zip"),
+			"configurationFunction": pulumi.String("Configuration.ps1\\AddSessionHost"),
+			"properties": pulumi.Map{
+				"hostPoolName":             args.HostPoolName,
+				"registrationInfoToken":    args.RegistrationToken,
+				"aadJoin":                  pulumi.Bool(true),
+				"useAgentDownloadEndpoint": pulumi.Bool(true),
+			},
+		},
+	}, pulumi.Parent(avdVM.VirtualMachine))
+
+	if err != nil {
+		return nil, err
+	}
+
+	params := compute.RunCommandInputParameterArray{}
+	for _, scriptArgKeyVal := range strings.Split(args.Spec.InitScriptArgs, ";") {
+		if strings.TrimSpace(scriptArgKeyVal) == "" {
+			continue
+		}
+
+		parts := strings.Split(scriptArgKeyVal, "=")
+		if len(parts) != 2 {
+			err = fmt.Errorf("wrong initialization script args format. Expected: 'arg1=val1;arg2=val2'. Received: '%s'", args.Spec.InitScriptArgs)
+			return nil, err
+		}
+
+		params = append(params, compute.RunCommandInputParameterArgs{
+			Name:  pulumi.String(strings.TrimSpace(parts[0])),
+			Value: pulumi.String(strings.TrimSpace(parts[1])),
+		})
+	}
+
+	_, err = compute.NewVirtualMachineRunCommandByVirtualMachine(ctx, fmt.Sprintf("%s-init-cmd", name), &compute.VirtualMachineRunCommandByVirtualMachineArgs{
+		ResourceGroupName: args.ResourceGroupName,
+		VmName:            pulumi.String(name),
+		AsyncExecution:    pulumi.Bool(false),
+		RunCommandName:    pulumi.String("InitVM"),
+		Source: compute.VirtualMachineRunCommandScriptSourceArgs{
+			Script: pulumi.String(args.Spec.InitScript),
+		},
+		Parameters:       params,
+		TimeoutInSeconds: pulumi.Int(60),
+	}, pulumi.Parent(avdVM.VirtualMachine))
+
+	if err != nil {
+		return nil, err
+	}
+
+	fsLogixSetupScript := `
+	param
+	(    
+		[Parameter(Mandatory = $true)]
+		[String]$fileServer,
+	
+		[Parameter(Mandatory = $true)]
+		[String]$profileShare,
+	
+		[Parameter(Mandatory = $true)]
+		[String]$user,
+	
+		[Parameter(Mandatory = $true)]
+		[String]$secret
+	)
+	
+	write-host "Configuring FSLogix"
+
+	$fileServer = ([System.Uri]$fileServer).Host
+	$profileShare = "\\$($fileServer)\$($profileShare)"
+	$user = "localhost\$($user)"
+	
+	New-Item -Path "HKLM:\SOFTWARE" -Name "FSLogix" -ErrorAction Ignore
+	New-Item -Path "HKLM:\SOFTWARE\FSLogix" -Name "Profiles" -ErrorAction Ignore
+	New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "Enabled" -Value 1 -force
+	New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "VHDLocations" -Value $($profileShare) -force
+	New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "AccessNetworkAsComputerObject" -Value 1 -force
+	
+	# Store credentials to access the storage account
+	cmdkey.exe /add:$($fileServer) /user:$($user) /pass:$($secret)
+	# Disable Windows Defender Credential Guard (only needed for Windows 11 22H2)
+	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa" -Name "LsaCfgFlags" -Value 0 -force
+		
+	write-host "The script has finished."
+`
+
+	_, err = compute.NewVirtualMachineRunCommandByVirtualMachine(ctx, fmt.Sprintf("%s-fslogix-setup", name), &compute.VirtualMachineRunCommandByVirtualMachineArgs{
+		ResourceGroupName: args.ResourceGroupName,
+		VmName:            pulumi.String(name),
+		AsyncExecution:    pulumi.Bool(false),
+		RunCommandName:    pulumi.String("SetupFSLogix"),
+		Source: compute.VirtualMachineRunCommandScriptSourceArgs{
+			Script: pulumi.String(fsLogixSetupScript),
+		},
+		Parameters: compute.RunCommandInputParameterArray{
+			compute.RunCommandInputParameterArgs{
+				Name:  pulumi.String("fileServer"),
+				Value: args.ProfileFileServer,
+			},
+			compute.RunCommandInputParameterArgs{
+				Name:  pulumi.String("profileShare"),
+				Value: args.ProfileShare,
+			},
+			compute.RunCommandInputParameterArgs{
+				Name:  pulumi.String("user"),
+				Value: args.ProfileUser,
+			},
+			compute.RunCommandInputParameterArgs{
+				Name:  pulumi.String("secret"),
+				Value: args.ProfileSecret,
+			},
+		},
+		TimeoutInSeconds: pulumi.Int(60),
+	}, pulumi.Parent(avdVM.VirtualMachine))
+
+	if err != nil {
+		return nil, err
+	}
+
+	// vmInfo.ComputerName = avdVM.VirtualMachine.OsProfile.ComputerName().Elem()
+	// vmInfo.AdminUserName = runCmd.InstanceView.ExecutionState().Elem() //vm.OsProfile.AdminUsername().Elem()
+	// vmInfo.AdminPassword = avdVM.AdminPassword.Result
+
+	return avdVM, nil
+}
+
+func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName pulumi.StringOutput,
+	azureVms []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
+
+	valueExporter := handleValueExport(platform, tenant)
+	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualDesktop")
+	return func(ctx *pulumi.Context) error {
+		for _, azureVM := range azureVms {
+			hostPoolName := azureVM.Spec.HostPoolName
+			globalQalifier := fmt.Sprintf("%s-%s", platform, tenant.Name)
+
+			avd := &AzureVirtualDesktop{}
+			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avd)
+			if err != nil {
+				return err
+			}
+
+			// var regInfo = &desktopvirtualization.RegistrationInfoArgs{}
+			// if existingHostPool == nil {
+			// 	regInfo.ExpirationTime = pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339))
+			// 	regInfo.RegistrationTokenOperation = pulumi.String(desktopvirtualization.RegistrationTokenOperationUpdate)
+			// }
+
+			current, err := azuread.GetClientConfig(ctx, nil, nil)
+			if err != nil {
+				return err
+			}
+			appsUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &azuread.GroupArgs{
+				DisplayName: pulumi.String(fmt.Sprintf("%s-%s-apps", globalQalifier, hostPoolName)),
+				Owners: pulumi.StringArray{
+					pulumi.String(current.ObjectId),
+				},
+				SecurityEnabled: pulumi.Bool(true),
+			}, pulumi.Parent(avd), pulumi.RetainOnDelete(true))
+			if err != nil {
+				return err
+			}
+
+			for _, appUser := range azureVM.Spec.Users.ApplicationUsers {
+				user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
+					UserPrincipalName: pulumi.StringRef(appUser),
+				}, nil)
+				if err != nil {
+					return err
+				}
+
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user", appUser), &azuread.GroupMemberArgs{
+					GroupObjectId:  appsUserGroup.ID(),
+					MemberObjectId: pulumi.String(user.Id),
+				}, pulumi.Parent(appsUserGroup))
+				if err != nil {
+					return err
+				}
+			}
+
+			adminUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-admin", hostPoolName), &azuread.GroupArgs{
+				DisplayName: pulumi.String(fmt.Sprintf("%s-%s-admin", globalQalifier, hostPoolName)),
+				Owners: pulumi.StringArray{
+					pulumi.String(current.ObjectId),
+				},
+				SecurityEnabled: pulumi.Bool(true),
+			}, pulumi.Parent(avd), pulumi.RetainOnDelete(true))
+			if err != nil {
+				return err
+			}
+
+			for _, admin := range azureVM.Spec.Users.Admins {
+				user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
+					UserPrincipalName: pulumi.StringRef(admin),
+				}, nil)
+				if err != nil {
+					return err
+				}
+
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin", admin), &azuread.GroupMemberArgs{
+					GroupObjectId:  adminUserGroup.ID(),
+					MemberObjectId: pulumi.String(user.Id),
+				}, pulumi.Parent(adminUserGroup))
+				if err != nil {
+					return err
+				}
+			}
+
+			avd.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
+				HostPoolName:                  pulumi.String(hostPoolName),
+				HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
+				LoadBalancerType:              pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
+				CustomRdpProperty:             pulumi.String("targetisaadjoined:i:1;drivestoredirect:s:*;audiomode:i:0;videoplaybackmode:i:1;redirectclipboard:i:1;redirectprinters:i:1;devicestoredirect:s:*;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:*;enablecredsspsupport:i:1;redirectwebauthn:i:1;use multimon:i:1"),
+				PreferredAppGroupType:         pulumi.String(desktopvirtualization.PreferredAppGroupTypeDesktop),
+				PersonalDesktopAssignmentType: pulumi.String(desktopvirtualization.PersonalDesktopAssignmentTypeAutomatic), //?? Direct
+				MaxSessionLimit:               pulumi.Int(999999),                                                          //??
+				ValidationEnvironment:         pulumi.Bool(false),
+
+				ResourceGroupName: resourceGroupName,
+				StartVMOnConnect:  pulumi.Bool(false),
+
+				Description:  pulumi.String("des1"),
+				FriendlyName: pulumi.String("friendly"),
+
+				RegistrationInfo: &desktopvirtualization.RegistrationInfoArgs{
+					ExpirationTime:             pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339)),
+					RegistrationTokenOperation: pulumi.String(desktopvirtualization.RegistrationTokenOperationUpdate),
+				},
+
+				VmTemplate: pulumi.String(fmt.Sprintf(`
+				{
+					"domain":"",
+					"galleryImageOffer":null,
+					"galleryImagePublisher":null,
+					"galleryImageSKU":null,
+					"imageType":"CustomImage",
+					"customImageId":"%s",
+					"namePrefix":"%s",
+					"osDiskType":"StandardSSD_LRS",
+					"vmSize":{"id":"%s","cores":1,"ram":1,"rdmaEnabled":false,"supportsMemoryPreservingMaintenance":true},
+					"galleryItemId":null,
+					"hibernate":false,
+					"diskSizeGB":0,
+					"securityType":"Standard",
+					"secureBoot":false,
+					"vTPM":false
+				}`, azureVM.Spec.SourceImageId, azureVM.Spec.VmNamePrefix, azureVM.Spec.VmSize)),
+			}, pulumi.Parent(avd))
+			if err != nil {
+				return err
+			}
+
+			avd.DesktopAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-desktop", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
+				ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-desktop", hostPoolName)),
+				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeDesktop),
+				FriendlyName:         pulumi.String("Session Desktop"),
+				HostPoolArmPath:      avd.HostPool.ID(),
+				ResourceGroupName:    resourceGroupName,
+			}, pulumi.Parent(avd))
+
+			if err != nil {
+				return err
+			}
+
+			avd.RemoteAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
+				ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
+				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeRemoteApp),
+				FriendlyName:         pulumi.String("Applications"),
+				HostPoolArmPath:      avd.HostPool.ID(),
+				ResourceGroupName:    resourceGroupName,
+			}, pulumi.Parent(avd))
+
+			if err != nil {
+				return err
+			}
+
+			avdUserRole, err := authorization.LookupRoleDefinition(ctx, &authorization.LookupRoleDefinitionArgs{
+				RoleDefinitionId: "1d18fff3-a72a-46b5-b4a9-0b38a3cd7e63", //Desktop Virtualization User
+				Scope:            "/",
+			})
+
+			if err != nil {
+				return err
+			}
+
+			_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-apps-user-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
+				PrincipalId:      appsUserGroup.ObjectId,
+				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+				RoleDefinitionId: pulumi.String(avdUserRole.Id),
+				Scope:            avd.RemoteAppGroup.ID(),
+			}, pulumi.Parent(avd.RemoteAppGroup))
+
+			if err != nil {
+				return err
+			}
+
+			_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-apps-admin-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
+				PrincipalId:      adminUserGroup.ObjectId,
+				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+				RoleDefinitionId: pulumi.String(avdUserRole.Id),
+				Scope:            avd.RemoteAppGroup.ID(),
+			}, pulumi.Parent(avd.RemoteAppGroup))
+
+			if err != nil {
+				return err
+			}
+
+			_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-desktop-admin-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
+				PrincipalId:      adminUserGroup.ObjectId,
+				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+				RoleDefinitionId: pulumi.String(avdUserRole.Id),
+				Scope:            avd.DesktopAppGroup.ID(),
+			}, pulumi.Parent(avd.DesktopAppGroup))
+
+			if err != nil {
+				return err
+			}
+
+			_, err = desktopvirtualization.NewApplication(ctx, fmt.Sprintf("%s-apps-charisma", hostPoolName), &desktopvirtualization.ApplicationArgs{
+				ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
+				ApplicationName:      pulumi.String("charisma-enterprise"),
+				FriendlyName:         pulumi.String("Charisma Enterprise"),
+				// FilePath:             pulumi.String(`C:\Program Files (x86)\TotalSoft\Charisma Enterprise\Windows Client\Charisma.WinUI.exe`),
+				// IconPath:             pulumi.String(`C:\Program Files (x86)\TotalSoft\Charisma Enterprise\Windows Client\Charisma.WinUI.exe`),
+				FilePath:           pulumi.String(`C:\Windows\Notepad.exe`),
+				IconPath:           pulumi.String(`C:\Windows\Notepad.exe`),
+				IconIndex:          pulumi.Int(0),
+				CommandLineSetting: pulumi.String(desktopvirtualization.CommandLineSettingDoNotAllow),
+				ShowInPortal:       pulumi.Bool(true),
+				ResourceGroupName:  resourceGroupName,
+			}, pulumi.Parent(avd.RemoteAppGroup))
+
+			if err != nil {
+				return err
+			}
+
+			_, err = desktopvirtualization.NewWorkspace(ctx, fmt.Sprintf("%s-ws", hostPoolName), &desktopvirtualization.WorkspaceArgs{
+				WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
+				FriendlyName:      pulumi.String("Charisma"),
+				ResourceGroupName: resourceGroupName,
+				ApplicationGroupReferences: pulumi.StringArray{
+					avd.DesktopAppGroup.ID(),
+					avd.RemoteAppGroup.ID(),
+				},
+			}, pulumi.Parent(avd))
+
+			if err != nil {
+				return err
+			}
+
+			storageAccountName := strings.ToLower(hostPoolName)
+			storageAccountName = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(storageAccountName, "")
+			storageAccountName = storageAccountName[:int32(math.Min(float64(len(storageAccountName)), 16))] // extra 8 chars for UID, total max 24 chars
+
+			storageAccount, err := storage.NewStorageAccount(ctx, storageAccountName, &storage.StorageAccountArgs{
+				//AccountName: pulumi.String(storageAccountName),
+				Kind: pulumi.String(storage.KindStorage),
+				// NetworkRuleSet: storage.NetworkRuleSetResponse{
+				// 	Bypass:        pulumi.String("AzureServices"),
+				// 	DefaultAction: storage.DefaultActionAllow,
+				// 	IpRules:       storage.IPRuleArray{},
+				// 	VirtualNetworkRules: storage.VirtualNetworkRuleArray{
+				// 		&storage.VirtualNetworkRuleArgs{
+				// 			VirtualNetworkResourceId: pulumi.String("/subscriptions/{subscription-id}/resourceGroups/res9101/providers/Microsoft.Network/virtualNetworks/net123/subnets/subnet12"),
+				// 		},
+				// 	},
+				// },
+				ResourceGroupName: resourceGroupName,
+				Sku: &storage.SkuArgs{
+					Name: pulumi.String(storage.SkuName_Standard_LRS),
+				},
+			}, pulumi.Parent(avd))
+			if err != nil {
+				return err
+			}
+
+			profileShare, err := storage.NewFileShare(ctx, fmt.Sprintf("%s-profile-share", hostPoolName), &storage.FileShareArgs{
+				AccountName: storageAccount.Name,
+				//EnabledProtocols:  pulumi.String(storage.EnabledProtocolsSMB),
+				ResourceGroupName: resourceGroupName,
+				ShareName:         pulumi.String("profiles"),
+				ShareQuota:        pulumi.Int(100),
+			}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(true))
+			if err != nil {
+				return err
+			}
+
+			storageAccountKeys := storage.ListStorageAccountKeysOutput(ctx, storage.ListStorageAccountKeysOutputArgs{
+				AccountName:       storageAccount.Name,
+				ResourceGroupName: resourceGroupName,
+			})
+
+			if err != nil {
+				return err
+			}
+
+			vms := make([]*AzureVirtualDesktopVM, azureVM.Spec.VmNumberOfInstances)
+
+			for i := 0; i < azureVM.Spec.VmNumberOfInstances; i++ {
+				vmName := fmt.Sprintf("%s-%d", azureVM.Spec.HostPoolName, i)
+				avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
+					ResourceGroupName: resourceGroupName,
+					TenantName:        pulumi.String(tenant.Name),
+					HostPoolName:      avd.HostPool.Name,
+					RegistrationToken: avd.HostPool.RegistrationInfo.Token().Elem(),
+					VMSize:            pulumi.String(azureVM.Spec.VmSize),
+					SubnetID:          pulumi.String(azureVM.Spec.SubnetId),
+					LoginUserGroupId:  appsUserGroup.ID(),
+					LoginAdminGroupId: adminUserGroup.ID(),
+
+					ProfileFileServer: storageAccount.PrimaryEndpoints.File(),
+					ProfileShare:      profileShare.Name,
+					ProfileUser:       storageAccount.Name,
+					ProfileSecret:     storageAccountKeys.Keys().Index(pulumi.Int(0)).Value(),
+					Spec:              azureVM.Spec,
+				}, pulumi.Parent(avd))
+
+				if err != nil {
+					return err
+				}
+
+				vms[i] = avdVM
+			}
+
+			for _, exp := range azureVM.Spec.Exports {
+				err = valueExporter(newExportContext(ctx, exp.Domain, azureVM.Name, azureVM.ObjectMeta, gvk),
+					map[string]exportTemplateWithValue{
+						"hostPoolName": {exp.HostPoolName, avd.HostPool.Name},
+						"computerName": {exp.ComputerName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.ComputerName })},
+						"adminUserName": {exp.AdminUserName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput {
+							return vm.VirtualMachine.OsProfile.AdminUsername().Elem()
+						})},
+						"adminPassword": {exp.AdminPassword, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.AdminPassword.Result })},
+					}, pulumi.Parent(avd))
+				if err != nil {
+					return err
+				}
+			}
+
+			ctx.Export(fmt.Sprintf("azureVirtualDesktop:%s", azureVM.Spec.HostPoolName), avd.HostPool.Name)
+		}
+
+		return nil
+	}
+}
+
+func joinProp(vms []*AzureVirtualDesktopVM, selector func(vm *AzureVirtualDesktopVM) pulumi.StringOutput) pulumi.StringOutput {
+	selectedProps := make([]interface{}, len(vms))
+	for i := range vms {
+		selectedProps[i] = selector(vms[i])
+	}
+
+	return pulumi.All(selectedProps...).ApplyT(func(args []interface{}) string {
+		stringArgs := make([]string, len(args))
+		for i := range vms {
+			stringArgs[i] = args[i].(string)
+		}
+
+		return strings.Join(stringArgs, " ; ")
+	}).(pulumi.StringOutput)
+}

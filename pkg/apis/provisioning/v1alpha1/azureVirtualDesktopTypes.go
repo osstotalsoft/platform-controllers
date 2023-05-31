@@ -1,0 +1,93 @@
+package v1alpha1
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// +genclient
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
+type AzureVirtualDesktop struct {
+	metav1.TypeMeta `json:",inline"`
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec AzureVirtualDesktopSpec `json:"spec,omitempty"`
+}
+
+type AzureVirtualDesktopSpec struct {
+	// Target platform (custom resource name).
+	PlatformRef string `json:"platformRef"`
+	// Virtual Desktop name prefix. Will have platform and tenant suffix.
+	HostPoolName string `json:"hostPoolName"`
+
+	// Session Host VM name prefix. Will have platform and tenant suffix.
+	VmNamePrefix string `json:"vmNamePrefix"`
+
+	// The virtual machine size. Options available: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes
+	VmSize string `json:"vmSize"`
+
+	// The number of virtual machines to be added to the host pool
+	VmNumberOfInstances int `json:"vmNumberOfInstances"`
+
+	// Possible values are Standard_LRS, StandardSSD_LRS or Premium_LRS.
+	// +kubebuilder:validation:Enum=Standard_LRS;StandardSSD_LRS;Premium_LRS
+	OSDiskType string `json:"osDiskType"`
+
+	// Source OS disk snapshot
+	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0
+	SourceImageId string `json:"sourceImageId"`
+
+	// Subnet of the VNet used by the virtual machine
+	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
+	SubnetId string `json:"subnetId"`
+
+	// RDP inbound connection CIDR or source IP range or * to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’ and ‘Internet’ can also be used.
+	// eg: 128.0.57.0/25
+	RdpSourceAddressPrefix string `json:"rdpSourceAddressPrefix"`
+
+	// Enable Trusted Launch security
+	EnableTrustedLaunch bool `json:"enableTrustedLaunch"`
+
+	// Initialization script
+	InitScript string `json:"initScript"`
+
+	// Initialization script arguments
+	InitScriptArgs string `json:"initScriptArgs"`
+
+	// +optional
+	Users AzureVirtualDesktopUsersSpec `json:"users"`
+
+	// +optional
+	Exports []AzureVirtualDesktopExportsSpec `json:"exports,omitempty"`
+}
+
+type AzureVirtualDesktopExportsSpec struct {
+	// The domain or bounded-context in which this virtual desktop will be used.
+	Domain string `json:"domain"`
+	// +optional
+	HostPoolName ValueExport `json:"hostPoolName,omitempty"`
+	// +optional
+	ComputerName ValueExport `json:"computerName,omitempty"`
+	// // +optional
+	// PublicAddress ValueExport `json:"publicAddress,omitempty"`
+	// +optional
+	AdminUserName ValueExport `json:"adminUserName,omitempty"`
+	// +optional
+	AdminPassword ValueExport `json:"adminPassword,omitempty"`
+}
+
+type AzureVirtualDesktopUsersSpec struct {
+	// +optional
+	Admins []string `json:"admins,omitempty"`
+	// +optional
+	ApplicationUsers []string `json:"applicationUsers,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type AzureVirtualDesktopList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata"`
+
+	Items []AzureVirtualDesktop `json:"items"`
+}

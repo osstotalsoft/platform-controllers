@@ -34,6 +34,14 @@ type AzureManagedDatabaseListerExpansion interface{}
 // AzureManagedDatabaseNamespaceLister.
 type AzureManagedDatabaseNamespaceListerExpansion interface{}
 
+// AzureVirtualDesktopListerExpansion allows custom methods to be added to
+// AzureVirtualDesktopLister.
+type AzureVirtualDesktopListerExpansion interface{}
+
+// AzureVirtualDesktopNamespaceListerExpansion allows custom methods to be added to
+// AzureVirtualDesktopNamespaceLister.
+type AzureVirtualDesktopNamespaceListerExpansion interface{}
+
 // AzureVirtualMachineListerExpansion allows custom methods to be added to
 // AzureVirtualMachineLister.
 type AzureVirtualMachineListerExpansion interface{}

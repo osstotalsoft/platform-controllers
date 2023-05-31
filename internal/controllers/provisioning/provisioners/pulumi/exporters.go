@@ -21,7 +21,7 @@ const (
 	ConfigMapPlatformLabel = "platform.totalsoft.ro/platform"
 )
 
-type ValueExporterFunc func(exportContext ExportContext, values map[string]exportTemplateWithValue) error
+type ValueExporterFunc func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error
 
 type exportTemplateWithValue struct {
 	valueExport provisioningv1.ValueExport
@@ -78,11 +78,11 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 	}
 
 	templateContext := newTemplateContext(platform, tenant)
-	return func(exportContext ExportContext, values map[string]exportTemplateWithValue) error {
+	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
 			path := strings.Join([]string{platform, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.Name, exportContext.objectName}, "/")
-			err := exportToVault(exportContext.pulumiContext, path, templateContext, v)
+			err := exportToVault(exportContext.pulumiContext, path, templateContext, v, opts...)
 			if err != nil {
 				return err
 			}
@@ -91,7 +91,7 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 		v = onlyConfigMapValues(values)
 		if len(v) > 0 {
 			name := strings.Join([]string{exportContext.domain, tenant.Name, exportContext.objectName}, "-")
-			err := exportToConfigMap(exportContext, name, templateContext, platform, v)
+			err := exportToConfigMap(exportContext, name, templateContext, platform, v, opts...)
 			if err != nil {
 				return err
 			}
@@ -101,7 +101,7 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 }
 
 func exportToVault(ctx *pulumi.Context, secretPath string, templateContext interface{},
-	values map[string]exportTemplateWithValue) error {
+	values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 
 	var parsedKeys = map[string]string{}
 	for k, v := range values {
@@ -129,12 +129,12 @@ func exportToVault(ctx *pulumi.Context, secretPath string, templateContext inter
 	_, err := vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
 		DataJson: dataJson,
 		Path:     pulumi.String(secretPath),
-	})
+	}, opts...)
 	return err
 }
 
 func exportToConfigMap(exportContext ExportContext, configMapName string,
-	templateContext interface{}, platform string, values map[string]exportTemplateWithValue) error {
+	templateContext interface{}, platform string, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 
 	var parsedKeys = map[string]string{}
 	for k, v := range values {
@@ -170,7 +170,7 @@ func exportToConfigMap(exportContext ExportContext, configMapName string,
 		},
 		Immutable: pulumi.Bool(true),
 		Data:      data,
-	})
+	}, opts...)
 	return err
 }
 

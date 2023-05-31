@@ -32,9 +32,10 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
 	anyHelmRelease := len(infra.HelmReleases) > 0
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
+	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine
-	needsResourceGroup := anyVirtualMachine
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop
+	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop
 
 	stackName := tenant.Name
 	if anyResource {
@@ -136,9 +137,14 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	w := s.Workspace()
 
 	// for inline source programs, we must manage plugins ourselves
-	err = w.InstallPlugin(ctx, "azure-native", "v1.74.0")
+	err = w.InstallPlugin(ctx, "azure-native", "v1.102.0")
 	if err != nil {
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
+		return auto.Stack{}, err
+	}
+	err = w.InstallPlugin(ctx, "azuread", "v5.38.0")
+	if err != nil {
+		klog.Errorf("Failed to install azure-ad plugin: %v", err)
 		return auto.Stack{}, err
 	}
 	err = w.InstallPlugin(ctx, "random", "v4.12.0")
@@ -205,6 +211,11 @@ func deployFunc(platform string, tenant *platformv1.Tenant,
 			}
 
 			err = azureVirtualMachineDeployFunc(platform, tenant, rgName, infra.AzureVirtualMachines)(ctx)
+			if err != nil {
+				return err
+			}
+
+			err = azureVirtualDesktopDeployFunc(platform, tenant, rgName, infra.AzureVirtualDesktops)(ctx)
 			if err != nil {
 				return err
 			}
