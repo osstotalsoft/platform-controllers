@@ -331,9 +331,9 @@ func (c *PlatformController) syncHandler(key string) error {
 	c.updateStatus(platform, true, "Synced successfully")
 	c.recorder.Event(platform, corev1.EventTypeNormal, "Synced successfully", "Synced successfully")
 	var ev = struct {
-		platform string
+		Platform string
 	}{
-		platform: platform.Name,
+		Platform: platform.Name,
 	}
 	err = c.messagingPublisher(context.TODO(), syncedSuccessfullyTopic, ev, platform.Name)
 	if err != nil {
