@@ -158,9 +158,9 @@ func NewPlatformController(
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			domain := obj.(*platformv1.Tenant)
+			domain := obj.(*platformv1.Domain)
 			klog.V(4).InfoS("domain deleted", "name", domain.Name, "namespace", domain.Namespace)
-			controller.enqueuePlatformByTenant(domain)
+			controller.enqueuePlatformByDomain(domain)
 		},
 	})
 
