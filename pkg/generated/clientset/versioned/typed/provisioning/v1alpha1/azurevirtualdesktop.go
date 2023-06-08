@@ -20,6 +20,8 @@ package v1alpha1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/provisioning/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -46,6 +49,7 @@ type AzureVirtualDesktopInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.AzureVirtualDesktopList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AzureVirtualDesktop, err error)
+	Apply(ctx context.Context, azureVirtualDesktop *provisioningv1alpha1.AzureVirtualDesktopApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureVirtualDesktop, err error)
 	AzureVirtualDesktopExpansion
 }
 
@@ -171,6 +175,32 @@ func (c *azureVirtualDesktops) Patch(ctx context.Context, name string, pt types.
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied azureVirtualDesktop.
+func (c *azureVirtualDesktops) Apply(ctx context.Context, azureVirtualDesktop *provisioningv1alpha1.AzureVirtualDesktopApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureVirtualDesktop, err error) {
+	if azureVirtualDesktop == nil {
+		return nil, fmt.Errorf("azureVirtualDesktop provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(azureVirtualDesktop)
+	if err != nil {
+		return nil, err
+	}
+	name := azureVirtualDesktop.Name
+	if name == nil {
+		return nil, fmt.Errorf("azureVirtualDesktop.Name must be provided to Apply")
+	}
+	result = &v1alpha1.AzureVirtualDesktop{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("azurevirtualdesktops").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)
