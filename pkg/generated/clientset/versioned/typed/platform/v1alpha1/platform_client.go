@@ -28,7 +28,9 @@ import (
 
 type PlatformV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	DomainsGetter
 	PlatformsGetter
+	ServicesGetter
 	TenantsGetter
 }
 
@@ -37,8 +39,16 @@ type PlatformV1alpha1Client struct {
 	restClient rest.Interface
 }
 
+func (c *PlatformV1alpha1Client) Domains(namespace string) DomainInterface {
+	return newDomains(c, namespace)
+}
+
 func (c *PlatformV1alpha1Client) Platforms() PlatformInterface {
 	return newPlatforms(c)
+}
+
+func (c *PlatformV1alpha1Client) Services(namespace string) ServiceInterface {
+	return newServices(c, namespace)
 }
 
 func (c *PlatformV1alpha1Client) Tenants(namespace string) TenantInterface {

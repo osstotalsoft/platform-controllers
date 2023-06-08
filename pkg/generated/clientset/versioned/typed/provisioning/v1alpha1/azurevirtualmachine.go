@@ -20,6 +20,8 @@ package v1alpha1
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 	"time"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +29,7 @@ import (
 	watch "k8s.io/apimachinery/pkg/watch"
 	rest "k8s.io/client-go/rest"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/provisioning/v1alpha1"
 	scheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
 )
 
@@ -46,6 +49,7 @@ type AzureVirtualMachineInterface interface {
 	List(ctx context.Context, opts v1.ListOptions) (*v1alpha1.AzureVirtualMachineList, error)
 	Watch(ctx context.Context, opts v1.ListOptions) (watch.Interface, error)
 	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.AzureVirtualMachine, err error)
+	Apply(ctx context.Context, azureVirtualMachine *provisioningv1alpha1.AzureVirtualMachineApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureVirtualMachine, err error)
 	AzureVirtualMachineExpansion
 }
 
@@ -171,6 +175,32 @@ func (c *azureVirtualMachines) Patch(ctx context.Context, name string, pt types.
 		Name(name).
 		SubResource(subresources...).
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Body(data).
+		Do(ctx).
+		Into(result)
+	return
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied azureVirtualMachine.
+func (c *azureVirtualMachines) Apply(ctx context.Context, azureVirtualMachine *provisioningv1alpha1.AzureVirtualMachineApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.AzureVirtualMachine, err error) {
+	if azureVirtualMachine == nil {
+		return nil, fmt.Errorf("azureVirtualMachine provided to Apply must not be nil")
+	}
+	patchOpts := opts.ToPatchOptions()
+	data, err := json.Marshal(azureVirtualMachine)
+	if err != nil {
+		return nil, err
+	}
+	name := azureVirtualMachine.Name
+	if name == nil {
+		return nil, fmt.Errorf("azureVirtualMachine.Name must be provided to Apply")
+	}
+	result = &v1alpha1.AzureVirtualMachine{}
+	err = c.client.Patch(types.ApplyPatchType).
+		Namespace(c.ns).
+		Resource("azurevirtualmachines").
+		Name(*name).
+		VersionedParams(&patchOpts, scheme.ParameterCodec).
 		Body(data).
 		Do(ctx).
 		Into(result)

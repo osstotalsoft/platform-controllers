@@ -326,11 +326,11 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	c.updateStatus(configDomain, true, SuccessConfigurationDomainSynced)
 	c.recorder.Event(configDomain, corev1.EventTypeNormal, SuccessConfigurationDomainSynced, MessageResourceSynced)
 	var ev = struct {
-		domain    string
-		namespace string
+		Domain    string
+		Namespace string
 	}{
-		domain:    domain,
-		namespace: namespace,
+		Domain:    domain,
+		Namespace: namespace,
 	}
 	err = c.messagingPublisher(context.TODO(), syncedSuccessfullyTopic, ev, platformObj.Name)
 	if err != nil {

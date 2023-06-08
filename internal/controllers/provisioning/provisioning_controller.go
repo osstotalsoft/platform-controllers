@@ -3,8 +3,11 @@ package provisioning
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
+
+	"k8s.io/utils/strings/slices"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -249,7 +252,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n := 0
 	for _, db := range azureDbs {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
 			azureDbs[n] = db
 			n++
 		}
@@ -263,7 +266,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, db := range azureManagedDbs {
-		if db.Spec.PlatformRef == platform {
+		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
 			azureManagedDbs[n] = db
 			n++
 		}
@@ -277,7 +280,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, hr := range helmReleases {
-		if hr.Spec.PlatformRef == platform {
+		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, hr.Spec.DomainRef) {
 			helmReleases[n] = hr
 			n++
 		}
@@ -291,7 +294,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, vm := range azureVirtualMachines {
-		if vm.Spec.PlatformRef == platform {
+		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
 			azureVirtualMachines[n] = vm
 			n++
 		}
@@ -335,15 +338,15 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		c.recorder.Event(tenant, corev1.EventTypeNormal, controllers.SuccessSynced, controllers.SuccessSynced)
 
 		var ev = struct {
-			tenantId          string
-			tenantName        string
-			tenantDescription string
-			platform          string
+			TenantId          string
+			TenantName        string
+			TenantDescription string
+			Platform          string
 		}{
-			tenantId:          tenant.Spec.Id,
-			tenantName:        tenant.Name,
-			tenantDescription: tenant.Spec.Description,
-			platform:          platform,
+			TenantId:          tenant.Spec.Id,
+			TenantName:        tenant.Name,
+			TenantDescription: tenant.Spec.Description,
+			Platform:          platform,
 		}
 		err = c.messagingPublisher(context.TODO(), tenantProvisionedSuccessfullyTopic, ev, platform)
 		if err != nil {
@@ -353,17 +356,17 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		c.recorder.Event(tenant, corev1.EventTypeWarning, controllers.ErrorSynced, result.Error.Error())
 
 		var ev = struct {
-			tenantId          string
-			tenantName        string
-			tenantDescription string
-			platform          string
-			error             string
+			TenantId          string
+			TenantName        string
+			TenantDescription string
+			Platform          string
+			Error             string
 		}{
-			tenantId:          tenant.Spec.Id,
-			tenantName:        tenant.Name,
-			tenantDescription: tenant.Spec.Description,
-			platform:          platform,
-			error:             result.Error.Error(),
+			TenantId:          tenant.Spec.Id,
+			TenantName:        tenant.Name,
+			TenantDescription: tenant.Spec.Description,
+			Platform:          platform,
+			Error:             result.Error.Error(),
 		}
 		err = c.messagingPublisher(context.TODO(), tenantProvisionningFailedTopic, ev, platform)
 		if err != nil {
@@ -481,7 +484,7 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 			oldPlatform, oldOk := getTenantPlatform(oldT)
 			newPlatform, newOk := getTenantPlatform(newT)
 			platformChanged := oldPlatform != newPlatform
-			specChanged := oldT.Spec != newT.Spec
+			specChanged := !reflect.DeepEqual(oldT.Spec, newT.Spec)
 			if oldOk && platformChanged {
 				klog.V(4).InfoS("Tenant invalidated", "name", oldT.Name, "namespace", oldT.Namespace, "platform", oldPlatform)
 				handler(oldT)

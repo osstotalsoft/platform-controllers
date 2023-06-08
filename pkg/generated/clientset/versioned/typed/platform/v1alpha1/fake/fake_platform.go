@@ -20,14 +20,16 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/platform/v1alpha1"
 )
 
 // FakePlatforms implements PlatformInterface
@@ -35,9 +37,9 @@ type FakePlatforms struct {
 	Fake *FakePlatformV1alpha1
 }
 
-var platformsResource = schema.GroupVersionResource{Group: "platform.totalsoft.ro", Version: "v1alpha1", Resource: "platforms"}
+var platformsResource = v1alpha1.SchemeGroupVersion.WithResource("platforms")
 
-var platformsKind = schema.GroupVersionKind{Group: "platform.totalsoft.ro", Version: "v1alpha1", Kind: "Platform"}
+var platformsKind = v1alpha1.SchemeGroupVersion.WithKind("Platform")
 
 // Get takes name of the platform, and returns the corresponding platform object, and an error if there is any.
 func (c *FakePlatforms) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Platform, err error) {
@@ -126,6 +128,49 @@ func (c *FakePlatforms) DeleteCollection(ctx context.Context, opts v1.DeleteOpti
 func (c *FakePlatforms) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Platform, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewRootPatchSubresourceAction(platformsResource, name, pt, data, subresources...), &v1alpha1.Platform{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.Platform), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied platform.
+func (c *FakePlatforms) Apply(ctx context.Context, platform *platformv1alpha1.PlatformApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Platform, err error) {
+	if platform == nil {
+		return nil, fmt.Errorf("platform provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(platform)
+	if err != nil {
+		return nil, err
+	}
+	name := platform.Name
+	if name == nil {
+		return nil, fmt.Errorf("platform.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewRootPatchSubresourceAction(platformsResource, *name, types.ApplyPatchType, data), &v1alpha1.Platform{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.Platform), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakePlatforms) ApplyStatus(ctx context.Context, platform *platformv1alpha1.PlatformApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Platform, err error) {
+	if platform == nil {
+		return nil, fmt.Errorf("platform provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(platform)
+	if err != nil {
+		return nil, err
+	}
+	name := platform.Name
+	if name == nil {
+		return nil, fmt.Errorf("platform.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewRootPatchSubresourceAction(platformsResource, *name, types.ApplyPatchType, data, "status"), &v1alpha1.Platform{})
 	if obj == nil {
 		return nil, err
 	}

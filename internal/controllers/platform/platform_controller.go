@@ -55,6 +55,9 @@ type PlatformController struct {
 	tenantInformer    informers.TenantInformer
 	tenantsLister     listers.TenantLister
 	tenantsSynced     cache.InformerSynced
+	domainInformer    informers.DomainInformer
+	domainsLister     listers.DomainLister
+	domainsSynced     cache.InformerSynced
 
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
@@ -76,6 +79,7 @@ func NewPlatformController(
 	configMapInformer coreInformers.ConfigMapInformer,
 	platformInformer informers.PlatformInformer,
 	tenantInformer informers.TenantInformer,
+	domainInformer informers.DomainInformer,
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher,
 ) *PlatformController {
@@ -90,6 +94,9 @@ func NewPlatformController(
 		tenantInformer:    tenantInformer,
 		tenantsLister:     tenantInformer.Lister(),
 		tenantsSynced:     tenantInformer.Informer().HasSynced,
+		domainInformer:    domainInformer,
+		domainsLister:     domainInformer.Lister(),
+		domainsSynced:     domainInformer.Informer().HasSynced,
 
 		recorder:           &record.FakeRecorder{},
 		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "platform"),
@@ -113,7 +120,8 @@ func NewPlatformController(
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldT := oldObj.(*platformv1.Tenant)
 			newT := newObj.(*platformv1.Tenant)
-			if oldT.Spec != newT.Spec {
+			specChanged := !reflect.DeepEqual(oldT.Spec, newT.Spec)
+			if specChanged {
 				klog.V(4).InfoS("tenant updated", "name", newT.Name, "namespace", newT.Namespace)
 				controller.enqueuePlatformByTenant(newT)
 
@@ -126,6 +134,33 @@ func NewPlatformController(
 			tenant := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", tenant.Name, "namespace", tenant.Namespace)
 			controller.enqueuePlatformByTenant(tenant)
+		},
+	})
+
+	// Set up an event handler for when Domain resources change
+	domainInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			domain := obj.(*platformv1.Domain)
+			klog.V(4).InfoS("domain added", "name", domain.Name, "namespace", domain.Namespace)
+			controller.enqueuePlatformByDomain(domain)
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldD := oldObj.(*platformv1.Domain)
+			newD := newObj.(*platformv1.Domain)
+			specChanged := !reflect.DeepEqual(oldD.Spec, newD.Spec)
+			if specChanged {
+				klog.V(4).InfoS("domain updated", "name", newD.Name, "namespace", newD.Namespace)
+				controller.enqueuePlatformByDomain(newD)
+
+				if platformChanged := oldD.Spec.PlatformRef != newD.Spec.PlatformRef; platformChanged {
+					controller.enqueuePlatformByDomain(oldD)
+				}
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			domain := obj.(*platformv1.Domain)
+			klog.V(4).InfoS("domain deleted", "name", domain.Name, "namespace", domain.Namespace)
+			controller.enqueuePlatformByDomain(domain)
 		},
 	})
 
@@ -283,40 +318,24 @@ func (c *PlatformController) syncHandler(key string) error {
 	}
 	tenants = tenants[:n]
 
-	outputConfigMapName := fmt.Sprintf("%s-tenants", platform.Name)
-	tenantsConfigMap := c.generateTenantsConfigMap(platform, tenants, outputConfigMapName)
-	outputConfigMap, err := c.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).Get(outputConfigMapName)
-	if errors.IsNotFound(err) {
-		outputConfigMap, err = c.kubeClientset.CoreV1().ConfigMaps(platform.Spec.TargetNamespace).Create(context.TODO(), tenantsConfigMap, metav1.CreateOptions{})
-	}
-
-	// If an error occurs during Get/Create, we'll requeue the item so we can
-	// attempt processing again later. This could have been caused by a
-	// temporary network failure, or any other transient reason.
+	domains, err := c.domainInformer.Lister().List(labels.Everything())
 	if err != nil {
-		c.updateStatus(platform, false, "Sync failed")
 		return err
 	}
 
-	// If the ConfigMap is not controlled by this Platform resource, we should log
-	// a warning to the event recorder and return error msg.
-	if !metav1.IsControlledBy(outputConfigMap, platform) {
-		msg := fmt.Sprintf("Resource %q already exists and is not managed by Platform", outputConfigMap.Name)
-		c.recorder.Event(platform, corev1.EventTypeWarning, ErrResourceExists, msg)
-		return nil
-	}
-
-	// If the existing ConfigMap data differs from the aggregation result we
-	// should update the ConfigMap resource.
-	if !reflect.DeepEqual(tenantsConfigMap.Data, outputConfigMap.Data) {
-		klog.V(4).Infof("Tenant config changed")
-		err = c.kubeClientset.CoreV1().ConfigMaps(tenantsConfigMap.Namespace).Delete(context.TODO(), tenantsConfigMap.Name, metav1.DeleteOptions{})
-		if err == nil {
-			_, err = c.kubeClientset.CoreV1().ConfigMaps(tenantsConfigMap.Namespace).Create(context.TODO(), tenantsConfigMap, metav1.CreateOptions{})
+	n = 0
+	for _, d := range domains {
+		if d.Spec.PlatformRef == platform.Name {
+			domains[n] = d
+			n++
 		}
 	}
+	domains = domains[:n]
 
-	// If an error occurs during Update, we'll requeue the item so we can
+	platformCfgMap := c.genPlatformTenantsCfgMap(platform, tenants)
+	err = c.syncConfigMap(platformCfgMap, platform)
+
+	// If an error occurs we'll requeue the item so we can
 	// attempt processing again later. This could have been caused by a
 	// temporary network failure, or any other transient reason.
 	if err != nil {
@@ -325,14 +344,22 @@ func (c *PlatformController) syncHandler(key string) error {
 		return err
 	}
 
+	for _, d := range domains {
+		domainCfgMap := c.genDomainTenantsCfgMap(platform, tenants, d)
+		err = c.syncConfigMap(domainCfgMap, platform)
+		if err != nil {
+			c.recorder.Event(d, corev1.EventTypeWarning, "Synced failed", err.Error())
+		}
+	}
+
 	// Finally, we update the status block of the Platform resource to reflect the
 	// current state of the world
 	c.updateStatus(platform, true, "Synced successfully")
 	c.recorder.Event(platform, corev1.EventTypeNormal, "Synced successfully", "Synced successfully")
 	var ev = struct {
-		platform string
+		Platform string
 	}{
-		platform: platform.Name,
+		Platform: platform.Name,
 	}
 	err = c.messagingPublisher(context.TODO(), syncedSuccessfullyTopic, ev, platform.Name)
 	if err != nil {
@@ -340,6 +367,37 @@ func (c *PlatformController) syncHandler(key string) error {
 	}
 	return nil
 
+}
+
+func (c *PlatformController) syncConfigMap(desiredCfgMap *corev1.ConfigMap, platform *platformv1.Platform) error {
+	existingCfgMap, err := c.configMapsLister.ConfigMaps(desiredCfgMap.Namespace).Get(desiredCfgMap.Name)
+	if errors.IsNotFound(err) {
+		existingCfgMap, err = c.kubeClientset.CoreV1().ConfigMaps(desiredCfgMap.Namespace).Create(context.TODO(), desiredCfgMap, metav1.CreateOptions{})
+	}
+
+	if err != nil {
+		return err
+	}
+
+	// If the ConfigMap is not controlled by this Platform resource, we should log
+	// a warning to the event recorder and return error msg.
+	if !metav1.IsControlledBy(existingCfgMap, platform) {
+		msg := fmt.Sprintf("Resource %q already exists and is not managed by Platform.", existingCfgMap.Name)
+		c.recorder.Event(platform, corev1.EventTypeWarning, ErrResourceExists, msg)
+		return nil
+	}
+
+	// If the existing ConfigMap data differs from the aggregation result we
+	// should update the ConfigMap resource.
+	if !reflect.DeepEqual(desiredCfgMap.Data, existingCfgMap.Data) {
+		klog.V(4).Infof("Config map %s changed.", desiredCfgMap.Name)
+		err = c.kubeClientset.CoreV1().ConfigMaps(desiredCfgMap.Namespace).Delete(context.TODO(), desiredCfgMap.Name, metav1.DeleteOptions{})
+		if err == nil {
+			_, err = c.kubeClientset.CoreV1().ConfigMaps(desiredCfgMap.Namespace).Create(context.TODO(), desiredCfgMap, metav1.CreateOptions{})
+		}
+	}
+
+	return err
 }
 
 // resetStatus resets the conditions of the Platform to meta.Condition
@@ -393,11 +451,17 @@ func (c *PlatformController) enqueuePlatformByTenant(tenant *platformv1.Tenant) 
 	c.workqueue.Add(platformRef)
 }
 
+func (c *PlatformController) enqueuePlatformByDomain(domain *platformv1.Domain) {
+	platformRef := domain.Spec.PlatformRef
+	c.workqueue.Add(platformRef)
+}
+
 func (c *PlatformController) enqueuePlatform(platform *platformv1.Platform) {
 	c.workqueue.Add(platform.Name)
 }
 
-func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platform, tenants []*platformv1.Tenant, outputName string) *corev1.ConfigMap {
+func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platform, tenants []*platformv1.Tenant) *corev1.ConfigMap {
+	cfgMapName := fmt.Sprintf("%s-tenants", platform.Name)
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
@@ -406,12 +470,45 @@ func (c *PlatformController) generateTenantsConfigMap(platform *platformv1.Platf
 
 	return &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: outputName,
+			Name: cfgMapName,
 			Labels: map[string]string{
 				controllers.PlatformLabelName: platform.Name,
 				controllers.DomainLabelName:   controllers.GlobalDomainLabelValue,
 			},
 			Namespace: platform.Spec.TargetNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(platform, v1alpha1.SchemeGroupVersion.WithKind("Platform")),
+			},
+		},
+		Data:      tenantData,
+		Immutable: func(b bool) *bool { return &b }(true),
+	}
+}
+
+func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platform, tenants []*platformv1.Tenant, domain *platformv1.Domain) *corev1.ConfigMap {
+	cfgMapName := fmt.Sprintf("%s-tenants", domain.Name)
+	tenantData := map[string]string{}
+	for _, tenant := range tenants {
+		tenantHasAccessToDomain := false
+		if tenant.Spec.Enabled {
+			for _, d := range tenant.Spec.DomainRefs {
+				if d == domain.Name {
+					tenantHasAccessToDomain = true
+					break
+				}
+			}
+		}
+		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled && tenantHasAccessToDomain)
+	}
+
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: cfgMapName,
+			Labels: map[string]string{
+				controllers.PlatformLabelName: platform.Name,
+				controllers.DomainLabelName:   domain.Name,
+			},
+			Namespace: domain.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(platform, v1alpha1.SchemeGroupVersion.WithKind("Platform")),
 			},

@@ -20,14 +20,16 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/platform/v1alpha1"
 )
 
 // FakeTenants implements TenantInterface
@@ -36,9 +38,9 @@ type FakeTenants struct {
 	ns   string
 }
 
-var tenantsResource = schema.GroupVersionResource{Group: "platform.totalsoft.ro", Version: "v1alpha1", Resource: "tenants"}
+var tenantsResource = v1alpha1.SchemeGroupVersion.WithResource("tenants")
 
-var tenantsKind = schema.GroupVersionKind{Group: "platform.totalsoft.ro", Version: "v1alpha1", Kind: "Tenant"}
+var tenantsKind = v1alpha1.SchemeGroupVersion.WithKind("Tenant")
 
 // Get takes name of the tenant, and returns the corresponding tenant object, and an error if there is any.
 func (c *FakeTenants) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.Tenant, err error) {
@@ -134,6 +136,51 @@ func (c *FakeTenants) DeleteCollection(ctx context.Context, opts v1.DeleteOption
 func (c *FakeTenants) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1alpha1.Tenant, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(tenantsResource, c.ns, name, pt, data, subresources...), &v1alpha1.Tenant{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.Tenant), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied tenant.
+func (c *FakeTenants) Apply(ctx context.Context, tenant *platformv1alpha1.TenantApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Tenant, err error) {
+	if tenant == nil {
+		return nil, fmt.Errorf("tenant provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(tenant)
+	if err != nil {
+		return nil, err
+	}
+	name := tenant.Name
+	if name == nil {
+		return nil, fmt.Errorf("tenant.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(tenantsResource, c.ns, *name, types.ApplyPatchType, data), &v1alpha1.Tenant{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1alpha1.Tenant), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeTenants) ApplyStatus(ctx context.Context, tenant *platformv1alpha1.TenantApplyConfiguration, opts v1.ApplyOptions) (result *v1alpha1.Tenant, err error) {
+	if tenant == nil {
+		return nil, fmt.Errorf("tenant provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(tenant)
+	if err != nil {
+		return nil, err
+	}
+	name := tenant.Name
+	if name == nil {
+		return nil, fmt.Errorf("tenant.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(tenantsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1alpha1.Tenant{})
 
 	if obj == nil {
 		return nil, err

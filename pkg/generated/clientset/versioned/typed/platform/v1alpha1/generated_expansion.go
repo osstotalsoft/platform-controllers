@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1alpha1
 
+type DomainExpansion interface{}
+
 type PlatformExpansion interface{}
+
+type ServiceExpansion interface{}
 
 type TenantExpansion interface{}

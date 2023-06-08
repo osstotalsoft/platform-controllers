@@ -236,9 +236,41 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected zero dbs, got", len((*outputs)[0].infra.AzureDbs))
 		}
 	})
+
+	t.Run("filter resource by Domain", func(t *testing.T) {
+
+		tenant := newTenantWithService("dev1", "dev", "p1")
+		azureDb := newAzureDbWithService("db1", "dev", "p2")
+		objects := []runtime.Object{
+			tenant,
+			azureDb,
+		}
+		c, outputs, _ := runControllerWithDefaultFakes(objects)
+
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		if result := c.processNextWorkItem(1); !result {
+			t.Error("processing failed")
+		}
+
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		if len(*outputs) != 1 {
+			t.Error("expected 1 output, got", len(*outputs))
+			return
+		}
+		if len((*outputs)[0].infra.AzureDbs) != 0 {
+			t.Error("expected zero dbs, got", len((*outputs)[0].infra.AzureDbs))
+		}
+	})
 }
 
-func newTenant(name, platform string) *platformv1.Tenant {
+func newTenantWithService(name, platform, domain string) *platformv1.Tenant {
 	return &platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -248,11 +280,16 @@ func newTenant(name, platform string) *platformv1.Tenant {
 		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
 			Description: name + " description",
+			DomainRefs:  []string{domain},
 		},
 	}
 }
 
-func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
+func newTenant(name, platform string) *platformv1.Tenant {
+	return newTenantWithService(name, platform, "")
+}
+
+func newAzureDbWithService(name, platform, domain string) *provisioningv1.AzureDatabase {
 	return &provisioningv1.AzureDatabase{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -262,8 +299,13 @@ func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
 		Spec: provisioningv1.AzureDatabaseSpec{
 			PlatformRef: platform,
 			DbName:      name,
+			DomainRef:   domain,
 		},
 	}
+}
+
+func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
+	return newAzureDbWithService(name, platform, "")
 }
 
 func newAzureManagedDb(dbName, platform string) *provisioningv1.AzureManagedDatabase {

@@ -17,7 +17,11 @@ type AzureVirtualMachine struct {
 
 type AzureVirtualMachineSpec struct {
 	// Target platform (custom resource name).
+	// +required
 	PlatformRef string `json:"platformRef"`
+	// Business Domain that this resource is provision for.
+	// +required
+	DomainRef string `json:"domainRef"`
 	// Virtual Machine name prefix. Will have platform and tenant suffix.
 	VmName string `json:"vmName"`
 
