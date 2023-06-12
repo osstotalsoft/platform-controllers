@@ -21,20 +21,21 @@ package v1alpha1
 // AzureVirtualDesktopSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopSpec type for use
 // with apply.
 type AzureVirtualDesktopSpecApplyConfiguration struct {
-	PlatformRef            *string                                            `json:"platformRef,omitempty"`
-	HostPoolName           *string                                            `json:"hostPoolName,omitempty"`
-	VmNamePrefix           *string                                            `json:"vmNamePrefix,omitempty"`
-	VmSize                 *string                                            `json:"vmSize,omitempty"`
-	VmNumberOfInstances    *int                                               `json:"vmNumberOfInstances,omitempty"`
-	OSDiskType             *string                                            `json:"osDiskType,omitempty"`
-	SourceImageId          *string                                            `json:"sourceImageId,omitempty"`
-	SubnetId               *string                                            `json:"subnetId,omitempty"`
-	RdpSourceAddressPrefix *string                                            `json:"rdpSourceAddressPrefix,omitempty"`
-	EnableTrustedLaunch    *bool                                              `json:"enableTrustedLaunch,omitempty"`
-	InitScript             *string                                            `json:"initScript,omitempty"`
-	InitScriptArgs         *string                                            `json:"initScriptArgs,omitempty"`
-	Users                  *AzureVirtualDesktopUsersSpecApplyConfiguration    `json:"users,omitempty"`
-	Exports                []AzureVirtualDesktopExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	PlatformRef           *string                                            `json:"platformRef,omitempty"`
+	HostPoolName          *string                                            `json:"hostPoolName,omitempty"`
+	VmNamePrefix          *string                                            `json:"vmNamePrefix,omitempty"`
+	VmSize                *string                                            `json:"vmSize,omitempty"`
+	VmNumberOfInstances   *int                                               `json:"vmNumberOfInstances,omitempty"`
+	OSDiskType            *string                                            `json:"osDiskType,omitempty"`
+	SourceImageId         *string                                            `json:"sourceImageId,omitempty"`
+	SubnetId              *string                                            `json:"subnetId,omitempty"`
+	EnableTrustedLaunch   *bool                                              `json:"enableTrustedLaunch,omitempty"`
+	InitScript            *string                                            `json:"initScript,omitempty"`
+	InitScriptArguments   []InitScriptArgsApplyConfiguration                 `json:"initScriptArgs,omitempty"`
+	WorkspaceFriendlyName *string                                            `json:"workspaceFriendlyName,omitempty"`
+	Applications          []AzureVirtualDesktopApplicationApplyConfiguration `json:"applications,omitempty"`
+	Users                 *AzureVirtualDesktopUsersSpecApplyConfiguration    `json:"users,omitempty"`
+	Exports               []AzureVirtualDesktopExportsSpecApplyConfiguration `json:"exports,omitempty"`
 }
 
 // AzureVirtualDesktopSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopSpec type for use with
@@ -107,14 +108,6 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithSubnetId(value string) *
 	return b
 }
 
-// WithRdpSourceAddressPrefix sets the RdpSourceAddressPrefix field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the RdpSourceAddressPrefix field is set to the value of the last call.
-func (b *AzureVirtualDesktopSpecApplyConfiguration) WithRdpSourceAddressPrefix(value string) *AzureVirtualDesktopSpecApplyConfiguration {
-	b.RdpSourceAddressPrefix = &value
-	return b
-}
-
 // WithEnableTrustedLaunch sets the EnableTrustedLaunch field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the EnableTrustedLaunch field is set to the value of the last call.
@@ -131,11 +124,37 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithInitScript(value string)
 	return b
 }
 
-// WithInitScriptArgs sets the InitScriptArgs field in the declarative configuration to the given value
+// WithInitScriptArguments adds the given value to the InitScriptArguments field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the InitScriptArguments field.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithInitScriptArguments(values ...*InitScriptArgsApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithInitScriptArguments")
+		}
+		b.InitScriptArguments = append(b.InitScriptArguments, *values[i])
+	}
+	return b
+}
+
+// WithWorkspaceFriendlyName sets the WorkspaceFriendlyName field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the InitScriptArgs field is set to the value of the last call.
-func (b *AzureVirtualDesktopSpecApplyConfiguration) WithInitScriptArgs(value string) *AzureVirtualDesktopSpecApplyConfiguration {
-	b.InitScriptArgs = &value
+// If called multiple times, the WorkspaceFriendlyName field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithWorkspaceFriendlyName(value string) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.WorkspaceFriendlyName = &value
+	return b
+}
+
+// WithApplications adds the given value to the Applications field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Applications field.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithApplications(values ...*AzureVirtualDesktopApplicationApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithApplications")
+		}
+		b.Applications = append(b.Applications, *values[i])
+	}
 	return b
 }
 

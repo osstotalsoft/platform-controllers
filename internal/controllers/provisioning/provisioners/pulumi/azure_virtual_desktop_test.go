@@ -56,14 +56,13 @@ func newVirtualDesktop(name, platform string) *provisioningv1.AzureVirtualDeskto
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: provisioningv1.AzureVirtualDesktopSpec{
-			PlatformRef:            platform,
-			HostPoolName:           "test-vm",
-			VmSize:                 "Standard_B1s",
-			OSDiskType:             "Standard_LRS",
-			SourceImageId:          "/subscriptions/.../my-image/versions/1.0.0",
-			SubnetId:               "/subscriptions/.../my-vnet/subnets/default",
-			RdpSourceAddressPrefix: "128.12.2.11/24",
-			EnableTrustedLaunch:    false,
+			PlatformRef:         platform,
+			HostPoolName:        "test-vm",
+			VmSize:              "Standard_B1s",
+			OSDiskType:          "Standard_LRS",
+			SourceImageId:       "/subscriptions/.../my-image/versions/1.0.0",
+			SubnetId:            "/subscriptions/.../my-vnet/subnets/default",
+			EnableTrustedLaunch: false,
 			Exports: []provisioningv1.AzureVirtualDesktopExportsSpec{
 				{
 					Domain: "myDomain",

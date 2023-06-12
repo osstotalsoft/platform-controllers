@@ -42,10 +42,6 @@ type AzureVirtualDesktopSpec struct {
 	// eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
 	SubnetId string `json:"subnetId"`
 
-	// RDP inbound connection CIDR or source IP range or * to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’ and ‘Internet’ can also be used.
-	// eg: 128.0.57.0/25
-	RdpSourceAddressPrefix string `json:"rdpSourceAddressPrefix"`
-
 	// Enable Trusted Launch security
 	EnableTrustedLaunch bool `json:"enableTrustedLaunch"`
 
@@ -53,7 +49,13 @@ type AzureVirtualDesktopSpec struct {
 	InitScript string `json:"initScript"`
 
 	// Initialization script arguments
-	InitScriptArgs string `json:"initScriptArgs"`
+	InitScriptArguments []InitScriptArgs `json:"initScriptArgs"`
+
+	// The name of the workspace to be displayed in the client application
+	WorkspaceFriendlyName string `json:"workspaceFriendlyName"`
+
+	// Applications
+	Applications []AzureVirtualDesktopApplication `json:"applications"`
 
 	// +optional
 	Users AzureVirtualDesktopUsersSpec `json:"users"`
@@ -82,6 +84,17 @@ type AzureVirtualDesktopUsersSpec struct {
 	Admins []string `json:"admins,omitempty"`
 	// +optional
 	ApplicationUsers []string `json:"applicationUsers,omitempty"`
+}
+
+type AzureVirtualDesktopApplication struct {
+	Name         string `json:"name"`
+	FriendlyName string `json:"friendlyName"`
+	Path         string `json:"path"`
+}
+
+type InitScriptArgs struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

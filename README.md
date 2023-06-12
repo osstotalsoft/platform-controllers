@@ -185,6 +185,71 @@ spec:
 ### AzureVirtualDesktop
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurevirtualdesktops.yaml)
 
+Example:
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureVirtualDesktop
+metadata:
+  name: charisma-client-avd
+  namespace: qa-lsng
+spec:
+  applications:
+    - friendlyName: Charisma Enterprise
+      name: charisma-enterprise
+      path: >-
+        C:\Program Files (x86)\TotalSoft\Charisma Enterprise\Windows Client\Charisma.WinUI.exe
+  enableTrustedLaunch: false
+  exports:
+    - adminPassword:
+        toVault:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code
+            }}__CharismaClient_Admin_Password
+      adminUserName:
+        toVault:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code
+            }}__CharismaClient_Admin_UserName
+      computerName:
+        toConfigMap:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code
+            }}__CharismaClient_ComputerName
+      domain: origination
+      hostPoolName:
+        toConfigMap:
+          keyTemplate: >-
+            MultiTenancy__Tenants__{{ .Tenant.Code
+            }}__CharismaClient_HostPool_Name
+  hostPoolName: ch-client-fs
+  initScript: |
+    param
+    (    
+      [Parameter(Mandatory = $true)]
+      [String]$ChServerIP
+    )
+
+    Write-Host $ChServerIP
+  initScriptArgs:
+    - name: ChServerIP
+      value: 11.12.13.17
+  osDiskType: Premium_LRS
+  platformRef: charismaonline.qa
+  sourceImageId: >-
+    /subscriptions/15b38e46-ef41-4f5b-bdba-7d9354568c2d/resourceGroups/test-vm/providers/Microsoft.Compute/galleries/LFGalery/images/base-avd/versions/1.0.0
+  subnetId: >-
+    /subscriptions/15b38e46-ef41-4f5b-bdba-7d9354568c2d/resourceGroups/test-vm/providers/Microsoft.Network/virtualNetworks/ch-client-base-vnet/subnets/default
+  users:
+    admins:
+      - admin-mbfs@test.onmicrosoft.com
+    applicationUsers:
+      - user1-mbfs@test.onmicrosoft.com
+  vmNamePrefix: ch-client-fs
+  vmNumberOfInstances: 2
+  vmSize: Standard_B2s
+  workspaceFriendlyName: Charisma
+```
+
 ## configuration.totalsoft.ro
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.
 

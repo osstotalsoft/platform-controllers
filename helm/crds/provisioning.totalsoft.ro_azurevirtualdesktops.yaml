@@ -36,6 +36,22 @@ spec:
             type: object
           spec:
             properties:
+              applications:
+                description: Applications
+                items:
+                  properties:
+                    friendlyName:
+                      type: string
+                    name:
+                      type: string
+                    path:
+                      type: string
+                  required:
+                  - friendlyName
+                  - name
+                  - path
+                  type: object
+                type: array
               enableTrustedLaunch:
                 description: Enable Trusted Launch security
                 type: boolean
@@ -128,7 +144,17 @@ spec:
                 type: string
               initScriptArgs:
                 description: Initialization script arguments
-                type: string
+                items:
+                  properties:
+                    name:
+                      type: string
+                    value:
+                      type: string
+                  required:
+                  - name
+                  - value
+                  type: object
+                type: array
               osDiskType:
                 description: Possible values are Standard_LRS, StandardSSD_LRS or
                   Premium_LRS.
@@ -139,11 +165,6 @@ spec:
                 type: string
               platformRef:
                 description: Target platform (custom resource name).
-                type: string
-              rdpSourceAddressPrefix:
-                description: 'RDP inbound connection CIDR or source IP range or *
-                  to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’
-                  and ‘Internet’ can also be used. eg: 128.0.57.0/25'
                 type: string
               sourceImageId:
                 description: 'Source OS disk snapshot eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0'
@@ -173,19 +194,24 @@ spec:
               vmSize:
                 description: 'The virtual machine size. Options available: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes'
                 type: string
+              workspaceFriendlyName:
+                description: The name of the workspace to be displayed in the client
+                  application
+                type: string
             required:
+            - applications
             - enableTrustedLaunch
             - hostPoolName
             - initScript
             - initScriptArgs
             - osDiskType
             - platformRef
-            - rdpSourceAddressPrefix
             - sourceImageId
             - subnetId
             - vmNamePrefix
             - vmNumberOfInstances
             - vmSize
+            - workspaceFriendlyName
             type: object
         type: object
     served: true

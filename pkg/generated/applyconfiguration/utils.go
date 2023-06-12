@@ -83,6 +83,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureStorageContainerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktop"):
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopApplication"):
+		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopApplicationApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopExportsSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopSpec"):
@@ -103,6 +105,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseSpec"):
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("InitScriptArgs"):
+		return &applyconfigurationprovisioningv1alpha1.InitScriptArgsApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("SqlServerSpec"):
 		return &applyconfigurationprovisioningv1alpha1.SqlServerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ValueExport"):
