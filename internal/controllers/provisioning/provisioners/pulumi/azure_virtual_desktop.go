@@ -242,7 +242,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	_, err = compute.NewVirtualMachineExtension(ctx, fmt.Sprintf("%s-dsc", name), &compute.VirtualMachineExtensionArgs{
 		ResourceGroupName:       args.ResourceGroupName,
 		VmExtensionName:         pulumi.String("Microsoft.PowerShell.DSC"),
-		VmName:                  pulumi.String(name),
+		VmName:                  avdVM.VirtualMachine.Name,
 		AutoUpgradeMinorVersion: pulumi.Bool(true),
 		Type:                    pulumi.String("DSC"),
 		TypeHandlerVersion:      pulumi.String("2.73"),
@@ -273,7 +273,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 
 	_, err = compute.NewVirtualMachineRunCommandByVirtualMachine(ctx, fmt.Sprintf("%s-init-cmd", name), &compute.VirtualMachineRunCommandByVirtualMachineArgs{
 		ResourceGroupName: args.ResourceGroupName,
-		VmName:            pulumi.String(name),
+		VmName:            avdVM.VirtualMachine.Name,
 		AsyncExecution:    pulumi.Bool(false),
 		RunCommandName:    pulumi.String("InitVM"),
 		Source: compute.VirtualMachineRunCommandScriptSourceArgs{
@@ -325,7 +325,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 
 	_, err = compute.NewVirtualMachineRunCommandByVirtualMachine(ctx, fmt.Sprintf("%s-fslogix-setup", name), &compute.VirtualMachineRunCommandByVirtualMachineArgs{
 		ResourceGroupName: args.ResourceGroupName,
-		VmName:            pulumi.String(name),
+		VmName:            avdVM.VirtualMachine.Name,
 		AsyncExecution:    pulumi.Bool(false),
 		RunCommandName:    pulumi.String("SetupFSLogix"),
 		Source: compute.VirtualMachineRunCommandScriptSourceArgs{

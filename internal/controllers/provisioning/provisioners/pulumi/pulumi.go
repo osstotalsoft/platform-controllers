@@ -170,7 +170,10 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		"azure-native:clientId":       {Value: os.Getenv("AZURE_CLIENT_ID")},
 		"azure-native:subscriptionId": {Value: os.Getenv("AZURE_SUBSCRIPTION_ID")},
 		"azure-native:tenantId":       {Value: os.Getenv("AZURE_TENANT_ID")},
-		"azure-native:clientSecret":   {Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true}})
+		"azure-native:clientSecret":   {Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true},
+		"azuread:clientId":            {Value: os.Getenv("ARM_CLIENT_ID")},
+		"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
+		"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true}})
 
 	klog.V(4).Info("Successfully set config")
 	klog.V(4).Info("Starting refresh")
