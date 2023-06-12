@@ -228,7 +228,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	_, err = compute.NewVirtualMachineExtension(ctx, fmt.Sprintf("%s-aad", name), &compute.VirtualMachineExtensionArgs{
 		ResourceGroupName:       args.ResourceGroupName,
 		VmExtensionName:         pulumi.String("AADLoginForWindows"),
-		VmName:                  pulumi.String(name),
+		VmName:                  avdVM.VirtualMachine.Name,
 		AutoUpgradeMinorVersion: pulumi.Bool(true),
 		Type:                    pulumi.String("AADLoginForWindows"),
 		TypeHandlerVersion:      pulumi.String("2.0"),
@@ -611,7 +611,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 			vms := make([]*AzureVirtualDesktopVM, azureVM.Spec.VmNumberOfInstances)
 
 			for i := 0; i < azureVM.Spec.VmNumberOfInstances; i++ {
-				vmName := fmt.Sprintf("%s-%d", azureVM.Spec.HostPoolName, i)
+				vmName := fmt.Sprintf("%s-%d-", azureVM.Spec.HostPoolName, i)
 				avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
 					ResourceGroupName: resourceGroupName,
 					TenantName:        pulumi.String(tenant.Name),
