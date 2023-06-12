@@ -1,0 +1,219 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.12.0
+  name: azurevirtualdesktops.provisioning.totalsoft.ro
+spec:
+  group: provisioning.totalsoft.ro
+  names:
+    kind: AzureVirtualDesktop
+    listKind: AzureVirtualDesktopList
+    plural: azurevirtualdesktops
+    singular: azurevirtualdesktop
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.platformRef
+      name: Platform
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              applications:
+                description: Applications
+                items:
+                  properties:
+                    friendlyName:
+                      type: string
+                    name:
+                      type: string
+                    path:
+                      type: string
+                  required:
+                  - friendlyName
+                  - name
+                  - path
+                  type: object
+                type: array
+              enableTrustedLaunch:
+                description: Enable Trusted Launch security
+                type: boolean
+              exports:
+                items:
+                  properties:
+                    adminPassword:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    adminUserName:
+                      description: // +optional PublicAddress ValueExport `json:"publicAddress,omitempty"`
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    computerName:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    domain:
+                      description: The domain or bounded-context in which this virtual
+                        desktop will be used.
+                      type: string
+                    hostPoolName:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                  required:
+                  - domain
+                  type: object
+                type: array
+              hostPoolName:
+                description: Virtual Desktop name prefix. Will have platform and tenant
+                  suffix.
+                type: string
+              initScript:
+                description: Initialization script
+                type: string
+              initScriptArgs:
+                description: Initialization script arguments
+                items:
+                  properties:
+                    name:
+                      type: string
+                    value:
+                      type: string
+                  required:
+                  - name
+                  - value
+                  type: object
+                type: array
+              osDiskType:
+                description: Possible values are Standard_LRS, StandardSSD_LRS or
+                  Premium_LRS.
+                enum:
+                - Standard_LRS
+                - StandardSSD_LRS
+                - Premium_LRS
+                type: string
+              platformRef:
+                description: Target platform (custom resource name).
+                type: string
+              sourceImageId:
+                description: 'Source OS disk snapshot eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0'
+                type: string
+              subnetId:
+                description: 'Subnet of the VNet used by the virtual machine eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default'
+                type: string
+              users:
+                properties:
+                  admins:
+                    items:
+                      type: string
+                    type: array
+                  applicationUsers:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              vmNamePrefix:
+                description: Session Host VM name prefix. Will have platform and tenant
+                  suffix.
+                type: string
+              vmNumberOfInstances:
+                description: The number of virtual machines to be added to the host
+                  pool
+                type: integer
+              vmSize:
+                description: 'The virtual machine size. Options available: https://learn.microsoft.com/en-us/azure/virtual-machines/sizes'
+                type: string
+              workspaceFriendlyName:
+                description: The name of the workspace to be displayed in the client
+                  application
+                type: string
+            required:
+            - applications
+            - enableTrustedLaunch
+            - hostPoolName
+            - initScript
+            - initScriptArgs
+            - osDiskType
+            - platformRef
+            - sourceImageId
+            - subnetId
+            - vmNamePrefix
+            - vmNumberOfInstances
+            - vmSize
+            - workspaceFriendlyName
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources: {}

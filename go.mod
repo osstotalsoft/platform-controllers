@@ -9,10 +9,14 @@ require (
 	github.com/hashicorp/vault/api v1.9.1
 	github.com/hashicorp/vault/api/auth/kubernetes v0.4.0
 	github.com/json-iterator/go v1.1.12
+	github.com/pulumi/pulumi-azure-native-sdk/authorization v1.102.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute v1.102.0
+	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization v1.102.0
 	github.com/pulumi/pulumi-azure-native-sdk/network v1.102.0
 	github.com/pulumi/pulumi-azure-native-sdk/resources v1.102.0
 	github.com/pulumi/pulumi-azure-native-sdk/sql v1.102.0
+	github.com/pulumi/pulumi-azure-native-sdk/storage v1.102.0
+	github.com/pulumi/pulumi-azuread/sdk/v5 v5.38.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.28.1
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.11.0
