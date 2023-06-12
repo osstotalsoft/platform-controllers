@@ -127,7 +127,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	}
 
 	vmArgs := compute.VirtualMachineArgs{
-		VmName:            pulumi.String(name),
+		//VmName:            pulumi.String(name),
 		ResourceGroupName: args.ResourceGroupName,
 		HardwareProfile: compute.HardwareProfileArgs{
 			VmSize: args.VMSize,
@@ -160,7 +160,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 				Id: pulumi.String(args.Spec.SourceImageId),
 			},
 			OsDisk: compute.OSDiskArgs{
-				Name:         pulumi.String(fmt.Sprintf("%s-os-disk", name)),
+				//Name:         pulumi.String(fmt.Sprintf("%s-os-disk", name)),
 				CreateOption: pulumi.String(compute.DiskCreateOptionFromImage),
 				DeleteOption: pulumi.String(compute.DeleteOptionsDetach),
 				ManagedDisk: compute.ManagedDiskParametersArgs{
@@ -436,7 +436,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 			}
 
 			avd.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
-				HostPoolName:                  pulumi.String(hostPoolName),
+				//HostPoolName:                  pulumi.String(hostPoolName),
 				HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
 				LoadBalancerType:              pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
 				CustomRdpProperty:             pulumi.String("targetisaadjoined:i:1;drivestoredirect:s:*;audiomode:i:0;videoplaybackmode:i:1;redirectclipboard:i:1;redirectprinters:i:1;devicestoredirect:s:*;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:*;enablecredsspsupport:i:1;redirectwebauthn:i:1;use multimon:i:1"),
@@ -477,7 +477,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 			}
 
 			avd.DesktopAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-desktop", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
-				ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-desktop", hostPoolName)),
+				//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-desktop", hostPoolName)),
 				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeDesktop),
 				FriendlyName:         pulumi.String("Desktop"),
 				HostPoolArmPath:      avd.HostPool.ID(),
@@ -489,7 +489,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 			}
 
 			avd.RemoteAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
-				ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
+				//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
 				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeRemoteApp),
 				FriendlyName:         pulumi.String("Applications"),
 				HostPoolArmPath:      avd.HostPool.ID(),
@@ -561,7 +561,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 			}
 
 			_, err = desktopvirtualization.NewWorkspace(ctx, fmt.Sprintf("%s-ws", hostPoolName), &desktopvirtualization.WorkspaceArgs{
-				WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
+				//WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
 				FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", azureVM.Spec.WorkspaceFriendlyName, tenant.Spec.Description)),
 				ResourceGroupName: resourceGroupName,
 				ApplicationGroupReferences: pulumi.StringArray{
