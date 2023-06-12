@@ -56,6 +56,21 @@ spec:
             configMapKeyRef:
               name: azure-config
               key: tenantId
+        - name: ARM_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: clientId 
+        - name: ARM_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: azure-secret
+              key: clientSecret
+        - name: ARM_TENANT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: tenantId
         - name: PULUMI_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
