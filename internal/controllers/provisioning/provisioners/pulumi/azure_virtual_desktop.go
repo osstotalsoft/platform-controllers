@@ -545,14 +545,14 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 			for _, app := range azureVM.Spec.Applications {
 				_, err = desktopvirtualization.NewApplication(ctx, fmt.Sprintf("%s-apps-%s", hostPoolName, app.Name), &desktopvirtualization.ApplicationArgs{
 					ApplicationGroupName: avd.RemoteAppGroup.Name,
-					//ApplicationName:      pulumi.String(app.Name),
-					FriendlyName:       pulumi.String(app.FriendlyName),
-					FilePath:           pulumi.String(app.Path),
-					IconPath:           pulumi.String(app.Path),
-					IconIndex:          pulumi.Int(0),
-					CommandLineSetting: pulumi.String(desktopvirtualization.CommandLineSettingDoNotAllow),
-					ShowInPortal:       pulumi.Bool(true),
-					ResourceGroupName:  resourceGroupName,
+					ApplicationName:      pulumi.String(app.Name),
+					FriendlyName:         pulumi.String(app.FriendlyName),
+					FilePath:             pulumi.String(app.Path),
+					IconPath:             pulumi.String(app.Path),
+					IconIndex:            pulumi.Int(0),
+					CommandLineSetting:   pulumi.String(desktopvirtualization.CommandLineSettingDoNotAllow),
+					ShowInPortal:         pulumi.Bool(true),
+					ResourceGroupName:    resourceGroupName,
 				}, pulumi.Parent(avd.RemoteAppGroup))
 
 				if err != nil {
