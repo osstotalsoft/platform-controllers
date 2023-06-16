@@ -52,6 +52,7 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureDatabase
 spec:
   dbName: origination_db
+  domainRef: origination
   exports:
     - domain: origination
       dbName:
@@ -78,6 +79,7 @@ apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
 spec:
   dbName: origination_db
+  domainRef: origination
   exports:
     - domain: origination
       dbName:
@@ -107,6 +109,7 @@ metadata:
   name: my-helm-release
   namespace: my-namespace
 spec:
+  domainRef: origination
   platformRef: radu.demo
   release:
     interval: 10m
@@ -146,6 +149,7 @@ metadata:
   name: charisma-client-vm
   namespace: qa-lsng
 spec:
+  domainRef: origination
   enableTrustedLaunch: false
   exports:
     - domain: origination
@@ -198,7 +202,7 @@ spec:
       name: charisma-enterprise
       path: >-
         C:\Program Files (x86)\TotalSoft\Charisma Enterprise\Windows Client\Charisma.WinUI.exe
-  domainRef: mbfs
+  domainRef: origination
   enableTrustedLaunch: false
   exports:
     - adminPassword:
