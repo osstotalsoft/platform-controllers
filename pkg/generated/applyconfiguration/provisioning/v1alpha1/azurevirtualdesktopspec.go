@@ -22,6 +22,7 @@ package v1alpha1
 // with apply.
 type AzureVirtualDesktopSpecApplyConfiguration struct {
 	PlatformRef           *string                                            `json:"platformRef,omitempty"`
+	DomainRef             *string                                            `json:"domainRef,omitempty"`
 	HostPoolName          *string                                            `json:"hostPoolName,omitempty"`
 	VmNamePrefix          *string                                            `json:"vmNamePrefix,omitempty"`
 	VmSize                *string                                            `json:"vmSize,omitempty"`
@@ -49,6 +50,14 @@ func AzureVirtualDesktopSpec() *AzureVirtualDesktopSpecApplyConfiguration {
 // If called multiple times, the PlatformRef field is set to the value of the last call.
 func (b *AzureVirtualDesktopSpecApplyConfiguration) WithPlatformRef(value string) *AzureVirtualDesktopSpecApplyConfiguration {
 	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDomainRef(value string) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.DomainRef = &value
 	return b
 }
 

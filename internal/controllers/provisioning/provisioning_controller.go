@@ -308,7 +308,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	n = 0
 	for _, vm := range azureVirtualDesktops {
-		if vm.Spec.PlatformRef == platform {
+		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
 			azureVirtualDesktops[n] = vm
 			n++
 		}
