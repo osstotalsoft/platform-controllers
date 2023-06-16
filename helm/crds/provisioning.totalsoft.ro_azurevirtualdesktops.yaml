@@ -52,6 +52,9 @@ spec:
                   - path
                   type: object
                 type: array
+              domainRef:
+                description: Business Domain that this resource is provision for.
+                type: string
               enableTrustedLaunch:
                 description: Enable Trusted Launch security
                 type: boolean
@@ -200,6 +203,7 @@ spec:
                 type: string
             required:
             - applications
+            - domainRef
             - enableTrustedLaunch
             - hostPoolName
             - initScript

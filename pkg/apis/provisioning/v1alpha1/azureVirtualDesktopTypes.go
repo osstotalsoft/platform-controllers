@@ -18,6 +18,11 @@ type AzureVirtualDesktop struct {
 type AzureVirtualDesktopSpec struct {
 	// Target platform (custom resource name).
 	PlatformRef string `json:"platformRef"`
+
+	// Business Domain that this resource is provision for.
+	// +required
+	DomainRef string `json:"domainRef"`
+
 	// Virtual Desktop name prefix. Will have platform and tenant suffix.
 	HostPoolName string `json:"hostPoolName"`
 

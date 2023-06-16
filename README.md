@@ -198,6 +198,7 @@ spec:
       name: charisma-enterprise
       path: >-
         C:\Program Files (x86)\TotalSoft\Charisma Enterprise\Windows Client\Charisma.WinUI.exe
+  domainRef: mbfs
   enableTrustedLaunch: false
   exports:
     - adminPassword:
