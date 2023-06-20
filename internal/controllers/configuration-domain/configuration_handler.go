@@ -157,9 +157,8 @@ func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1
 		}
 
 		for k, v := range configMap.Data {
-			if existingValue, ok := mergedData[k]; ok {
-				msg := fmt.Sprintf("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, configMap.Name, v)
-				h.recorder.Event(configurationDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
+			if existingValue, ok := mergedData[k]; ok && existingValue != v {
+				klog.V(4).Infof("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, configMap.Name, v)
 			}
 			mergedData[k] = v
 		}

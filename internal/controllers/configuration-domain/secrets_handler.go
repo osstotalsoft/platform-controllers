@@ -128,9 +128,8 @@ func (c *secretsHandler) Sync(platformObj *platformv1.Platform, configDomain *v1
 func (c *secretsHandler) aggregateSecrets(configurationDomain *v1alpha1.ConfigurationDomain, secrets []secretSpec, outputName, role string) *csiv1.SecretProviderClass {
 	mergedSecrets := map[string]secretSpec{}
 	for _, secret := range secrets {
-		if existingValue, ok := mergedSecrets[secret.Key]; ok {
-			msg := fmt.Sprintf("Key %s already exists with value %s. It will be replaced by secret %s with value %s", secret.Key, existingValue, secret.Key, secret)
-			c.recorder.Event(configurationDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
+		if existingValue, ok := mergedSecrets[secret.Key]; ok && existingValue != secret {
+			klog.V(4).Infof("Key %s already exists with value %s. It will be replaced by secret %s with value %s", secret.Key, existingValue, secret.Key, secret)
 		}
 		mergedSecrets[secret.Key] = secret
 	}
