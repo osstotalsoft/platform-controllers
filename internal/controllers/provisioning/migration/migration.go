@@ -3,18 +3,20 @@ package migration
 import (
 	"context"
 	"fmt"
+	"k8s.io/klog/v2"
+	"k8s.io/utils/strings/slices"
 	"time"
 
 	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog/v2"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 const (
-	JobLabelSelectorKey = "provisioning.totalsoft.ro/migration-job-template"
+	JobLabelSelectorKey    = "provisioning.totalsoft.ro/migration-job-template"
+	DomainLabelSelectorKey = "provisioning.totalsoft.ro/domain"
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
@@ -36,7 +38,16 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 		klog.V(4).InfoS("migrations", "template jobs found", len(jobs.Items))
 
 		for _, job := range jobs.Items {
+			jobDomain, ok := job.Labels[DomainLabelSelectorKey]
+			if !ok {
+				klog.InfoS("job template skipped, cannot find domain label", "job", job.Name)
+				continue
+			}
 			if !nsFilter(job.Namespace, platform) {
+				continue
+			}
+			if !slices.Contains(tenant.Spec.DomainRefs, jobDomain) {
+				klog.V(4).InfoS("job template skipped by domain filter ", "job", job.Name)
 				continue
 			}
 			j := &v1.Job{
