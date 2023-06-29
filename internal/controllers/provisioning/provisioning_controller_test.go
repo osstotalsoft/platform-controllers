@@ -1,10 +1,15 @@
 package provisioning
 
 import (
+	"encoding/json"
 	"sync"
 	"testing"
+
 	"time"
 
+	"github.com/fluxcd/helm-controller/api/v2beta1"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
@@ -268,6 +273,206 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected zero dbs, got", len((*outputs)[0].infra.AzureDbs))
 		}
 	})
+}
+
+func TestProvisioningController_applyTenantOverrides(t *testing.T) {
+
+	t.Run("apply managedDb tenant overrides", func(t *testing.T) {
+		tenantName := "tenant1"
+		overrides := map[string]any{
+			"restoreFrom": map[string]any{
+				"backupFileName": "afterBackupFileName",
+			},
+		}
+
+		overridesBytes, _ := json.Marshal(overrides)
+
+		db := provisioningv1.AzureManagedDatabase{
+			Spec: provisioningv1.AzureManagedDatabaseSpec{
+				PlatformRef: "platform",
+				RestoreFrom: provisioningv1.AzureManagedDatabaseRestoreSpec{
+					BackupFileName: "beforeBackupFileName",
+				},
+				TenantOverrides: map[string]*v1.JSON{
+					tenantName: {Raw: overridesBytes},
+				},
+			},
+		}
+
+		err := applyTenantOverrides(&db.Spec, db.Spec.TenantOverrides, tenantName)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Equal(t, "afterBackupFileName", db.Spec.RestoreFrom.BackupFileName)
+	})
+
+	t.Run("override helmRelease version", func(t *testing.T) {
+		tenantName := "tenant1"
+		overrides := map[string]any{
+			"release": map[string]any{
+				"chart": map[string]any{
+					"spec": map[string]any{
+						"version": "1.1.1",
+					},
+				},
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		hr := provisioningv1.HelmRelease{
+			Spec: provisioningv1.HelmReleaseSpec{
+				Release: v2beta1.HelmReleaseSpec{
+					Chart: v2beta1.HelmChartTemplate{
+						Spec: v2beta1.HelmChartTemplateSpec{
+							Version: "0.0.0-0",
+						},
+					},
+				},
+				TenantOverrides: map[string]*v1.JSON{
+					tenantName: {Raw: overridesBytes},
+				},
+			},
+		}
+
+		err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenantName)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Equal(t, hr.Spec.Release.Chart.Spec.Version, "1.1.1")
+	})
+
+	t.Run("override avd params", func(t *testing.T) {
+		tenantName := "tenant1"
+		overrides := map[string]any{
+			"initScriptArgs": []map[string]any{
+				{"name": "arg1NameAfter", "value": "arg1ValueAfter"},
+			},
+			"users": map[string]any{
+				"applicationUsers": []string{
+					"user1After",
+					"user2After",
+				},
+			},
+			"vmNumberOfInstances": 2,
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		avd := provisioningv1.AzureVirtualDesktop{
+			Spec: provisioningv1.AzureVirtualDesktopSpec{
+				InitScriptArguments: []provisioningv1.InitScriptArgs{
+					{Name: "arg1NameBefore", Value: "arg1ValueBefore"},
+					{Name: "arg2NameBefore", Value: "arg2ValueBefore"},
+				},
+				Users: provisioningv1.AzureVirtualDesktopUsersSpec{
+					ApplicationUsers: []string{"user1Before", "user2Before"},
+				},
+				VmNumberOfInstances: 1,
+				TenantOverrides: map[string]*v1.JSON{
+					tenantName: {Raw: overridesBytes},
+				},
+			},
+		}
+
+		err := applyTenantOverrides(&avd.Spec, avd.Spec.TenantOverrides, tenantName)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Equal(t, []provisioningv1.InitScriptArgs{{Name: "arg1NameAfter", Value: "arg1ValueAfter"}},
+			avd.Spec.InitScriptArguments)
+
+		assert.Equal(t, []string{"user1After", "user2After"}, avd.Spec.Users.ApplicationUsers)
+		assert.Equal(t, 2, avd.Spec.VmNumberOfInstances)
+	})
+
+	t.Run("override contents of JSON field", func(t *testing.T) {
+		tenantName := "tenant1"
+		overrides := map[string]any{
+			"release": map[string]any{
+				"values": map[string]any{
+					"env": map[string]any{
+						"key1": "envValue1After",
+						"key3": "envValue3After",
+					},
+				},
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		valuesBefore := map[string]any{
+			"env": map[string]any{
+				"key1": "envValue1Before",
+				"key2": "envValue2Before",
+			},
+		}
+		valuesBeforeBytes, _ := json.Marshal(valuesBefore)
+
+		hr := provisioningv1.HelmRelease{
+			Spec: provisioningv1.HelmReleaseSpec{
+				Release: v2beta1.HelmReleaseSpec{
+					Values: &v1.JSON{Raw: valuesBeforeBytes},
+				},
+				TenantOverrides: map[string]*v1.JSON{
+					tenantName: {Raw: overridesBytes},
+				},
+			},
+		}
+
+		err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenantName)
+		if err != nil {
+			t.Error(err)
+		}
+
+		var valuesMap map[string]any
+		if err := json.Unmarshal(hr.Spec.Release.Values.Raw, &valuesMap); err != nil {
+			t.Error(err)
+		}
+
+		key1 := valuesMap["env"].(map[string]any)["key1"].(string)
+		key2 := valuesMap["env"].(map[string]any)["key2"].(string)
+		key3 := valuesMap["env"].(map[string]any)["key3"].(string)
+
+		assert.Equal(t, key1, "envValue1After")
+		assert.Equal(t, key2, "envValue2Before")
+		assert.Equal(t, key3, "envValue3After")
+	})
+
+	t.Run("override with empty value", func(t *testing.T) {
+		tenantName := "tenant1"
+		num := 1
+		overrides := map[string]any{
+			"release": map[string]any{
+				"targetNamespace": "",
+				"maxHistory":      nil,
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		hr := provisioningv1.HelmRelease{
+			Spec: provisioningv1.HelmReleaseSpec{
+				Release: v2beta1.HelmReleaseSpec{
+					TargetNamespace:  "targetNamespaceBefore",
+					StorageNamespace: "storageNamespaceBefore",
+					MaxHistory:       &num,
+				},
+				TenantOverrides: map[string]*v1.JSON{
+					tenantName: {Raw: overridesBytes},
+				},
+			},
+		}
+
+		err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenantName)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Equal(t, "", hr.Spec.Release.TargetNamespace)
+		assert.Equal(t, "storageNamespaceBefore", hr.Spec.Release.StorageNamespace)
+		assert.Nil(t, hr.Spec.Release.MaxHistory)
+	})
+
 }
 
 func newTenantWithService(name, platform, domain string) *platformv1.Tenant {

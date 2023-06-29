@@ -2,6 +2,7 @@ package provisioning
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"k8s.io/utils/strings/slices"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +33,8 @@ import (
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
 	platformInformersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/platform/v1alpha1"
 	provisioningInformersv1 "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning/v1alpha1"
+
+	"dario.cat/mergo"
 )
 
 const (
@@ -253,6 +257,11 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n := 0
 	for _, db := range azureDbs {
 		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
+			err := applyTenantOverrides(&db.Spec, db.Spec.TenantOverrides, tenant.Name)
+			if err != nil {
+				return err
+			}
+
 			azureDbs[n] = db
 			n++
 		}
@@ -267,6 +276,11 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, db := range azureManagedDbs {
 		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
+			err := applyTenantOverrides(&db.Spec, db.Spec.TenantOverrides, tenant.Name)
+			if err != nil {
+				return err
+			}
+
 			azureManagedDbs[n] = db
 			n++
 		}
@@ -281,6 +295,11 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, hr := range helmReleases {
 		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, hr.Spec.DomainRef) {
+			err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenant.Name)
+			if err != nil {
+				return err
+			}
+
 			helmReleases[n] = hr
 			n++
 		}
@@ -295,6 +314,11 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, vm := range azureVirtualMachines {
 		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
+			err := applyTenantOverrides(&vm.Spec, vm.Spec.TenantOverrides, tenant.Name)
+			if err != nil {
+				return err
+			}
+
 			azureVirtualMachines[n] = vm
 			n++
 		}
@@ -307,9 +331,14 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	n = 0
-	for _, vm := range azureVirtualDesktops {
-		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
-			azureVirtualDesktops[n] = vm
+	for _, avd := range azureVirtualDesktops {
+		if avd.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, avd.Spec.DomainRef) {
+			err := applyTenantOverrides(&avd.Spec, avd.Spec.TenantOverrides, tenant.Name)
+			if err != nil {
+				return err
+			}
+
+			azureVirtualDesktops[n] = avd
 			n++
 		}
 	}
@@ -737,4 +766,81 @@ func getAzureVirtualDesktopPlatform(azureVirtualDesktop *provisioningv1.AzureVir
 	}
 
 	return platform, true
+}
+
+func applyTenantOverrides[T any](targetSpec *T, overrides map[string]*apiextensionsv1.JSON, tenantName string) error {
+	if overrides == nil {
+		return nil
+	}
+
+	tenantOverridesJson, exists := overrides[tenantName]
+	if !exists {
+		return nil
+	}
+
+	var tenantOverridesMap map[string]any
+	if err := json.Unmarshal(tenantOverridesJson.Raw, &tenantOverridesMap); err != nil {
+		return err
+	}
+
+	targetSpecJson, err := json.Marshal(*targetSpec)
+	if err != nil {
+		return err
+	}
+
+	var targetSpecMap map[string]any
+	if err := json.Unmarshal(targetSpecJson, &targetSpecMap); err != nil {
+		return err
+	}
+
+	if err := mergo.Merge(&targetSpecMap, tenantOverridesMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
+		return err
+	}
+
+	targetSpecJson, err = json.Marshal(targetSpecMap)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(targetSpecJson, targetSpec); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type jsonTransformer struct {
+}
+
+func (t jsonTransformer) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
+	if typ == reflect.TypeOf(apiextensionsv1.JSON{}) {
+		return func(dst, src reflect.Value) error {
+			if dst.CanSet() {
+				srcRaw := src.FieldByName("Raw").Bytes()
+				var srcMap map[string]interface{}
+				if err := json.Unmarshal(srcRaw, &srcMap); err != nil {
+					return err
+				}
+
+				dstRaw := dst.FieldByName("Raw").Bytes()
+				var dstMap map[string]interface{}
+				if err := json.Unmarshal(dstRaw, &dstMap); err != nil {
+					return err
+				}
+
+				if err := mergo.Merge(&dstMap, srcMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
+					return err
+				}
+
+				dstRaw, err := json.Marshal(dstMap)
+				if err != nil {
+					return err
+				}
+
+				dst.FieldByName("Raw").SetBytes(dstRaw)
+			}
+			return nil
+		}
+	}
+	return nil
 }

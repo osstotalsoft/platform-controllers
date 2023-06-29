@@ -116,6 +116,13 @@ spec:
                 - backupFileName
                 - storageContainer
                 type: object
+              tenantOverrides:
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: Overrides for tenants. Dictionary with tenant name as
+                  key, spec override as value. The spec override has the same structure
+                  as Spec
+                type: object
             required:
             - dbName
             - domainRef

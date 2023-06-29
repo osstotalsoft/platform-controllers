@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -34,6 +35,10 @@ type AzureManagedDatabaseSpec struct {
 	// Export provisioning values spec.
 	// +optional
 	Exports []AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
+	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
+	// The spec override has the same structure as Spec
+	// +optional
+	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
 }
 type AzureManagedInstanceSpec struct {
 	// Managed instance name.

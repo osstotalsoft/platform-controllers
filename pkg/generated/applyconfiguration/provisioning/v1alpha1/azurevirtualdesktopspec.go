@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+)
+
 // AzureVirtualDesktopSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopSpec type for use
 // with apply.
 type AzureVirtualDesktopSpecApplyConfiguration struct {
@@ -37,6 +41,7 @@ type AzureVirtualDesktopSpecApplyConfiguration struct {
 	Applications          []AzureVirtualDesktopApplicationApplyConfiguration `json:"applications,omitempty"`
 	Users                 *AzureVirtualDesktopUsersSpecApplyConfiguration    `json:"users,omitempty"`
 	Exports               []AzureVirtualDesktopExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	TenantOverrides       map[string]*v1.JSON                                `json:"tenantOverrides,omitempty"`
 }
 
 // AzureVirtualDesktopSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopSpec type for use with
@@ -184,6 +189,20 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithExports(values ...*Azure
 			panic("nil value passed to WithExports")
 		}
 		b.Exports = append(b.Exports, *values[i])
+	}
+	return b
+}
+
+// WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the TenantOverrides field,
+// overwriting an existing map entries in TenantOverrides field with the same key.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithTenantOverrides(entries map[string]*v1.JSON) *AzureVirtualDesktopSpecApplyConfiguration {
+	if b.TenantOverrides == nil && len(entries) > 0 {
+		b.TenantOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.TenantOverrides[k] = v
 	}
 	return b
 }

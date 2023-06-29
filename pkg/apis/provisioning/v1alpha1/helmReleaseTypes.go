@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	flux "github.com/fluxcd/helm-controller/api/v2beta1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -27,6 +28,10 @@ type HelmReleaseSpec struct {
 	Exports []HelmReleaseExportsSpec `json:"exports,omitempty"`
 	// helm release spec
 	Release flux.HelmReleaseSpec `json:"release"`
+	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
+	// The spec override has the same structure as Spec
+	// +optional
+	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
 }
 
 type HelmReleaseExportsSpec struct {

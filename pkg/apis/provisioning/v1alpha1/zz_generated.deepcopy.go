@@ -22,6 +22,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -110,6 +111,21 @@ func (in *AzureDatabaseSpec) DeepCopyInto(out *AzureDatabaseSpec) {
 		in, out := &in.Exports, &out.Exports
 		*out = make([]AzureDatabaseExportsSpec, len(*in))
 		copy(*out, *in)
+	}
+	if in.TenantOverrides != nil {
+		in, out := &in.TenantOverrides, &out.TenantOverrides
+		*out = make(map[string]*v1.JSON, len(*in))
+		for key, val := range *in {
+			var outVal *v1.JSON
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(v1.JSON)
+				(*in).DeepCopyInto(*out)
+			}
+			(*out)[key] = outVal
+		}
 	}
 	return
 }
@@ -227,6 +243,21 @@ func (in *AzureManagedDatabaseSpec) DeepCopyInto(out *AzureManagedDatabaseSpec) 
 		in, out := &in.Exports, &out.Exports
 		*out = make([]AzureManagedDatabaseExportsSpec, len(*in))
 		copy(*out, *in)
+	}
+	if in.TenantOverrides != nil {
+		in, out := &in.TenantOverrides, &out.TenantOverrides
+		*out = make(map[string]*v1.JSON, len(*in))
+		for key, val := range *in {
+			var outVal *v1.JSON
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(v1.JSON)
+				(*in).DeepCopyInto(*out)
+			}
+			(*out)[key] = outVal
+		}
 	}
 	return
 }
@@ -388,6 +419,21 @@ func (in *AzureVirtualDesktopSpec) DeepCopyInto(out *AzureVirtualDesktopSpec) {
 		*out = make([]AzureVirtualDesktopExportsSpec, len(*in))
 		copy(*out, *in)
 	}
+	if in.TenantOverrides != nil {
+		in, out := &in.TenantOverrides, &out.TenantOverrides
+		*out = make(map[string]*v1.JSON, len(*in))
+		for key, val := range *in {
+			var outVal *v1.JSON
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(v1.JSON)
+				(*in).DeepCopyInto(*out)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 
@@ -516,6 +562,21 @@ func (in *AzureVirtualMachineSpec) DeepCopyInto(out *AzureVirtualMachineSpec) {
 		*out = make([]AzureVirtualMachineExportsSpec, len(*in))
 		copy(*out, *in)
 	}
+	if in.TenantOverrides != nil {
+		in, out := &in.TenantOverrides, &out.TenantOverrides
+		*out = make(map[string]*v1.JSON, len(*in))
+		for key, val := range *in {
+			var outVal *v1.JSON
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(v1.JSON)
+				(*in).DeepCopyInto(*out)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 
@@ -631,6 +692,21 @@ func (in *HelmReleaseSpec) DeepCopyInto(out *HelmReleaseSpec) {
 		copy(*out, *in)
 	}
 	in.Release.DeepCopyInto(&out.Release)
+	if in.TenantOverrides != nil {
+		in, out := &in.TenantOverrides, &out.TenantOverrides
+		*out = make(map[string]*v1.JSON, len(*in))
+		for key, val := range *in {
+			var outVal *v1.JSON
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = new(v1.JSON)
+				(*in).DeepCopyInto(*out)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 

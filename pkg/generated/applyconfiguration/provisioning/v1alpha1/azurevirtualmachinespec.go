@@ -18,6 +18,10 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+)
+
 // AzureVirtualMachineSpecApplyConfiguration represents an declarative configuration of the AzureVirtualMachineSpec type for use
 // with apply.
 type AzureVirtualMachineSpecApplyConfiguration struct {
@@ -31,6 +35,7 @@ type AzureVirtualMachineSpecApplyConfiguration struct {
 	RdpSourceAddressPrefix *string                                            `json:"rdpSourceAddressPrefix,omitempty"`
 	EnableTrustedLaunch    *bool                                              `json:"enableTrustedLaunch,omitempty"`
 	Exports                []AzureVirtualMachineExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	TenantOverrides        map[string]*v1.JSON                                `json:"tenantOverrides,omitempty"`
 }
 
 // AzureVirtualMachineSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualMachineSpec type for use with
@@ -120,6 +125,20 @@ func (b *AzureVirtualMachineSpecApplyConfiguration) WithExports(values ...*Azure
 			panic("nil value passed to WithExports")
 		}
 		b.Exports = append(b.Exports, *values[i])
+	}
+	return b
+}
+
+// WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the TenantOverrides field,
+// overwriting an existing map entries in TenantOverrides field with the same key.
+func (b *AzureVirtualMachineSpecApplyConfiguration) WithTenantOverrides(entries map[string]*v1.JSON) *AzureVirtualMachineSpecApplyConfiguration {
+	if b.TenantOverrides == nil && len(entries) > 0 {
+		b.TenantOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.TenantOverrides[k] = v
 	}
 	return b
 }

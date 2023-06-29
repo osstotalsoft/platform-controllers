@@ -20,15 +20,17 @@ package v1alpha1
 
 import (
 	v2beta1 "github.com/fluxcd/helm-controller/api/v2beta1"
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 )
 
 // HelmReleaseSpecApplyConfiguration represents an declarative configuration of the HelmReleaseSpec type for use
 // with apply.
 type HelmReleaseSpecApplyConfiguration struct {
-	PlatformRef *string                                    `json:"platformRef,omitempty"`
-	DomainRef   *string                                    `json:"domainRef,omitempty"`
-	Exports     []HelmReleaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
-	Release     *v2beta1.HelmReleaseSpec                   `json:"release,omitempty"`
+	PlatformRef     *string                                    `json:"platformRef,omitempty"`
+	DomainRef       *string                                    `json:"domainRef,omitempty"`
+	Exports         []HelmReleaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	Release         *v2beta1.HelmReleaseSpec                   `json:"release,omitempty"`
+	TenantOverrides map[string]*v1.JSON                        `json:"tenantOverrides,omitempty"`
 }
 
 // HelmReleaseSpecApplyConfiguration constructs an declarative configuration of the HelmReleaseSpec type for use with
@@ -71,5 +73,19 @@ func (b *HelmReleaseSpecApplyConfiguration) WithExports(values ...*HelmReleaseEx
 // If called multiple times, the Release field is set to the value of the last call.
 func (b *HelmReleaseSpecApplyConfiguration) WithRelease(value v2beta1.HelmReleaseSpec) *HelmReleaseSpecApplyConfiguration {
 	b.Release = &value
+	return b
+}
+
+// WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the TenantOverrides field,
+// overwriting an existing map entries in TenantOverrides field with the same key.
+func (b *HelmReleaseSpecApplyConfiguration) WithTenantOverrides(entries map[string]*v1.JSON) *HelmReleaseSpecApplyConfiguration {
+	if b.TenantOverrides == nil && len(entries) > 0 {
+		b.TenantOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.TenantOverrides[k] = v
+	}
 	return b
 }
