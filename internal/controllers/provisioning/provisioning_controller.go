@@ -257,7 +257,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n := 0
 	for _, db := range azureDbs {
 		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
-			err := applyTenantOverrides(&db.Spec, db.Spec.TenantOverrides, tenant.Name)
+			err := applyTenantOverrides(db, tenant.Name)
 			if err != nil {
 				return err
 			}
@@ -276,7 +276,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, db := range azureManagedDbs {
 		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
-			err := applyTenantOverrides(&db.Spec, db.Spec.TenantOverrides, tenant.Name)
+			err := applyTenantOverrides(db, tenant.Name)
 			if err != nil {
 				return err
 			}
@@ -295,7 +295,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, hr := range helmReleases {
 		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, hr.Spec.DomainRef) {
-			err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenant.Name)
+			err := applyTenantOverrides(hr, tenant.Name)
 			if err != nil {
 				return err
 			}
@@ -314,7 +314,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, vm := range azureVirtualMachines {
 		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
-			err := applyTenantOverrides(&vm.Spec, vm.Spec.TenantOverrides, tenant.Name)
+			err := applyTenantOverrides(vm, tenant.Name)
 			if err != nil {
 				return err
 			}
@@ -333,7 +333,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	n = 0
 	for _, avd := range azureVirtualDesktops {
 		if avd.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, avd.Spec.DomainRef) {
-			err := applyTenantOverrides(&avd.Spec, avd.Spec.TenantOverrides, tenant.Name)
+			err := applyTenantOverrides(avd, tenant.Name)
 			if err != nil {
 				return err
 			}
@@ -768,7 +768,20 @@ func getAzureVirtualDesktopPlatform(azureVirtualDesktop *provisioningv1.AzureVir
 	return platform, true
 }
 
-func applyTenantOverrides[T any](targetSpec *T, overrides map[string]*apiextensionsv1.JSON, tenantName string) error {
+type ProvisioningResource interface {
+	*provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
+
+	GetTenantOverrides() map[string]*apiextensionsv1.JSON
+	GetSpec() any
+}
+
+func applyTenantOverrides[T ProvisioningResource](target T, tenantName string) error {
+	if target == nil {
+		return nil
+	}
+
+	overrides := target.GetTenantOverrides()
+
 	if overrides == nil {
 		return nil
 	}
@@ -783,13 +796,15 @@ func applyTenantOverrides[T any](targetSpec *T, overrides map[string]*apiextensi
 		return err
 	}
 
-	targetSpecJson, err := json.Marshal(*targetSpec)
+	targetSpec := target.GetSpec()
+
+	targetSpecJsonBytes, err := json.Marshal(targetSpec)
 	if err != nil {
 		return err
 	}
 
 	var targetSpecMap map[string]any
-	if err := json.Unmarshal(targetSpecJson, &targetSpecMap); err != nil {
+	if err := json.Unmarshal(targetSpecJsonBytes, &targetSpecMap); err != nil {
 		return err
 	}
 
@@ -797,12 +812,12 @@ func applyTenantOverrides[T any](targetSpec *T, overrides map[string]*apiextensi
 		return err
 	}
 
-	targetSpecJson, err = json.Marshal(targetSpecMap)
+	targetSpecJsonBytes, err = json.Marshal(targetSpecMap)
 	if err != nil {
 		return err
 	}
 
-	if err := json.Unmarshal(targetSpecJson, targetSpec); err != nil {
+	if err := json.Unmarshal(targetSpecJsonBytes, targetSpec); err != nil {
 		return err
 	}
 

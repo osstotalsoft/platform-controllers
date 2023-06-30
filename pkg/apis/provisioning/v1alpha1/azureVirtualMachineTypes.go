@@ -79,3 +79,11 @@ type AzureVirtualMachineList struct {
 
 	Items []AzureVirtualMachine `json:"items"`
 }
+
+func (db *AzureVirtualMachine) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
+	return db.Spec.TenantOverrides
+}
+
+func (db *AzureVirtualMachine) GetSpec() any {
+	return &db.Spec
+}

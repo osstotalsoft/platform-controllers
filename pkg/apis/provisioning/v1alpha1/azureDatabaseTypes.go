@@ -40,6 +40,10 @@ type AzureDatabaseSpec struct {
 	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
 	// The spec override has the same structure as Spec
 	// +optional
+	TenanantOverridesMeta `json:",inline"`
+}
+
+type TenanantOverridesMeta struct {
 	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
 }
 
@@ -66,4 +70,12 @@ type AzureDatabaseList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []AzureDatabase `json:"items"`
+}
+
+func (db *AzureDatabase) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
+	return db.Spec.TenantOverrides
+}
+
+func (db *AzureDatabase) GetSpec() any {
+	return &db.Spec
 }

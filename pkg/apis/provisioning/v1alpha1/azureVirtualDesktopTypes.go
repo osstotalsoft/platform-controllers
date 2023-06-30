@@ -115,3 +115,11 @@ type AzureVirtualDesktopList struct {
 
 	Items []AzureVirtualDesktop `json:"items"`
 }
+
+func (db *AzureVirtualDesktop) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
+	return db.Spec.TenantOverrides
+}
+
+func (db *AzureVirtualDesktop) GetSpec() any {
+	return &db.Spec
+}

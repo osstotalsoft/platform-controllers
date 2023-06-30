@@ -76,3 +76,11 @@ type AzureManagedDatabaseList struct {
 
 	Items []AzureManagedDatabase `json:"items"`
 }
+
+func (db *AzureManagedDatabase) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
+	return db.Spec.TenantOverrides
+}
+
+func (db *AzureManagedDatabase) GetSpec() any {
+	return &db.Spec
+}

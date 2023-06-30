@@ -299,7 +299,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&db.Spec, db.Spec.TenantOverrides, tenantName)
+		err := applyTenantOverrides(&db, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -335,7 +335,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenantName)
+		err := applyTenantOverrides(&hr, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -375,7 +375,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&avd.Spec, avd.Spec.TenantOverrides, tenantName)
+		err := applyTenantOverrides(&avd, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -420,7 +420,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenantName)
+		err := applyTenantOverrides(&hr, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -463,7 +463,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&hr.Spec, hr.Spec.TenantOverrides, tenantName)
+		err := applyTenantOverrides(&hr, tenantName)
 		if err != nil {
 			t.Error(err)
 		}

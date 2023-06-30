@@ -48,3 +48,11 @@ type HelmReleaseList struct {
 
 	Items []HelmRelease `json:"items"`
 }
+
+func (db *HelmRelease) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
+	return db.Spec.TenantOverrides
+}
+
+func (db *HelmRelease) GetSpec() any {
+	return &db.Spec
+}
