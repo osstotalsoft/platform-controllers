@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,12 +19,6 @@ type AzureDatabase struct {
 }
 
 type AzureDatabaseSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
 	// Database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Azure Sql Server spec. New database will be created on this server
@@ -35,7 +30,12 @@ type AzureDatabaseSpec struct {
 	// +optional
 	SourceDatabaseId string `json:"sourceDatabaseId,omitempty"`
 	// +optional
-	Exports []AzureDatabaseExportsSpec `json:"exports,omitempty"`
+	Exports          []AzureDatabaseExportsSpec `json:"exports,omitempty"`
+	ProvisioningMeta `json:",inline"`
+}
+
+type TenanantOverridesMeta struct {
+	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
 }
 
 type SqlServerSpec struct {
@@ -61,4 +61,12 @@ type AzureDatabaseList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []AzureDatabase `json:"items"`
+}
+
+func (db *AzureDatabase) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
+}
+
+func (db *AzureDatabase) GetSpec() any {
+	return &db.Spec
 }

@@ -18,12 +18,6 @@ type AzureManagedDatabase struct {
 }
 
 type AzureManagedDatabaseSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
 	// Managed database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Target managed instance spec.
@@ -33,7 +27,8 @@ type AzureManagedDatabaseSpec struct {
 	RestoreFrom AzureManagedDatabaseRestoreSpec `json:"restoreFrom,omitempty"`
 	// Export provisioning values spec.
 	// +optional
-	Exports []AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
+	Exports          []AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
+	ProvisioningMeta `json:",inline"`
 }
 type AzureManagedInstanceSpec struct {
 	// Managed instance name.
@@ -70,4 +65,12 @@ type AzureManagedDatabaseList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []AzureManagedDatabase `json:"items"`
+}
+
+func (db *AzureManagedDatabase) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
+}
+
+func (db *AzureManagedDatabase) GetSpec() any {
+	return &db.Spec
 }

@@ -18,38 +18,25 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+)
+
 // AzureDatabaseSpecApplyConfiguration represents an declarative configuration of the AzureDatabaseSpec type for use
 // with apply.
 type AzureDatabaseSpecApplyConfiguration struct {
-	PlatformRef      *string                                      `json:"platformRef,omitempty"`
-	DomainRef        *string                                      `json:"domainRef,omitempty"`
-	DbName           *string                                      `json:"dbName,omitempty"`
-	SqlServer        *SqlServerSpecApplyConfiguration             `json:"sqlServer,omitempty"`
-	Sku              *string                                      `json:"sku,omitempty"`
-	SourceDatabaseId *string                                      `json:"sourceDatabaseId,omitempty"`
-	Exports          []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	DbName                             *string                                      `json:"dbName,omitempty"`
+	SqlServer                          *SqlServerSpecApplyConfiguration             `json:"sqlServer,omitempty"`
+	Sku                                *string                                      `json:"sku,omitempty"`
+	SourceDatabaseId                   *string                                      `json:"sourceDatabaseId,omitempty"`
+	Exports                            []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
 
 // AzureDatabaseSpecApplyConfiguration constructs an declarative configuration of the AzureDatabaseSpec type for use with
 // apply.
 func AzureDatabaseSpec() *AzureDatabaseSpecApplyConfiguration {
 	return &AzureDatabaseSpecApplyConfiguration{}
-}
-
-// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PlatformRef field is set to the value of the last call.
-func (b *AzureDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *AzureDatabaseSpecApplyConfiguration {
-	b.PlatformRef = &value
-	return b
-}
-
-// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DomainRef field is set to the value of the last call.
-func (b *AzureDatabaseSpecApplyConfiguration) WithDomainRef(value string) *AzureDatabaseSpecApplyConfiguration {
-	b.DomainRef = &value
-	return b
 }
 
 // WithDbName sets the DbName field in the declarative configuration to the given value
@@ -93,6 +80,36 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithExports(values ...*AzureDataba
 			panic("nil value passed to WithExports")
 		}
 		b.Exports = append(b.Exports, *values[i])
+	}
+	return b
+}
+
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *AzureDatabaseSpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithDomainRef(value string) *AzureDatabaseSpecApplyConfiguration {
+	b.DomainRef = &value
+	return b
+}
+
+// WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the TenantOverrides field,
+// overwriting an existing map entries in TenantOverrides field with the same key.
+func (b *AzureDatabaseSpecApplyConfiguration) WithTenantOverrides(entries map[string]*v1.JSON) *AzureDatabaseSpecApplyConfiguration {
+	if b.TenantOverrides == nil && len(entries) > 0 {
+		b.TenantOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.TenantOverrides[k] = v
 	}
 	return b
 }

@@ -16,13 +16,6 @@ type AzureVirtualDesktop struct {
 }
 
 type AzureVirtualDesktopSpec struct {
-	// Target platform (custom resource name).
-	PlatformRef string `json:"platformRef"`
-
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
-
 	// Virtual Desktop name prefix. Will have platform and tenant suffix.
 	HostPoolName string `json:"hostPoolName"`
 
@@ -67,6 +60,8 @@ type AzureVirtualDesktopSpec struct {
 
 	// +optional
 	Exports []AzureVirtualDesktopExportsSpec `json:"exports,omitempty"`
+
+	ProvisioningMeta `json:",inline"`
 }
 
 type AzureVirtualDesktopExportsSpec struct {
@@ -108,4 +103,12 @@ type AzureVirtualDesktopList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []AzureVirtualDesktop `json:"items"`
+}
+
+func (db *AzureVirtualDesktop) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
+}
+
+func (db *AzureVirtualDesktop) GetSpec() any {
+	return &db.Spec
 }

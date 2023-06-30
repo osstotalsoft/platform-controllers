@@ -17,16 +17,11 @@ type HelmRelease struct {
 }
 
 type HelmReleaseSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
-	// +optional
-	Exports []HelmReleaseExportsSpec `json:"exports,omitempty"`
 	// helm release spec
 	Release flux.HelmReleaseSpec `json:"release"`
+	// +optional
+	Exports          []HelmReleaseExportsSpec `json:"exports,omitempty"`
+	ProvisioningMeta `json:",inline"`
 }
 
 type HelmReleaseExportsSpec struct {
@@ -42,4 +37,12 @@ type HelmReleaseList struct {
 	metav1.ListMeta `json:"metadata"`
 
 	Items []HelmRelease `json:"items"`
+}
+
+func (db *HelmRelease) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
+}
+
+func (db *HelmRelease) GetSpec() any {
+	return &db.Spec
 }
