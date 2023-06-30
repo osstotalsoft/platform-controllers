@@ -2,7 +2,6 @@ package v1alpha1
 
 import (
 	flux "github.com/fluxcd/helm-controller/api/v2beta1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -18,20 +17,11 @@ type HelmRelease struct {
 }
 
 type HelmReleaseSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
-	// +optional
-	Exports []HelmReleaseExportsSpec `json:"exports,omitempty"`
 	// helm release spec
 	Release flux.HelmReleaseSpec `json:"release"`
-	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
-	// The spec override has the same structure as Spec
 	// +optional
-	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
+	Exports          []HelmReleaseExportsSpec `json:"exports,omitempty"`
+	ProvisioningMeta `json:",inline"`
 }
 
 type HelmReleaseExportsSpec struct {
@@ -49,8 +39,8 @@ type HelmReleaseList struct {
 	Items []HelmRelease `json:"items"`
 }
 
-func (db *HelmRelease) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
-	return db.Spec.TenantOverrides
+func (db *HelmRelease) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
 }
 
 func (db *HelmRelease) GetSpec() any {

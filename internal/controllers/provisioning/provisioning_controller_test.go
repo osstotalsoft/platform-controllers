@@ -289,12 +289,14 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 
 		db := provisioningv1.AzureManagedDatabase{
 			Spec: provisioningv1.AzureManagedDatabaseSpec{
-				PlatformRef: "platform",
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					PlatformRef: "platform",
+					TenantOverrides: map[string]*v1.JSON{
+						tenantName: {Raw: overridesBytes},
+					},
+				},
 				RestoreFrom: provisioningv1.AzureManagedDatabaseRestoreSpec{
 					BackupFileName: "beforeBackupFileName",
-				},
-				TenantOverrides: map[string]*v1.JSON{
-					tenantName: {Raw: overridesBytes},
 				},
 			},
 		}
@@ -322,15 +324,17 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 
 		hr := provisioningv1.HelmRelease{
 			Spec: provisioningv1.HelmReleaseSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					TenantOverrides: map[string]*v1.JSON{
+						tenantName: {Raw: overridesBytes},
+					},
+				},
 				Release: v2beta1.HelmReleaseSpec{
 					Chart: v2beta1.HelmChartTemplate{
 						Spec: v2beta1.HelmChartTemplateSpec{
 							Version: "0.0.0-0",
 						},
 					},
-				},
-				TenantOverrides: map[string]*v1.JSON{
-					tenantName: {Raw: overridesBytes},
 				},
 			},
 		}
@@ -361,6 +365,11 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 
 		avd := provisioningv1.AzureVirtualDesktop{
 			Spec: provisioningv1.AzureVirtualDesktopSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					TenantOverrides: map[string]*v1.JSON{
+						tenantName: {Raw: overridesBytes},
+					},
+				},
 				InitScriptArguments: []provisioningv1.InitScriptArgs{
 					{Name: "arg1NameBefore", Value: "arg1ValueBefore"},
 					{Name: "arg2NameBefore", Value: "arg2ValueBefore"},
@@ -369,9 +378,6 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 					ApplicationUsers: []string{"user1Before", "user2Before"},
 				},
 				VmNumberOfInstances: 1,
-				TenantOverrides: map[string]*v1.JSON{
-					tenantName: {Raw: overridesBytes},
-				},
 			},
 		}
 
@@ -411,11 +417,13 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 
 		hr := provisioningv1.HelmRelease{
 			Spec: provisioningv1.HelmReleaseSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					TenantOverrides: map[string]*v1.JSON{
+						tenantName: {Raw: overridesBytes},
+					},
+				},
 				Release: v2beta1.HelmReleaseSpec{
 					Values: &v1.JSON{Raw: valuesBeforeBytes},
-				},
-				TenantOverrides: map[string]*v1.JSON{
-					tenantName: {Raw: overridesBytes},
 				},
 			},
 		}
@@ -452,13 +460,15 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 
 		hr := provisioningv1.HelmRelease{
 			Spec: provisioningv1.HelmReleaseSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					TenantOverrides: map[string]*v1.JSON{
+						tenantName: {Raw: overridesBytes},
+					},
+				},
 				Release: v2beta1.HelmReleaseSpec{
 					TargetNamespace:  "targetNamespaceBefore",
 					StorageNamespace: "storageNamespaceBefore",
 					MaxHistory:       &num,
-				},
-				TenantOverrides: map[string]*v1.JSON{
-					tenantName: {Raw: overridesBytes},
 				},
 			},
 		}
@@ -502,9 +512,11 @@ func newAzureDbWithService(name, platform, domain string) *provisioningv1.AzureD
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: provisioningv1.AzureDatabaseSpec{
-			PlatformRef: platform,
-			DbName:      name,
-			DomainRef:   domain,
+			ProvisioningMeta: provisioningv1.ProvisioningMeta{
+				PlatformRef: platform,
+				DomainRef:   domain,
+			},
+			DbName: name,
 		},
 	}
 }
@@ -521,8 +533,10 @@ func newAzureManagedDb(dbName, platform string) *provisioningv1.AzureManagedData
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: provisioningv1.AzureManagedDatabaseSpec{
-			PlatformRef: platform,
-			DbName:      dbName,
+			ProvisioningMeta: provisioningv1.ProvisioningMeta{
+				PlatformRef: platform,
+			},
+			DbName: dbName,
 		},
 	}
 }

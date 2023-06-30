@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -17,12 +16,6 @@ type AzureVirtualMachine struct {
 }
 
 type AzureVirtualMachineSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
 	// Virtual Machine name prefix. Will have platform and tenant suffix.
 	VmName string `json:"vmName"`
 
@@ -48,13 +41,10 @@ type AzureVirtualMachineSpec struct {
 	// Enable Trusted Launch security
 	EnableTrustedLaunch bool `json:"enableTrustedLaunch"`
 
+	ProvisioningMeta `json:",inline"`
+
 	// +optional
 	Exports []AzureVirtualMachineExportsSpec `json:"exports,omitempty"`
-
-	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
-	// The spec override has the same structure as Spec
-	// +optional
-	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
 }
 
 type AzureVirtualMachineExportsSpec struct {
@@ -80,8 +70,8 @@ type AzureVirtualMachineList struct {
 	Items []AzureVirtualMachine `json:"items"`
 }
 
-func (db *AzureVirtualMachine) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
-	return db.Spec.TenantOverrides
+func (db *AzureVirtualMachine) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
 }
 
 func (db *AzureVirtualMachine) GetSpec() any {

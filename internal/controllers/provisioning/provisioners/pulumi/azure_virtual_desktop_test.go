@@ -56,7 +56,9 @@ func newVirtualDesktop(name, platform string) *provisioningv1.AzureVirtualDeskto
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: provisioningv1.AzureVirtualDesktopSpec{
-			PlatformRef:         platform,
+			ProvisioningMeta: provisioningv1.ProvisioningMeta{
+				PlatformRef: platform,
+			},
 			HostPoolName:        "test-vm",
 			VmSize:              "Standard_B1s",
 			OSDiskType:          "Standard_LRS",

@@ -19,12 +19,6 @@ type AzureDatabase struct {
 }
 
 type AzureDatabaseSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
 	// Database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Azure Sql Server spec. New database will be created on this server
@@ -36,11 +30,8 @@ type AzureDatabaseSpec struct {
 	// +optional
 	SourceDatabaseId string `json:"sourceDatabaseId,omitempty"`
 	// +optional
-	Exports []AzureDatabaseExportsSpec `json:"exports,omitempty"`
-	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
-	// The spec override has the same structure as Spec
-	// +optional
-	TenanantOverridesMeta `json:",inline"`
+	Exports          []AzureDatabaseExportsSpec `json:"exports,omitempty"`
+	ProvisioningMeta `json:",inline"`
 }
 
 type TenanantOverridesMeta struct {
@@ -72,8 +63,8 @@ type AzureDatabaseList struct {
 	Items []AzureDatabase `json:"items"`
 }
 
-func (db *AzureDatabase) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
-	return db.Spec.TenantOverrides
+func (db *AzureDatabase) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
 }
 
 func (db *AzureDatabase) GetSpec() any {

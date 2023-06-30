@@ -771,7 +771,7 @@ func getAzureVirtualDesktopPlatform(azureVirtualDesktop *provisioningv1.AzureVir
 type ProvisioningResource interface {
 	*provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
 
-	GetTenantOverrides() map[string]*apiextensionsv1.JSON
+	GetProvisioningMeta() *provisioningv1.ProvisioningMeta
 	GetSpec() any
 }
 
@@ -780,7 +780,7 @@ func applyTenantOverrides[T ProvisioningResource](target T, tenantName string) e
 		return nil
 	}
 
-	overrides := target.GetTenantOverrides()
+	overrides := target.GetProvisioningMeta().TenantOverrides
 
 	if overrides == nil {
 		return nil

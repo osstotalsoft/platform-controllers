@@ -25,35 +25,17 @@ import (
 // AzureManagedDatabaseSpecApplyConfiguration represents an declarative configuration of the AzureManagedDatabaseSpec type for use
 // with apply.
 type AzureManagedDatabaseSpecApplyConfiguration struct {
-	PlatformRef     *string                                             `json:"platformRef,omitempty"`
-	DomainRef       *string                                             `json:"domainRef,omitempty"`
-	DbName          *string                                             `json:"dbName,omitempty"`
-	ManagedInstance *AzureManagedInstanceSpecApplyConfiguration         `json:"managedInstance,omitempty"`
-	RestoreFrom     *AzureManagedDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
-	Exports         []AzureManagedDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
-	TenantOverrides map[string]*v1.JSON                                 `json:"tenantOverrides,omitempty"`
+	DbName                             *string                                             `json:"dbName,omitempty"`
+	ManagedInstance                    *AzureManagedInstanceSpecApplyConfiguration         `json:"managedInstance,omitempty"`
+	RestoreFrom                        *AzureManagedDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
+	Exports                            []AzureManagedDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
 
 // AzureManagedDatabaseSpecApplyConfiguration constructs an declarative configuration of the AzureManagedDatabaseSpec type for use with
 // apply.
 func AzureManagedDatabaseSpec() *AzureManagedDatabaseSpecApplyConfiguration {
 	return &AzureManagedDatabaseSpecApplyConfiguration{}
-}
-
-// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PlatformRef field is set to the value of the last call.
-func (b *AzureManagedDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *AzureManagedDatabaseSpecApplyConfiguration {
-	b.PlatformRef = &value
-	return b
-}
-
-// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DomainRef field is set to the value of the last call.
-func (b *AzureManagedDatabaseSpecApplyConfiguration) WithDomainRef(value string) *AzureManagedDatabaseSpecApplyConfiguration {
-	b.DomainRef = &value
-	return b
 }
 
 // WithDbName sets the DbName field in the declarative configuration to the given value
@@ -90,6 +72,22 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithExports(values ...*Azur
 		}
 		b.Exports = append(b.Exports, *values[i])
 	}
+	return b
+}
+
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithDomainRef(value string) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.DomainRef = &value
 	return b
 }
 

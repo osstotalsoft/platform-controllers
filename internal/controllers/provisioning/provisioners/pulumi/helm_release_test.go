@@ -108,7 +108,9 @@ func newHr(name, platform string) *provisioningv1.HelmRelease {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: provisioningv1.HelmReleaseSpec{
-			PlatformRef: platform,
+			ProvisioningMeta: provisioningv1.ProvisioningMeta{
+				PlatformRef: platform,
+			},
 			Release: flux.HelmReleaseSpec{
 				Interval: metav1.Duration{Duration: 10 * time.Second},
 				Chart: flux.HelmChartTemplate{

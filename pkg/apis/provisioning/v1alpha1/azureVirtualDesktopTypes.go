@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -17,13 +16,6 @@ type AzureVirtualDesktop struct {
 }
 
 type AzureVirtualDesktopSpec struct {
-	// Target platform (custom resource name).
-	PlatformRef string `json:"platformRef"`
-
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
-
 	// Virtual Desktop name prefix. Will have platform and tenant suffix.
 	HostPoolName string `json:"hostPoolName"`
 
@@ -69,10 +61,7 @@ type AzureVirtualDesktopSpec struct {
 	// +optional
 	Exports []AzureVirtualDesktopExportsSpec `json:"exports,omitempty"`
 
-	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
-	// The spec override has the same structure as Spec
-	// +optional
-	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
+	ProvisioningMeta `json:",inline"`
 }
 
 type AzureVirtualDesktopExportsSpec struct {
@@ -116,8 +105,8 @@ type AzureVirtualDesktopList struct {
 	Items []AzureVirtualDesktop `json:"items"`
 }
 
-func (db *AzureVirtualDesktop) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
-	return db.Spec.TenantOverrides
+func (db *AzureVirtualDesktop) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
 }
 
 func (db *AzureVirtualDesktop) GetSpec() any {

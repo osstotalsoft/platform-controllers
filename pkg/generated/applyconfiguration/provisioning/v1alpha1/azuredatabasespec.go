@@ -25,36 +25,18 @@ import (
 // AzureDatabaseSpecApplyConfiguration represents an declarative configuration of the AzureDatabaseSpec type for use
 // with apply.
 type AzureDatabaseSpecApplyConfiguration struct {
-	PlatformRef      *string                                      `json:"platformRef,omitempty"`
-	DomainRef        *string                                      `json:"domainRef,omitempty"`
-	DbName           *string                                      `json:"dbName,omitempty"`
-	SqlServer        *SqlServerSpecApplyConfiguration             `json:"sqlServer,omitempty"`
-	Sku              *string                                      `json:"sku,omitempty"`
-	SourceDatabaseId *string                                      `json:"sourceDatabaseId,omitempty"`
-	Exports          []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
-	TenantOverrides  map[string]*v1.JSON                          `json:"tenantOverrides,omitempty"`
+	DbName                             *string                                      `json:"dbName,omitempty"`
+	SqlServer                          *SqlServerSpecApplyConfiguration             `json:"sqlServer,omitempty"`
+	Sku                                *string                                      `json:"sku,omitempty"`
+	SourceDatabaseId                   *string                                      `json:"sourceDatabaseId,omitempty"`
+	Exports                            []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
 
 // AzureDatabaseSpecApplyConfiguration constructs an declarative configuration of the AzureDatabaseSpec type for use with
 // apply.
 func AzureDatabaseSpec() *AzureDatabaseSpecApplyConfiguration {
 	return &AzureDatabaseSpecApplyConfiguration{}
-}
-
-// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PlatformRef field is set to the value of the last call.
-func (b *AzureDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *AzureDatabaseSpecApplyConfiguration {
-	b.PlatformRef = &value
-	return b
-}
-
-// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DomainRef field is set to the value of the last call.
-func (b *AzureDatabaseSpecApplyConfiguration) WithDomainRef(value string) *AzureDatabaseSpecApplyConfiguration {
-	b.DomainRef = &value
-	return b
 }
 
 // WithDbName sets the DbName field in the declarative configuration to the given value
@@ -99,6 +81,22 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithExports(values ...*AzureDataba
 		}
 		b.Exports = append(b.Exports, *values[i])
 	}
+	return b
+}
+
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithPlatformRef(value string) *AzureDatabaseSpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithDomainRef(value string) *AzureDatabaseSpecApplyConfiguration {
+	b.DomainRef = &value
 	return b
 }
 

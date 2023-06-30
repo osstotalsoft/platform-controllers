@@ -1,7 +1,6 @@
 package v1alpha1
 
 import (
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -19,12 +18,6 @@ type AzureManagedDatabase struct {
 }
 
 type AzureManagedDatabaseSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
 	// Managed database name prefix. Will have platform and tenant suffix.
 	DbName string `json:"dbName"`
 	// Target managed instance spec.
@@ -34,11 +27,8 @@ type AzureManagedDatabaseSpec struct {
 	RestoreFrom AzureManagedDatabaseRestoreSpec `json:"restoreFrom,omitempty"`
 	// Export provisioning values spec.
 	// +optional
-	Exports []AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
-	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
-	// The spec override has the same structure as Spec
-	// +optional
-	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
+	Exports          []AzureManagedDatabaseExportsSpec `json:"exports,omitempty"`
+	ProvisioningMeta `json:",inline"`
 }
 type AzureManagedInstanceSpec struct {
 	// Managed instance name.
@@ -77,8 +67,8 @@ type AzureManagedDatabaseList struct {
 	Items []AzureManagedDatabase `json:"items"`
 }
 
-func (db *AzureManagedDatabase) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
-	return db.Spec.TenantOverrides
+func (db *AzureManagedDatabase) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
 }
 
 func (db *AzureManagedDatabase) GetSpec() any {

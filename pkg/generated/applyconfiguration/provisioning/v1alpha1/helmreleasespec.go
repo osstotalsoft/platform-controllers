@@ -26,11 +26,9 @@ import (
 // HelmReleaseSpecApplyConfiguration represents an declarative configuration of the HelmReleaseSpec type for use
 // with apply.
 type HelmReleaseSpecApplyConfiguration struct {
-	PlatformRef     *string                                    `json:"platformRef,omitempty"`
-	DomainRef       *string                                    `json:"domainRef,omitempty"`
-	Exports         []HelmReleaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
-	Release         *v2beta1.HelmReleaseSpec                   `json:"release,omitempty"`
-	TenantOverrides map[string]*v1.JSON                        `json:"tenantOverrides,omitempty"`
+	Release                            *v2beta1.HelmReleaseSpec                   `json:"release,omitempty"`
+	Exports                            []HelmReleaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
 
 // HelmReleaseSpecApplyConfiguration constructs an declarative configuration of the HelmReleaseSpec type for use with
@@ -39,19 +37,11 @@ func HelmReleaseSpec() *HelmReleaseSpecApplyConfiguration {
 	return &HelmReleaseSpecApplyConfiguration{}
 }
 
-// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// WithRelease sets the Release field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PlatformRef field is set to the value of the last call.
-func (b *HelmReleaseSpecApplyConfiguration) WithPlatformRef(value string) *HelmReleaseSpecApplyConfiguration {
-	b.PlatformRef = &value
-	return b
-}
-
-// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DomainRef field is set to the value of the last call.
-func (b *HelmReleaseSpecApplyConfiguration) WithDomainRef(value string) *HelmReleaseSpecApplyConfiguration {
-	b.DomainRef = &value
+// If called multiple times, the Release field is set to the value of the last call.
+func (b *HelmReleaseSpecApplyConfiguration) WithRelease(value v2beta1.HelmReleaseSpec) *HelmReleaseSpecApplyConfiguration {
+	b.Release = &value
 	return b
 }
 
@@ -68,11 +58,19 @@ func (b *HelmReleaseSpecApplyConfiguration) WithExports(values ...*HelmReleaseEx
 	return b
 }
 
-// WithRelease sets the Release field in the declarative configuration to the given value
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Release field is set to the value of the last call.
-func (b *HelmReleaseSpecApplyConfiguration) WithRelease(value v2beta1.HelmReleaseSpec) *HelmReleaseSpecApplyConfiguration {
-	b.Release = &value
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *HelmReleaseSpecApplyConfiguration) WithPlatformRef(value string) *HelmReleaseSpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *HelmReleaseSpecApplyConfiguration) WithDomainRef(value string) *HelmReleaseSpecApplyConfiguration {
+	b.DomainRef = &value
 	return b
 }
 
