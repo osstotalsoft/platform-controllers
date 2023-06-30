@@ -8,26 +8,36 @@ import (
 	v1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 const (
-	JobLabelSelectorKey = "provisioning.totalsoft.ro/migration-job-template"
+	jobTemplateLabel = "provisioning.totalsoft.ro/migration-job-template"
+	domainLabel      = "platform.totalsoft.ro/domain"
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
-	nsFilter func(string, string) bool) func(platform string, tenant *platformv1.Tenant) error {
+	nsFilter func(string, string) bool) func(platform string, tenant *platformv1.Tenant, domain string) error {
 	namer := func(jName, tenant string) string {
 		return fmt.Sprintf("%s-%s-%d", jName, tenant, time.Now().Unix())
 	}
 
-	return func(platform string, tenant *platformv1.Tenant) error {
-		klog.InfoS("Creating migrations jobs", "tenant", tenant.Name)
+	return func(platform string, tenant *platformv1.Tenant, domain string) error {
+		klog.InfoS("Creating migrations jobs", "tenant", tenant.Name, "domain", domain)
+
+		labelSelector, err := labels.ValidatedSelectorFromSet(map[string]string{
+			domainLabel:      domain,
+			jobTemplateLabel: "true",
+		})
+		if err != nil {
+			return err
+		}
 
 		jobs, err := kubeClient.BatchV1().Jobs("").List(context.TODO(), metav1.ListOptions{
-			LabelSelector: JobLabelSelectorKey + "=true",
+			LabelSelector: labelSelector.String(),
 		})
 		if err != nil {
 			return err

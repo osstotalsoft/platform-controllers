@@ -4,6 +4,7 @@ package pulumi
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 
@@ -22,7 +23,7 @@ const (
 	PulumiRetainOnDelete = true
 )
 
-func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
+func Create(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 	result := provisioners.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
@@ -37,7 +38,7 @@ func Create(platform string, tenant *platformv1.Tenant, infra *provisioners.Infr
 	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop
 
-	stackName := tenant.Name
+	stackName := fmt.Sprintf("%s-%s", tenant.Name, domain)
 	if anyResource {
 		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, infra, needsResourceGroup))
 		if result.Error != nil {

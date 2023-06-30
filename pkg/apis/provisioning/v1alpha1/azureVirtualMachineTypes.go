@@ -73,3 +73,11 @@ type AzureVirtualMachineList struct {
 
 	Items []AzureVirtualMachine `json:"items"`
 }
+
+func (vm *AzureVirtualMachine) GetPlatformRef() string {
+	return vm.Spec.PlatformRef
+}
+
+func (vm *AzureVirtualMachine) GetDomainRef() string {
+	return vm.Spec.DomainRef
+}

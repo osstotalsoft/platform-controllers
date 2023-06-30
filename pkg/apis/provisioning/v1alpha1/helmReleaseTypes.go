@@ -43,3 +43,11 @@ type HelmReleaseList struct {
 
 	Items []HelmRelease `json:"items"`
 }
+
+func (hr *HelmRelease) GetPlatformRef() string {
+	return hr.Spec.PlatformRef
+}
+
+func (hr *HelmRelease) GetDomainRef() string {
+	return hr.Spec.DomainRef
+}

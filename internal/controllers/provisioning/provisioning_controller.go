@@ -7,11 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/utils/strings/slices"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -21,7 +18,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
-	controllers "totalsoft.ro/platform-controllers/internal/controllers"
+	"k8s.io/utils/strings/slices"
 	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -40,13 +37,16 @@ const (
 
 	tenantProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.TenantProvisionedSuccessfully"
 	tenantProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.TenantProvisionningFailed"
+
+	DomainProvisionedSuccessfullyFormat string = "%s domain provisioned successfully"
+	DomainProvisionningFailedFormat     string = "%s domain provisionning failed"
 )
 
 // ProvisioningController is the controller implementation for Tenant resources
 type ProvisioningController struct {
 	factory   informers.SharedInformerFactory
 	clientset clientset.Interface
-	migrator  func(platform string, tenant *platformv1.Tenant) error
+	migrator  func(platform string, tenant *platformv1.Tenant, domain string) error
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -73,7 +73,7 @@ type ProvisioningController struct {
 
 func NewProvisioningController(clientSet clientset.Interface,
 	provisioner provisioners.CreateInfrastructureFunc,
-	migrator func(platform string, tenant *platformv1.Tenant) error,
+	migrator func(platform string, tenant *platformv1.Tenant, domain string) error,
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher) *ProvisioningController {
 
@@ -110,11 +110,12 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 	addTenantHandlers(c.tenantInformer, c.enqueueTenant)
 	addPlatformHandlers(c.platformInformer)
-	addAzureDbHandlers(c.azureDbInformer, c.enqueueAllTenant)
-	addAzureManagedDbHandlers(c.azureManagedDbInformer, c.enqueueAllTenant)
-	addHelmReleaseHandlers(c.helmReleaseInformer, c.enqueueAllTenant)
-	addAzureVirtualMachineHandlers(c.azureVirtualMachineInformer, c.enqueueAllTenant)
-	addAzureVirtualDesktopHandlers(c.azureVirtualDesktopInformer, c.enqueueAllTenant)
+
+	addResourceHandlers[*provisioningv1.AzureDatabase]("Azure database", c.azureDbInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.AzureManagedDatabase]("Azure managed database", c.azureManagedDbInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
 
 	return c
 }
@@ -208,8 +209,8 @@ func (c *ProvisioningController) processNextWorkItem(i int) bool {
 // with the current status of the resource.
 func (c *ProvisioningController) syncHandler(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
-	platform, tenantKey, _ := decodeKey(key)
-	namespace, name, err := cache.SplitMetaNamespaceKey(tenantKey)
+	platformKey, tenantKey, domainKey, _ := decodeKey(key)
+	tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("invalid tenant key: %s", tenantKey))
 		return nil
@@ -217,11 +218,17 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	// Get the Tenant resource with this namespace/name
 	// use the live query API, to get the latest version instead of listers which are cached
-	tenant, err := c.clientset.PlatformV1alpha1().Tenants(namespace).Get(context.TODO(), name, metav1.GetOptions{})
-	if shouldCleanupTenantResources := (err != nil && errors.IsNotFound(err)) || (err == nil && tenant.Spec.PlatformRef != platform); shouldCleanupTenantResources {
-		cleanupResult := c.provisioner(platform, &platformv1.Tenant{
-			ObjectMeta: metav1.ObjectMeta{Name: name},
-			Spec:       platformv1.TenantSpec{PlatformRef: platform}},
+	tenant, err := c.clientset.PlatformV1alpha1().Tenants(tenantNamespace).Get(context.TODO(), tenantName, metav1.GetOptions{})
+	shouldCleanupResources :=
+		(err != nil && errors.IsNotFound(err)) ||
+			(err == nil && (tenant.Spec.PlatformRef != platformKey ||
+				!slices.Contains(tenant.Spec.DomainRefs, domainKey)))
+
+	if shouldCleanupResources {
+		cleanupResult := c.provisioner(platformKey, &platformv1.Tenant{
+			ObjectMeta: metav1.ObjectMeta{Name: tenantName},
+			Spec:       platformv1.TenantSpec{PlatformRef: platformKey}},
+			domainKey,
 			&provisioners.InfrastructureManifests{
 				AzureDbs:             []*provisioningv1.AzureDatabase{},
 				AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
@@ -249,73 +256,33 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-
-	n := 0
-	for _, db := range azureDbs {
-		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
-			azureDbs[n] = db
-			n++
-		}
-	}
-	azureDbs = azureDbs[:n]
+	azureDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureDbs)
 
 	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
-
-	n = 0
-	for _, db := range azureManagedDbs {
-		if db.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, db.Spec.DomainRef) {
-			azureManagedDbs[n] = db
-			n++
-		}
-	}
-	azureManagedDbs = azureManagedDbs[:n]
+	azureManagedDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureManagedDbs)
 
 	helmReleases, err := c.helmReleaseInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
-
-	n = 0
-	for _, hr := range helmReleases {
-		if hr.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, hr.Spec.DomainRef) {
-			helmReleases[n] = hr
-			n++
-		}
-	}
-	helmReleases = helmReleases[:n]
+	helmReleases = selectItemsInPlatformAndDomain(platformKey, domainKey, helmReleases)
 
 	azureVirtualMachines, err := c.azureVirtualMachineInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
-
-	n = 0
-	for _, vm := range azureVirtualMachines {
-		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
-			azureVirtualMachines[n] = vm
-			n++
-		}
-	}
-	azureVirtualMachines = azureVirtualMachines[:n]
+	azureVirtualMachines = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualMachines)
 
 	azureVirtualDesktops, err := c.azureVirtualDesktopInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
+	azureVirtualDesktops = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualDesktops)
 
-	n = 0
-	for _, vm := range azureVirtualDesktops {
-		if vm.Spec.PlatformRef == platform && slices.Contains(tenant.Spec.DomainRefs, vm.Spec.DomainRef) {
-			azureVirtualDesktops[n] = vm
-			n++
-		}
-	}
-	azureVirtualDesktops = azureVirtualDesktops[:n]
-
-	result := c.provisioner(platform, tenant, &provisioners.InfrastructureManifests{
+	result := c.provisioner(platformKey, tenant, domainKey, &provisioners.InfrastructureManifests{
 		AzureDbs:             azureDbs,
 		AzureManagedDbs:      azureManagedDbs,
 		HelmReleases:         helmReleases,
@@ -325,9 +292,9 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 	if result.Error == nil {
 		if c.migrator != nil && result.HasChanges {
-			p, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platform, metav1.GetOptions{})
+			platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformKey, metav1.GetOptions{})
 			if err == nil {
-				result.Error = c.migrator(p.Spec.TargetNamespace, tenant)
+				result.Error = c.migrator(platform.Spec.TargetNamespace, tenant, domainKey)
 			} else {
 				klog.ErrorS(err, "platform not found")
 			}
@@ -335,25 +302,27 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	}
 
 	if result.Error == nil {
-		c.recorder.Event(tenant, corev1.EventTypeNormal, controllers.SuccessSynced, controllers.SuccessSynced)
+		c.recorder.Event(tenant, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domainKey), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domainKey))
 
 		var ev = struct {
 			TenantId          string
 			TenantName        string
 			TenantDescription string
 			Platform          string
+			Domain            string
 		}{
 			TenantId:          tenant.Spec.Id,
 			TenantName:        tenant.Name,
 			TenantDescription: tenant.Spec.Description,
-			Platform:          platform,
+			Platform:          platformKey,
+			Domain:            domainKey,
 		}
-		err = c.messagingPublisher(context.TODO(), tenantProvisionedSuccessfullyTopic, ev, platform)
+		err = c.messagingPublisher(context.TODO(), tenantProvisionedSuccessfullyTopic, ev, platformKey)
 		if err != nil {
 			klog.ErrorS(err, "message publisher error")
 		}
 	} else {
-		c.recorder.Event(tenant, corev1.EventTypeWarning, controllers.ErrorSynced, result.Error.Error())
+		c.recorder.Event(tenant, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domainKey), result.Error.Error())
 
 		var ev = struct {
 			TenantId          string
@@ -361,58 +330,25 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			TenantDescription string
 			Platform          string
 			Error             string
+			Domain            string
 		}{
 			TenantId:          tenant.Spec.Id,
 			TenantName:        tenant.Name,
 			TenantDescription: tenant.Spec.Description,
-			Platform:          platform,
+			Platform:          platformKey,
+			Domain:            domainKey,
 			Error:             result.Error.Error(),
 		}
-		err = c.messagingPublisher(context.TODO(), tenantProvisionningFailedTopic, ev, platform)
+		err = c.messagingPublisher(context.TODO(), tenantProvisionningFailedTopic, ev, platformKey)
 		if err != nil {
 			klog.ErrorS(err, "message publisher error")
 		}
-	}
-	_, e := c.updateTenantStatus(tenant, result.Error)
-	if e != nil {
-		//just log this error, don't propagate
-		utilruntime.HandleError(e)
 	}
 
 	return result.Error
 }
 
-func (c *ProvisioningController) updateTenantStatus(tenant *platformv1.Tenant, err error) (*platformv1.Tenant, error) {
-	// NEVER modify objects from the store. It's a read-only, local cache.
-	// You can use DeepCopy() to make a deep copy of original object and modify this copy
-	// Or create a copy manually for better performance
-	tenantCopy := tenant.DeepCopy()
-	tenantCopy.Status.LastResyncTime = metav1.Now()
-
-	if err != nil {
-		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
-			Type:    "Ready",
-			Status:  metav1.ConditionFalse,
-			Reason:  controllers.FailedReason,
-			Message: err.Error(),
-		})
-	} else {
-		apimeta.SetStatusCondition(&tenantCopy.Status.Conditions, metav1.Condition{
-			Type:    "Ready",
-			Status:  metav1.ConditionTrue,
-			Reason:  controllers.SucceededReason,
-			Message: controllers.SuccessSynced,
-		})
-	}
-
-	// If the CustomResourceSubresources feature gate is not enabled,
-	// we must use Update instead of UpdateStatus to update the Status block of the resource.
-	// UpdateStatus will not allow changes to the Spec of the resource,
-	// which is ideal for ensuring nothing other than resource status has been updated.
-	return c.clientset.PlatformV1alpha1().Tenants(tenant.Namespace).UpdateStatus(context.TODO(), tenantCopy, metav1.UpdateOptions{})
-}
-
-func (c *ProvisioningController) enqueueAllTenant(platform string) {
+func (c *ProvisioningController) enqueueDomain(platform, domain string) {
 	tenants, err := c.tenantInformer.Lister().List(labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -420,7 +356,7 @@ func (c *ProvisioningController) enqueueAllTenant(platform string) {
 	}
 	for _, tenant := range tenants {
 		if tenant.Spec.PlatformRef == platform {
-			c.enqueueTenant(tenant)
+			c.enqueueTenantDomain(tenant, domain)
 		}
 	}
 }
@@ -437,19 +373,40 @@ func (c *ProvisioningController) enqueueTenant(tenant *platformv1.Tenant) {
 		utilruntime.HandleError(err)
 		return
 	}
-	c.workqueue.Add(encodeKey(tenant.Spec.PlatformRef, tenantKey))
-}
 
-func encodeKey(platformKey, tenantKey string) (key string) {
-	return fmt.Sprintf("%s::%s", platformKey, tenantKey)
-}
-
-func decodeKey(key string) (platformKey, tenantKey string, err error) {
-	res := strings.Split(key, "::")
-	if len(res) == 2 {
-		return res[0], res[1], nil
+	for _, domain := range tenant.Spec.DomainRefs {
+		c.workqueue.Add(encodeKey(tenant.Spec.PlatformRef, tenantKey, domain))
 	}
-	return "", "", fmt.Errorf("cannot decode key: %v", key)
+}
+
+func (c *ProvisioningController) enqueueTenantDomain(tenant *platformv1.Tenant, domain string) {
+	var tenantKey string
+	var err error
+
+	if v, ok := tenant.Labels[SkipProvisioningLabel]; ok && v == "true" {
+		return
+	}
+
+	if tenantKey, err = cache.MetaNamespaceKeyFunc(tenant); err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+
+	if slices.Contains(tenant.Spec.DomainRefs, domain) {
+		c.workqueue.Add(encodeKey(tenant.Spec.PlatformRef, tenantKey, domain))
+	}
+}
+
+func encodeKey(platform, tenant, domain string) (key string) {
+	return fmt.Sprintf("%s::%s::%s", platform, tenant, domain)
+}
+
+func decodeKey(key string) (platform, tenant, domain string, err error) {
+	res := strings.Split(key, "::")
+	if len(res) == 3 {
+		return res[0], res[1], res[2], nil
+	}
+	return "", "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
 func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
@@ -505,181 +462,41 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 	})
 }
 
-func addAzureDbHandlers(informer provisioningInformersv1.AzureDatabaseInformer, handler func(platform string)) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+func addResourceHandlers[R ProvisioningResource](resType string, informer cache.SharedIndexInformer, handler func(platform, domain string)) {
+	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureDatabase)
-			if platform, ok := getAzureDbPlatform(comp); ok {
-				klog.V(4).InfoS("Azure database added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
+			comp := obj.(R)
+			if platform, domain, ok := getPlatformAndDomain(comp); ok {
+				msg := fmt.Sprintf("%s added", resType)
+				klog.V(4).InfoS(msg, "name", comp.GetName(), "namespace", comp.GetNamespace(), "platform", platform, "domain", domain)
+				handler(platform, domain)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldComp := oldObj.(*provisioningv1.AzureDatabase)
-			newComp := newObj.(*provisioningv1.AzureDatabase)
-			oldPlatform, oldOk := getAzureDbPlatform(oldComp)
-			newPlatform, newOk := getAzureDbPlatform(newComp)
-			platformChanged := oldPlatform != newPlatform
+			oldComp := oldObj.(R)
+			newComp := newObj.(R)
+			oldPlatform, oldDomain, oldOk := getPlatformAndDomain(oldComp)
+			newPlatform, newDomain, newOk := getPlatformAndDomain(newComp)
+			platformOrDomainChanged := oldPlatform != newPlatform || oldDomain != newDomain
 
-			if oldOk && platformChanged {
-				klog.V(4).InfoS("Azure database invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
-				handler(oldPlatform)
-			}
-
-			if newOk {
-				klog.V(4).InfoS("Azure database updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
-				handler(newPlatform)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureDatabase)
-			if platform, ok := getAzureDbPlatform(comp); ok {
-				klog.V(4).InfoS("Azure database deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-	})
-}
-
-func addAzureManagedDbHandlers(informer provisioningInformersv1.AzureManagedDatabaseInformer, handler func(platform string)) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureManagedDatabase)
-			if platform, ok := getAzureManagedDbPlatform(comp); ok {
-				klog.V(4).InfoS("Azure managed database added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldComp := oldObj.(*provisioningv1.AzureManagedDatabase)
-			newComp := newObj.(*provisioningv1.AzureManagedDatabase)
-			oldPlatform, oldOk := getAzureManagedDbPlatform(oldComp)
-			newPlatform, newOk := getAzureManagedDbPlatform(newComp)
-			platformChanged := oldPlatform != newPlatform
-
-			if oldOk && platformChanged {
-				klog.V(4).InfoS("Azure managed database invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
-				handler(oldPlatform)
+			if oldOk && platformOrDomainChanged {
+				msg := fmt.Sprintf("%s invalidated", resType)
+				klog.V(4).InfoS(msg, "name", oldComp.GetName(), "namespace", oldComp.GetNamespace(), "platform", oldPlatform, "domain", oldDomain)
+				handler(oldPlatform, oldDomain)
 			}
 
 			if newOk {
-				klog.V(4).InfoS("Azure managed database updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
-				handler(newPlatform)
+				msg := fmt.Sprintf("%s updated", resType)
+				klog.V(4).InfoS(msg, "name", newComp.GetName(), "namespace", newComp.GetNamespace(), "platform", newPlatform, "domain", newDomain)
+				handler(newPlatform, newDomain)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureManagedDatabase)
-			if platform, ok := getAzureManagedDbPlatform(comp); ok {
-				klog.V(4).InfoS("Azure managed database deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-	})
-}
-
-func addHelmReleaseHandlers(informer provisioningInformersv1.HelmReleaseInformer, handler func(platform string)) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.HelmRelease)
-			if platform, ok := getHelmReleasePlatform(comp); ok {
-				klog.V(4).InfoS("Helm release added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldComp := oldObj.(*provisioningv1.HelmRelease)
-			newComp := newObj.(*provisioningv1.HelmRelease)
-			oldPlatform, oldOk := getHelmReleasePlatform(oldComp)
-			newPlatform, newOk := getHelmReleasePlatform(newComp)
-			platformChanged := oldPlatform != newPlatform
-
-			if oldOk && platformChanged {
-				klog.V(4).InfoS("Helm release invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
-				handler(oldPlatform)
-			}
-
-			if newOk {
-				klog.V(4).InfoS("Helm release updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
-				handler(newPlatform)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.HelmRelease)
-			if platform, ok := getHelmReleasePlatform(comp); ok {
-				klog.V(4).InfoS("Helm release deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-	})
-}
-
-func addAzureVirtualDesktopHandlers(informer provisioningInformersv1.AzureVirtualDesktopInformer, handler func(platform string)) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureVirtualDesktop)
-			if platform, ok := getAzureVirtualDesktopPlatform(comp); ok {
-				klog.V(4).InfoS("Azure virtual Desktop added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldComp := oldObj.(*provisioningv1.AzureVirtualDesktop)
-			newComp := newObj.(*provisioningv1.AzureVirtualDesktop)
-			oldPlatform, oldOk := getAzureVirtualDesktopPlatform(oldComp)
-			newPlatform, newOk := getAzureVirtualDesktopPlatform(newComp)
-			platformChanged := oldPlatform != newPlatform
-
-			if oldOk && platformChanged {
-				klog.V(4).InfoS("Azure virtual desktop invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
-				handler(oldPlatform)
-			}
-
-			if newOk {
-				klog.V(4).InfoS("Azure virtual desktop updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
-				handler(newPlatform)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureVirtualDesktop)
-			if platform, ok := getAzureVirtualDesktopPlatform(comp); ok {
-				klog.V(4).InfoS("Azure virtual desktop deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-	})
-}
-
-func addAzureVirtualMachineHandlers(informer provisioningInformersv1.AzureVirtualMachineInformer, handler func(platform string)) {
-	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureVirtualMachine)
-			if platform, ok := getAzureVirtualMachinePlatform(comp); ok {
-				klog.V(4).InfoS("Azure virtual machine added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
-			}
-		},
-		UpdateFunc: func(oldObj, newObj interface{}) {
-			oldComp := oldObj.(*provisioningv1.AzureVirtualMachine)
-			newComp := newObj.(*provisioningv1.AzureVirtualMachine)
-			oldPlatform, oldOk := getAzureVirtualMachinePlatform(oldComp)
-			newPlatform, newOk := getAzureVirtualMachinePlatform(newComp)
-			platformChanged := oldPlatform != newPlatform
-
-			if oldOk && platformChanged {
-				klog.V(4).InfoS("Azure virtual machine invalidated", "name", oldComp.Name, "namespace", oldComp.Namespace, "platform", oldPlatform)
-				handler(oldPlatform)
-			}
-
-			if newOk {
-				klog.V(4).InfoS("Azure virtual machine updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform)
-				handler(newPlatform)
-			}
-		},
-		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*provisioningv1.AzureVirtualMachine)
-			if platform, ok := getAzureVirtualMachinePlatform(comp); ok {
-				klog.V(4).InfoS("Azure virtual machine deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform)
-				handler(platform)
+			comp := obj.(R)
+			if platform, domain, ok := getPlatformAndDomain(comp); ok {
+				msg := fmt.Sprintf("%s deleted", resType)
+				klog.V(4).InfoS(msg, "name", comp.GetName(), "namespace", comp.GetNamespace(), "platform", platform, "domain", domain)
+				handler(platform, domain)
 			}
 		},
 	})
@@ -687,51 +504,6 @@ func addAzureVirtualMachineHandlers(informer provisioningInformersv1.AzureVirtua
 
 func getTenantPlatform(tenant *platformv1.Tenant) (platform string, ok bool) {
 	platform = tenant.Spec.PlatformRef
-	if len(platform) == 0 {
-		return platform, false
-	}
-
-	return platform, true
-}
-
-func getAzureDbPlatform(azureDb *provisioningv1.AzureDatabase) (platform string, ok bool) {
-	platform = azureDb.Spec.PlatformRef
-	if len(platform) == 0 {
-		return platform, false
-	}
-
-	return platform, true
-}
-
-func getAzureManagedDbPlatform(azureManagedDb *provisioningv1.AzureManagedDatabase) (platform string, ok bool) {
-	platform = azureManagedDb.Spec.PlatformRef
-	if len(platform) == 0 {
-		return platform, false
-	}
-
-	return platform, true
-}
-
-func getHelmReleasePlatform(helmRelease *provisioningv1.HelmRelease) (platform string, ok bool) {
-	platform = helmRelease.Spec.PlatformRef
-	if len(platform) == 0 {
-		return platform, false
-	}
-
-	return platform, true
-}
-
-func getAzureVirtualMachinePlatform(azureVirtualMachine *provisioningv1.AzureVirtualMachine) (platform string, ok bool) {
-	platform = azureVirtualMachine.Spec.PlatformRef
-	if len(platform) == 0 {
-		return platform, false
-	}
-
-	return platform, true
-}
-
-func getAzureVirtualDesktopPlatform(azureVirtualDesktop *provisioningv1.AzureVirtualDesktop) (platform string, ok bool) {
-	platform = azureVirtualDesktop.Spec.PlatformRef
 	if len(platform) == 0 {
 		return platform, false
 	}

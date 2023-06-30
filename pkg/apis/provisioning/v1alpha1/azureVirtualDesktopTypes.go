@@ -109,3 +109,11 @@ type AzureVirtualDesktopList struct {
 
 	Items []AzureVirtualDesktop `json:"items"`
 }
+
+func (avd *AzureVirtualDesktop) GetPlatformRef() string {
+	return avd.Spec.PlatformRef
+}
+
+func (avd *AzureVirtualDesktop) GetDomainRef() string {
+	return avd.Spec.DomainRef
+}

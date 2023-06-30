@@ -62,3 +62,11 @@ type AzureDatabaseList struct {
 
 	Items []AzureDatabase `json:"items"`
 }
+
+func (db *AzureDatabase) GetPlatformRef() string {
+	return db.Spec.PlatformRef
+}
+
+func (db *AzureDatabase) GetDomainRef() string {
+	return db.Spec.DomainRef
+}

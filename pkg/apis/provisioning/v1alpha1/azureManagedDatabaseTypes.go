@@ -71,3 +71,11 @@ type AzureManagedDatabaseList struct {
 
 	Items []AzureManagedDatabase `json:"items"`
 }
+
+func (db *AzureManagedDatabase) GetPlatformRef() string {
+	return db.Spec.PlatformRef
+}
+
+func (db *AzureManagedDatabase) GetDomainRef() string {
+	return db.Spec.DomainRef
+}
