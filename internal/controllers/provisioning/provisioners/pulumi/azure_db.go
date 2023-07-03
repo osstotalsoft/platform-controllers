@@ -75,6 +75,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				pulumi.RetainOnDelete(PulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreChanges),
 				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
+				pulumi.Import(pulumi.ID(dbSpec.Spec.ImportDatabaseId)),
 			)
 			if err != nil {
 				return err

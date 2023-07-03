@@ -29,6 +29,10 @@ type AzureDatabaseSpec struct {
 	// eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
 	// +optional
 	SourceDatabaseId string `json:"sourceDatabaseId,omitempty"`
+	// Existing database to be used instead of creating a new one
+	// eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
+	// +optional
+	ImportDatabaseId string `json:"importDatabaseId,omitempty"`
 	// +optional
 	Exports          []AzureDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
