@@ -291,7 +291,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	})
 
 	if result.Error == nil {
-		if c.migrator != nil && result.HasChanges {
+		if c.migrator != nil && result.HasChanges && tenant.Spec.Enabled {
 			platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformKey, metav1.GetOptions{})
 			if err == nil {
 				result.Error = c.migrator(platform.Spec.TargetNamespace, tenant, domainKey)
