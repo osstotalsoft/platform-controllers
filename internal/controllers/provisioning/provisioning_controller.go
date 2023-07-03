@@ -257,30 +257,50 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 	azureDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureDbs)
+	err = applyTenantOverrides(azureDbs, tenant.Name)
+	if err != nil {
+		return err
+	}
 
 	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
 	azureManagedDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureManagedDbs)
+	err = applyTenantOverrides(azureManagedDbs, tenant.Name)
+	if err != nil {
+		return err
+	}
 
 	helmReleases, err := c.helmReleaseInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
 	helmReleases = selectItemsInPlatformAndDomain(platformKey, domainKey, helmReleases)
+	err = applyTenantOverrides(helmReleases, tenant.Name)
+	if err != nil {
+		return err
+	}
 
 	azureVirtualMachines, err := c.azureVirtualMachineInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
 	azureVirtualMachines = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualMachines)
+	err = applyTenantOverrides(azureVirtualMachines, tenant.Name)
+	if err != nil {
+		return err
+	}
 
 	azureVirtualDesktops, err := c.azureVirtualDesktopInformer.Lister().List(skipTenantLabelSelector)
 	if err != nil {
 		return err
 	}
 	azureVirtualDesktops = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualDesktops)
+	err = applyTenantOverrides(azureVirtualDesktops, tenant.Name)
+	if err != nil {
+		return err
+	}
 
 	result := c.provisioner(platformKey, tenant, domainKey, &provisioners.InfrastructureManifests{
 		AzureDbs:             azureDbs,

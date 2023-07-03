@@ -175,6 +175,13 @@ spec:
               subnetId:
                 description: 'Subnet of the VNet used by the virtual machine eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default'
                 type: string
+              tenantOverrides:
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: Overrides for tenants. Dictionary with tenant name as
+                  key, spec override as value. The spec override has the same structure
+                  as Spec
+                type: object
               users:
                 properties:
                   admins:

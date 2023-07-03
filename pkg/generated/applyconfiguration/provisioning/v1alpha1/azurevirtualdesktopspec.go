@@ -18,47 +18,34 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+)
+
 // AzureVirtualDesktopSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopSpec type for use
 // with apply.
 type AzureVirtualDesktopSpecApplyConfiguration struct {
-	PlatformRef           *string                                            `json:"platformRef,omitempty"`
-	DomainRef             *string                                            `json:"domainRef,omitempty"`
-	HostPoolName          *string                                            `json:"hostPoolName,omitempty"`
-	VmNamePrefix          *string                                            `json:"vmNamePrefix,omitempty"`
-	VmSize                *string                                            `json:"vmSize,omitempty"`
-	VmNumberOfInstances   *int                                               `json:"vmNumberOfInstances,omitempty"`
-	OSDiskType            *string                                            `json:"osDiskType,omitempty"`
-	SourceImageId         *string                                            `json:"sourceImageId,omitempty"`
-	SubnetId              *string                                            `json:"subnetId,omitempty"`
-	EnableTrustedLaunch   *bool                                              `json:"enableTrustedLaunch,omitempty"`
-	InitScript            *string                                            `json:"initScript,omitempty"`
-	InitScriptArguments   []InitScriptArgsApplyConfiguration                 `json:"initScriptArgs,omitempty"`
-	WorkspaceFriendlyName *string                                            `json:"workspaceFriendlyName,omitempty"`
-	Applications          []AzureVirtualDesktopApplicationApplyConfiguration `json:"applications,omitempty"`
-	Users                 *AzureVirtualDesktopUsersSpecApplyConfiguration    `json:"users,omitempty"`
-	Exports               []AzureVirtualDesktopExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	HostPoolName                       *string                                            `json:"hostPoolName,omitempty"`
+	VmNamePrefix                       *string                                            `json:"vmNamePrefix,omitempty"`
+	VmSize                             *string                                            `json:"vmSize,omitempty"`
+	VmNumberOfInstances                *int                                               `json:"vmNumberOfInstances,omitempty"`
+	OSDiskType                         *string                                            `json:"osDiskType,omitempty"`
+	SourceImageId                      *string                                            `json:"sourceImageId,omitempty"`
+	SubnetId                           *string                                            `json:"subnetId,omitempty"`
+	EnableTrustedLaunch                *bool                                              `json:"enableTrustedLaunch,omitempty"`
+	InitScript                         *string                                            `json:"initScript,omitempty"`
+	InitScriptArguments                []InitScriptArgsApplyConfiguration                 `json:"initScriptArgs,omitempty"`
+	WorkspaceFriendlyName              *string                                            `json:"workspaceFriendlyName,omitempty"`
+	Applications                       []AzureVirtualDesktopApplicationApplyConfiguration `json:"applications,omitempty"`
+	Users                              *AzureVirtualDesktopUsersSpecApplyConfiguration    `json:"users,omitempty"`
+	Exports                            []AzureVirtualDesktopExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
 
 // AzureVirtualDesktopSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopSpec type for use with
 // apply.
 func AzureVirtualDesktopSpec() *AzureVirtualDesktopSpecApplyConfiguration {
 	return &AzureVirtualDesktopSpecApplyConfiguration{}
-}
-
-// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PlatformRef field is set to the value of the last call.
-func (b *AzureVirtualDesktopSpecApplyConfiguration) WithPlatformRef(value string) *AzureVirtualDesktopSpecApplyConfiguration {
-	b.PlatformRef = &value
-	return b
-}
-
-// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DomainRef field is set to the value of the last call.
-func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDomainRef(value string) *AzureVirtualDesktopSpecApplyConfiguration {
-	b.DomainRef = &value
-	return b
 }
 
 // WithHostPoolName sets the HostPoolName field in the declarative configuration to the given value
@@ -184,6 +171,36 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithExports(values ...*Azure
 			panic("nil value passed to WithExports")
 		}
 		b.Exports = append(b.Exports, *values[i])
+	}
+	return b
+}
+
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithPlatformRef(value string) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDomainRef(value string) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.DomainRef = &value
+	return b
+}
+
+// WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the TenantOverrides field,
+// overwriting an existing map entries in TenantOverrides field with the same key.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithTenantOverrides(entries map[string]*v1.JSON) *AzureVirtualDesktopSpecApplyConfiguration {
+	if b.TenantOverrides == nil && len(entries) > 0 {
+		b.TenantOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.TenantOverrides[k] = v
 	}
 	return b
 }

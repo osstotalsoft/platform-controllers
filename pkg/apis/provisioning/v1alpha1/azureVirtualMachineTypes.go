@@ -16,12 +16,6 @@ type AzureVirtualMachine struct {
 }
 
 type AzureVirtualMachineSpec struct {
-	// Target platform (custom resource name).
-	// +required
-	PlatformRef string `json:"platformRef"`
-	// Business Domain that this resource is provision for.
-	// +required
-	DomainRef string `json:"domainRef"`
 	// Virtual Machine name prefix. Will have platform and tenant suffix.
 	VmName string `json:"vmName"`
 
@@ -46,6 +40,8 @@ type AzureVirtualMachineSpec struct {
 
 	// Enable Trusted Launch security
 	EnableTrustedLaunch bool `json:"enableTrustedLaunch"`
+
+	ProvisioningMeta `json:",inline"`
 
 	// +optional
 	Exports []AzureVirtualMachineExportsSpec `json:"exports,omitempty"`
@@ -74,10 +70,10 @@ type AzureVirtualMachineList struct {
 	Items []AzureVirtualMachine `json:"items"`
 }
 
-func (vm *AzureVirtualMachine) GetPlatformRef() string {
-	return vm.Spec.PlatformRef
+func (db *AzureVirtualMachine) GetProvisioningMeta() *ProvisioningMeta {
+	return &db.Spec.ProvisioningMeta
 }
 
-func (vm *AzureVirtualMachine) GetDomainRef() string {
-	return vm.Spec.DomainRef
+func (db *AzureVirtualMachine) GetSpec() any {
+	return &db.Spec
 }

@@ -18,41 +18,28 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+)
+
 // AzureVirtualMachineSpecApplyConfiguration represents an declarative configuration of the AzureVirtualMachineSpec type for use
 // with apply.
 type AzureVirtualMachineSpecApplyConfiguration struct {
-	PlatformRef            *string                                            `json:"platformRef,omitempty"`
-	DomainRef              *string                                            `json:"domainRef,omitempty"`
-	VmName                 *string                                            `json:"vmName,omitempty"`
-	VmSize                 *string                                            `json:"vmSize,omitempty"`
-	OSDiskType             *string                                            `json:"osDiskType,omitempty"`
-	SourceImageId          *string                                            `json:"sourceImageId,omitempty"`
-	SubnetId               *string                                            `json:"subnetId,omitempty"`
-	RdpSourceAddressPrefix *string                                            `json:"rdpSourceAddressPrefix,omitempty"`
-	EnableTrustedLaunch    *bool                                              `json:"enableTrustedLaunch,omitempty"`
-	Exports                []AzureVirtualMachineExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	VmName                             *string `json:"vmName,omitempty"`
+	VmSize                             *string `json:"vmSize,omitempty"`
+	OSDiskType                         *string `json:"osDiskType,omitempty"`
+	SourceImageId                      *string `json:"sourceImageId,omitempty"`
+	SubnetId                           *string `json:"subnetId,omitempty"`
+	RdpSourceAddressPrefix             *string `json:"rdpSourceAddressPrefix,omitempty"`
+	EnableTrustedLaunch                *bool   `json:"enableTrustedLaunch,omitempty"`
+	ProvisioningMetaApplyConfiguration `json:",inline"`
+	Exports                            []AzureVirtualMachineExportsSpecApplyConfiguration `json:"exports,omitempty"`
 }
 
 // AzureVirtualMachineSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualMachineSpec type for use with
 // apply.
 func AzureVirtualMachineSpec() *AzureVirtualMachineSpecApplyConfiguration {
 	return &AzureVirtualMachineSpecApplyConfiguration{}
-}
-
-// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the PlatformRef field is set to the value of the last call.
-func (b *AzureVirtualMachineSpecApplyConfiguration) WithPlatformRef(value string) *AzureVirtualMachineSpecApplyConfiguration {
-	b.PlatformRef = &value
-	return b
-}
-
-// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the DomainRef field is set to the value of the last call.
-func (b *AzureVirtualMachineSpecApplyConfiguration) WithDomainRef(value string) *AzureVirtualMachineSpecApplyConfiguration {
-	b.DomainRef = &value
-	return b
 }
 
 // WithVmName sets the VmName field in the declarative configuration to the given value
@@ -108,6 +95,36 @@ func (b *AzureVirtualMachineSpecApplyConfiguration) WithRdpSourceAddressPrefix(v
 // If called multiple times, the EnableTrustedLaunch field is set to the value of the last call.
 func (b *AzureVirtualMachineSpecApplyConfiguration) WithEnableTrustedLaunch(value bool) *AzureVirtualMachineSpecApplyConfiguration {
 	b.EnableTrustedLaunch = &value
+	return b
+}
+
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *AzureVirtualMachineSpecApplyConfiguration) WithPlatformRef(value string) *AzureVirtualMachineSpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
+}
+
+// WithDomainRef sets the DomainRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DomainRef field is set to the value of the last call.
+func (b *AzureVirtualMachineSpecApplyConfiguration) WithDomainRef(value string) *AzureVirtualMachineSpecApplyConfiguration {
+	b.DomainRef = &value
+	return b
+}
+
+// WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the TenantOverrides field,
+// overwriting an existing map entries in TenantOverrides field with the same key.
+func (b *AzureVirtualMachineSpecApplyConfiguration) WithTenantOverrides(entries map[string]*v1.JSON) *AzureVirtualMachineSpecApplyConfiguration {
+	if b.TenantOverrides == nil && len(entries) > 0 {
+		b.TenantOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.TenantOverrides[k] = v
+	}
 	return b
 }
 

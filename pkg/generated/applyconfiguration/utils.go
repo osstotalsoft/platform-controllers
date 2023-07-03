@@ -107,6 +107,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("InitScriptArgs"):
 		return &applyconfigurationprovisioningv1alpha1.InitScriptArgsApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProvisioningMeta"):
+		return &applyconfigurationprovisioningv1alpha1.ProvisioningMetaApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("SqlServerSpec"):
 		return &applyconfigurationprovisioningv1alpha1.SqlServerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ValueExport"):

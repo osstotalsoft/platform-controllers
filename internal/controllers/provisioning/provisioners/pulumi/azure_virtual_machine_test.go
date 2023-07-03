@@ -56,7 +56,9 @@ func newVm(name, platform string) *provisioningv1.AzureVirtualMachine {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: provisioningv1.AzureVirtualMachineSpec{
-			PlatformRef:            platform,
+			ProvisioningMeta: provisioningv1.ProvisioningMeta{
+				PlatformRef: platform,
+			},
 			VmName:                 "test-vm",
 			VmSize:                 "Standard_B1s",
 			OSDiskType:             "Standard_LRS",
