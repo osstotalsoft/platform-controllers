@@ -16,6 +16,7 @@ type ProvisioningResource interface {
 	GetSpec() any
 	GetName() string
 	GetNamespace() string
+	Clone() any
 }
 
 func getPlatformAndDomain[R ProvisioningResource](res R) (platform, domain string, ok bool) {
@@ -32,7 +33,8 @@ func selectItemsInPlatformAndDomain[R ProvisioningResource](platform, domain str
 	result := []R{}
 	for _, res := range source {
 		if res.GetProvisioningMeta().PlatformRef == platform && res.GetProvisioningMeta().DomainRef == domain {
-			result = append(result, res)
+
+			result = append(result, res.Clone().(R))
 		}
 	}
 	return result
