@@ -29,6 +29,7 @@ type AzureDatabaseSpecApplyConfiguration struct {
 	SqlServer                          *SqlServerSpecApplyConfiguration             `json:"sqlServer,omitempty"`
 	Sku                                *string                                      `json:"sku,omitempty"`
 	SourceDatabaseId                   *string                                      `json:"sourceDatabaseId,omitempty"`
+	ImportDatabaseId                   *string                                      `json:"importDatabaseId,omitempty"`
 	Exports                            []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -68,6 +69,14 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithSku(value string) *AzureDataba
 // If called multiple times, the SourceDatabaseId field is set to the value of the last call.
 func (b *AzureDatabaseSpecApplyConfiguration) WithSourceDatabaseId(value string) *AzureDatabaseSpecApplyConfiguration {
 	b.SourceDatabaseId = &value
+	return b
+}
+
+// WithImportDatabaseId sets the ImportDatabaseId field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ImportDatabaseId field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithImportDatabaseId(value string) *AzureDatabaseSpecApplyConfiguration {
+	b.ImportDatabaseId = &value
 	return b
 }
 

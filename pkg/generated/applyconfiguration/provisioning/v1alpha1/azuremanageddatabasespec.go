@@ -28,6 +28,7 @@ type AzureManagedDatabaseSpecApplyConfiguration struct {
 	DbName                             *string                                             `json:"dbName,omitempty"`
 	ManagedInstance                    *AzureManagedInstanceSpecApplyConfiguration         `json:"managedInstance,omitempty"`
 	RestoreFrom                        *AzureManagedDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
+	ImportDatabaseId                   *string                                             `json:"importDatabaseId,omitempty"`
 	Exports                            []AzureManagedDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -59,6 +60,14 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithManagedInstance(value *
 // If called multiple times, the RestoreFrom field is set to the value of the last call.
 func (b *AzureManagedDatabaseSpecApplyConfiguration) WithRestoreFrom(value *AzureManagedDatabaseRestoreSpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
 	b.RestoreFrom = value
+	return b
+}
+
+// WithImportDatabaseId sets the ImportDatabaseId field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ImportDatabaseId field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithImportDatabaseId(value string) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.ImportDatabaseId = &value
 	return b
 }
 
