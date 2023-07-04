@@ -23,10 +23,11 @@ import (
 func TestProvisioningController_processNextWorkItem(t *testing.T) {
 
 	t.Run("add three tenants", func(t *testing.T) {
+		domain := "my-domain"
 		objects := []runtime.Object{
-			newTenant("dev1", "dev"),
-			newTenant("dev2", "dev"),
-			newTenant("dev3", "qa"),
+			newTenant("dev1", "dev", domain),
+			newTenant("dev2", "dev", domain),
+			newTenant("dev3", "qa", domain),
 		}
 
 		c, outputs, msgChan := runControllerWithDefaultFakes(objects)
@@ -85,17 +86,18 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 
 	})
 
-	t.Run("ignores same tenant updates while an update for same tenant in progress", func(t *testing.T) {
+	t.Run("ignores same tenant-domain updates while an update for same tenant-domain in progress", func(t *testing.T) {
 		//Arrange
-		tenant := newTenant("dev1", "dev")
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
 		objects := []runtime.Object{tenant}
 
 		wg := &sync.WaitGroup{}
 		wg.Add(1)
 
 		var outputs []provisionerResult
-		infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
-			outputs = append(outputs, provisionerResult{platform, tenant, infra})
+		infraCreator := func(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
+			outputs = append(outputs, provisionerResult{platform, tenant, domain, infra})
 			wg.Wait() //wait for other tenant updates
 			return provisioners.ProvisioningResult{}
 		}
@@ -128,10 +130,11 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 
 	t.Run("add one tenant and one database same platform", func(t *testing.T) {
+		domain := "my-domain"
 		objects := []runtime.Object{
-			newTenant("dev1", "dev"),
-			newAzureDb("db1", "dev"),
-			newAzureManagedDb("db1", "dev"),
+			newTenant("dev1", "dev", domain),
+			newAzureDb("db1", "dev", domain),
+			newAzureManagedDb("db1", "dev", domain),
 		}
 		c, outputs, msgChan := runControllerWithDefaultFakes(objects)
 
@@ -168,10 +171,11 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 
 	t.Run("add one tenant and one database different platforms", func(t *testing.T) {
+		domain := "my-domain"
 		objects := []runtime.Object{
-			newTenant("dev1", "dev"),
-			newAzureDb("db1", "dev2"),
-			newAzureManagedDb("db1", "dev2"),
+			newTenant("dev1", "dev", domain),
+			newAzureDb("db1", "dev2", domain),
+			newAzureManagedDb("db1", "dev2", domain),
 		}
 		c, outputs, msgChan := runControllerWithDefaultFakes(objects)
 
@@ -208,9 +212,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 
 	t.Run("skip tenant resource provisioning", func(t *testing.T) {
-
-		tenant := newTenant("dev1", "dev")
-		azureDb := newAzureDb("db1", "dev")
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
+		azureDb := newAzureDb("db1", "dev", domain)
 		azureDb.ObjectMeta.Labels = map[string]string{
 			"provisioning.totalsoft.ro/skip-tenant-dev1": "true",
 		}
@@ -243,9 +247,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 
 	t.Run("filter resource by Domain", func(t *testing.T) {
-
-		tenant := newTenantWithService("dev1", "dev", "p1")
-		azureDb := newAzureDbWithService("db1", "dev", "p2")
+		tenant := newTenant("dev1", "dev", "p1")
+		azureDb := newAzureDb("db1", "dev", "p2")
 		objects := []runtime.Object{
 			tenant,
 			azureDb,
@@ -301,7 +304,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&db, tenantName)
+		err := applyTenantOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -339,7 +342,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&hr, tenantName)
+		err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -381,7 +384,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&avd, tenantName)
+		err := applyTenantOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -428,7 +431,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&hr, tenantName)
+		err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -473,7 +476,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides(&hr, tenantName)
+		err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
@@ -485,7 +488,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 
 }
 
-func newTenantWithService(name, platform, domain string) *platformv1.Tenant {
+func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
 	return &platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -495,16 +498,12 @@ func newTenantWithService(name, platform, domain string) *platformv1.Tenant {
 		Spec: platformv1.TenantSpec{
 			PlatformRef: platform,
 			Description: name + " description",
-			DomainRefs:  []string{domain},
+			DomainRefs:  domains,
 		},
 	}
 }
 
-func newTenant(name, platform string) *platformv1.Tenant {
-	return newTenantWithService(name, platform, "")
-}
-
-func newAzureDbWithService(name, platform, domain string) *provisioningv1.AzureDatabase {
+func newAzureDb(name, platform, domain string) *provisioningv1.AzureDatabase {
 	return &provisioningv1.AzureDatabase{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -521,11 +520,7 @@ func newAzureDbWithService(name, platform, domain string) *provisioningv1.AzureD
 	}
 }
 
-func newAzureDb(name, platform string) *provisioningv1.AzureDatabase {
-	return newAzureDbWithService(name, platform, "")
-}
-
-func newAzureManagedDb(dbName, platform string) *provisioningv1.AzureManagedDatabase {
+func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.AzureManagedDatabase {
 	return &provisioningv1.AzureManagedDatabase{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -535,6 +530,7 @@ func newAzureManagedDb(dbName, platform string) *provisioningv1.AzureManagedData
 		Spec: provisioningv1.AzureManagedDatabaseSpec{
 			ProvisioningMeta: provisioningv1.ProvisioningMeta{
 				PlatformRef: platform,
+				DomainRef:   domain,
 			},
 			DbName: dbName,
 		},
@@ -554,8 +550,8 @@ func runController(objects []runtime.Object, provisioner provisioners.CreateInfr
 func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningController, *[]provisionerResult, chan messagingMock.RcvMsg) {
 	var outputs []provisionerResult
 
-	infraCreator := func(platform string, tenant *platformv1.Tenant, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
-		outputs = append(outputs, provisionerResult{platform, tenant, infra})
+	infraCreator := func(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
+		outputs = append(outputs, provisionerResult{platform, tenant, domain, infra})
 		return provisioners.ProvisioningResult{}
 	}
 
@@ -572,5 +568,6 @@ func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningContr
 type provisionerResult struct {
 	platform string
 	tenant   *platformv1.Tenant
+	domain   string
 	infra    *provisioners.InfrastructureManifests
 }

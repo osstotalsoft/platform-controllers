@@ -12,25 +12,28 @@ import (
 )
 
 func TestKubeJobsMigrationForTenant(t *testing.T) {
+	domain := "test-domain"
 	objects := []runtime.Object{
-		newJob("dev1", true),
-		newJob("dev2", true),
-		newJob("dev3", false),
+		newJob("dev1", domain, true),
+		newJob("dev2", domain, true),
+		newJob("dev3", domain, false),
+		newJob("dev4", "some-other-domain", true),
 	}
 	kubeClient := fake.NewSimpleClientset(objects...)
 	migrator := KubeJobsMigrationForTenant(kubeClient, func(s string, s2 string) bool {
 		return true
 	})
 	t.Run("test job selection by label", func(t *testing.T) {
-		migrator("test", newTenant("qa", "qa"))
+		migrator("test", newTenant("qa", "qa"), domain)
 		jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
-		if len(jobs.Items) != 5 {
-			t.Errorf("Error running migration, expected 5 jobs but found %d", len(jobs.Items))
+		expectedNoOfJobs := 4 + 2 //4 existing + 2 new jobs
+		if len(jobs.Items) != expectedNoOfJobs {
+			t.Errorf("Error running migration, expected %d jobs but found %d", expectedNoOfJobs, len(jobs.Items))
 		}
 	})
 }
 
-func newJob(name string, template bool) *v1.Job {
+func newJob(name, domain string, template bool) *v1.Job {
 	j := &v1.Job{
 		TypeMeta: metav1.TypeMeta{APIVersion: platformv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -40,7 +43,10 @@ func newJob(name string, template bool) *v1.Job {
 		Spec: v1.JobSpec{},
 	}
 	if template {
-		j.SetLabels(map[string]string{JobLabelSelectorKey: "true"})
+		j.SetLabels(map[string]string{
+			jobTemplateLabel: "true",
+			domainLabel:      domain,
+		})
 	}
 	return j
 }

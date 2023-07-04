@@ -29,7 +29,3 @@ type ProvisioningMeta struct {
 	// +optional
 	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
 }
-
-func (meta *ProvisioningMeta) GetTenantOverrides() map[string]*apiextensionsv1.JSON {
-	return meta.TenantOverrides
-}

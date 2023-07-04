@@ -5,8 +5,10 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-type CreateInfrastructureFunc func(platform string,
+type CreateInfrastructureFunc func(
+	platform string,
 	tenant *platformv1.Tenant,
+	domain string,
 	infra *InfrastructureManifests) ProvisioningResult
 
 type InfrastructureManifests struct {
