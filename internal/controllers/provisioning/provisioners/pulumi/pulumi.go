@@ -40,7 +40,7 @@ func Create(platform string, tenant *platformv1.Tenant, domain string, infra *pr
 
 	stackName := fmt.Sprintf("%s-%s", tenant.Name, domain)
 	if anyResource {
-		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, infra, needsResourceGroup))
+		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, domain, infra, needsResourceGroup))
 		if result.Error != nil {
 			return result
 		}
@@ -189,7 +189,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	return s, nil
 }
 
-func deployFunc(platform string, tenant *platformv1.Tenant,
+func deployFunc(platform string, tenant *platformv1.Tenant, domain string,
 	infra *provisioners.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {
@@ -209,7 +209,7 @@ func deployFunc(platform string, tenant *platformv1.Tenant,
 		}
 
 		if needsResourceGroup {
-			rgName, err := azureRGDeployFunc(platform, tenant)(ctx)
+			rgName, err := azureRGDeployFunc(platform, tenant, domain)(ctx)
 			if err != nil {
 				return err
 			}

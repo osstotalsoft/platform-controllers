@@ -8,9 +8,9 @@ import (
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
-func azureRGDeployFunc(platform string, tenant *platformv1.Tenant) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
+func azureRGDeployFunc(platform string, tenant *platformv1.Tenant, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 	return func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
-		resourceGroupName := fmt.Sprintf("%s-%s", platform, tenant.Name)
+		resourceGroupName := fmt.Sprintf("%s-%s-%s", platform, tenant.Name, domain)
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, resourceGroupName, &azureResources.ResourceGroupArgs{
 			ResourceGroupName: pulumi.String(resourceGroupName),
 		}, pulumi.RetainOnDelete(true))
