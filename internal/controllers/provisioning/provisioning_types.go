@@ -16,7 +16,10 @@ type ProvisioningResource interface {
 	GetSpec() any
 	GetName() string
 	GetNamespace() string
-	Clone() any
+}
+
+type Cloner[C any] interface {
+	DeepCopy() C
 }
 
 func getPlatformAndDomain[R ProvisioningResource](res R) (platform, domain string, ok bool) {
@@ -34,61 +37,70 @@ func selectItemsInPlatformAndDomain[R ProvisioningResource](platform, domain str
 	for _, res := range source {
 		if res.GetProvisioningMeta().PlatformRef == platform && res.GetProvisioningMeta().DomainRef == domain {
 
-			result = append(result, res.Clone().(R))
+			result = append(result, res)
 		}
 	}
 	return result
 }
 
-func applyTenantOverrides[T ProvisioningResource](targets []T, tenantName string) error {
-	if targets == nil {
-		return nil
+func applyTenantOverrides[R interface {
+	ProvisioningResource
+	Cloner[R]
+}](source []R, tenantName string) ([]R, error) {
+	if source == nil {
+		return source, nil
 	}
 
-	for _, target := range targets {
-		overrides := target.GetProvisioningMeta().TenantOverrides
+	result := []R{}
+
+	for _, res := range source {
+		overrides := res.GetProvisioningMeta().TenantOverrides
 
 		if overrides == nil {
+			result = append(result, res)
 			continue
 		}
 
 		tenantOverridesJson, exists := overrides[tenantName]
 		if !exists {
+			result = append(result, res)
 			continue
 		}
 
 		var tenantOverridesMap map[string]any
 		if err := json.Unmarshal(tenantOverridesJson.Raw, &tenantOverridesMap); err != nil {
-			return err
+			return nil, err
 		}
 
-		targetSpec := target.GetSpec()
-
-		targetSpecJsonBytes, err := json.Marshal(targetSpec)
+		resSpecJsonBytes, err := json.Marshal(res.GetSpec())
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		var targetSpecMap map[string]any
-		if err := json.Unmarshal(targetSpecJsonBytes, &targetSpecMap); err != nil {
-			return err
+		if err := json.Unmarshal(resSpecJsonBytes, &targetSpecMap); err != nil {
+			return nil, err
 		}
 
 		if err := mergo.Merge(&targetSpecMap, tenantOverridesMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
-			return err
+			return nil, err
 		}
 
-		targetSpecJsonBytes, err = json.Marshal(targetSpecMap)
+		resSpecJsonBytes, err = json.Marshal(targetSpecMap)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
-		if err := json.Unmarshal(targetSpecJsonBytes, targetSpec); err != nil {
-			return err
+		resClone := res.DeepCopy()
+
+		if err := json.Unmarshal(resSpecJsonBytes, resClone.GetSpec()); err != nil {
+			return nil, err
 		}
+
+		result = append(result, resClone)
 	}
 
-	return nil
+	return result, nil
 }
 
 type jsonTransformer struct {

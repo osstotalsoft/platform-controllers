@@ -304,12 +304,13 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenantName)
+		result, err := applyTenantOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
 
-		assert.Equal(t, "afterBackupFileName", db.Spec.RestoreFrom.BackupFileName)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "afterBackupFileName", result[0].Spec.RestoreFrom.BackupFileName)
 	})
 
 	t.Run("override helmRelease version", func(t *testing.T) {
@@ -342,12 +343,13 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
+		result, err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
 
-		assert.Equal(t, hr.Spec.Release.Chart.Spec.Version, "1.1.1")
+		assert.Len(t, result, 1)
+		assert.Equal(t, "1.1.1", result[0].Spec.Release.Chart.Spec.Version)
 	})
 
 	t.Run("override avd params", func(t *testing.T) {
@@ -384,16 +386,17 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, tenantName)
+		result, err := applyTenantOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
 
+		assert.Len(t, result, 1)
 		assert.Equal(t, []provisioningv1.InitScriptArgs{{Name: "arg1NameAfter", Value: "arg1ValueAfter"}},
-			avd.Spec.InitScriptArguments)
+			result[0].Spec.InitScriptArguments)
 
-		assert.Equal(t, []string{"user1After", "user2After"}, avd.Spec.Users.ApplicationUsers)
-		assert.Equal(t, 2, avd.Spec.VmNumberOfInstances)
+		assert.Equal(t, []string{"user1After", "user2After"}, result[0].Spec.Users.ApplicationUsers)
+		assert.Equal(t, 2, result[0].Spec.VmNumberOfInstances)
 	})
 
 	t.Run("override contents of JSON field", func(t *testing.T) {
@@ -431,13 +434,15 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
+		result, err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
 
+		assert.Len(t, result, 1)
+
 		var valuesMap map[string]any
-		if err := json.Unmarshal(hr.Spec.Release.Values.Raw, &valuesMap); err != nil {
+		if err := json.Unmarshal(result[0].Spec.Release.Values.Raw, &valuesMap); err != nil {
 			t.Error(err)
 		}
 
@@ -476,14 +481,59 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
+		result, err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
 		if err != nil {
 			t.Error(err)
 		}
 
-		assert.Equal(t, "", hr.Spec.Release.TargetNamespace)
-		assert.Equal(t, "storageNamespaceBefore", hr.Spec.Release.StorageNamespace)
-		assert.Nil(t, hr.Spec.Release.MaxHistory)
+		assert.Len(t, result, 1)
+		assert.Equal(t, "", result[0].Spec.Release.TargetNamespace)
+		assert.Equal(t, "storageNamespaceBefore", result[0].Spec.Release.StorageNamespace)
+		assert.Nil(t, result[0].Spec.Release.MaxHistory)
+	})
+
+	t.Run("overrides don't mutate source", func(t *testing.T) {
+		tenantName := "tenant1"
+		overrides := map[string]any{
+			"release": map[string]any{
+				"releaseName": "releaseNameAfter0",
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		hrs := []*provisioningv1.HelmRelease{
+			{
+				Spec: provisioningv1.HelmReleaseSpec{
+					ProvisioningMeta: provisioningv1.ProvisioningMeta{
+						TenantOverrides: map[string]*v1.JSON{
+							tenantName: {Raw: overridesBytes},
+						},
+					},
+					Release: v2beta1.HelmReleaseSpec{
+						ReleaseName: "releaseNameBefore0",
+					},
+				},
+			},
+			{
+				Spec: provisioningv1.HelmReleaseSpec{
+					Release: v2beta1.HelmReleaseSpec{
+						ReleaseName: "releaseNameBefore1",
+					},
+				},
+			},
+		}
+
+		result, err := applyTenantOverrides(hrs, tenantName)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Len(t, result, 2)
+		assert.NotSame(t, hrs[0], result[0])
+		assert.Equal(t, "releaseNameBefore0", hrs[0].Spec.Release.ReleaseName)
+		assert.Equal(t, "releaseNameAfter0", result[0].Spec.Release.ReleaseName)
+		assert.Same(t, hrs[1], result[1])
+		assert.Equal(t, "releaseNameBefore1", result[1].Spec.Release.ReleaseName)
 	})
 
 }
