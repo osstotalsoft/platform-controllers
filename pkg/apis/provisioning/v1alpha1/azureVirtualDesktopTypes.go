@@ -112,3 +112,7 @@ func (db *AzureVirtualDesktop) GetProvisioningMeta() *ProvisioningMeta {
 func (db *AzureVirtualDesktop) GetSpec() any {
 	return &db.Spec
 }
+
+func (db *AzureVirtualDesktop) Clone() any {
+	return db.DeepCopy()
+}

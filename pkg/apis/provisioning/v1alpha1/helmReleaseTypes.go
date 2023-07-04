@@ -46,3 +46,7 @@ func (db *HelmRelease) GetProvisioningMeta() *ProvisioningMeta {
 func (db *HelmRelease) GetSpec() any {
 	return &db.Spec
 }
+
+func (db *HelmRelease) Clone() any {
+	return db.DeepCopy()
+}

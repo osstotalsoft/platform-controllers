@@ -77,3 +77,7 @@ func (db *AzureVirtualMachine) GetProvisioningMeta() *ProvisioningMeta {
 func (db *AzureVirtualMachine) GetSpec() any {
 	return &db.Spec
 }
+
+func (db *AzureVirtualMachine) Clone() any {
+	return db.DeepCopy()
+}
