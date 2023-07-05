@@ -257,7 +257,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 	azureDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureDbs)
-	err = applyTenantOverrides(azureDbs, tenant.Name)
+	azureDbs, err = applyTenantOverrides(azureDbs, tenant.Name)
 	if err != nil {
 		return err
 	}
@@ -267,7 +267,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 	azureManagedDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureManagedDbs)
-	err = applyTenantOverrides(azureManagedDbs, tenant.Name)
+	azureManagedDbs, err = applyTenantOverrides(azureManagedDbs, tenant.Name)
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 	helmReleases = selectItemsInPlatformAndDomain(platformKey, domainKey, helmReleases)
-	err = applyTenantOverrides(helmReleases, tenant.Name)
+	helmReleases, err = applyTenantOverrides(helmReleases, tenant.Name)
 	if err != nil {
 		return err
 	}
@@ -287,7 +287,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 	azureVirtualMachines = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualMachines)
-	err = applyTenantOverrides(azureVirtualMachines, tenant.Name)
+	azureVirtualMachines, err = applyTenantOverrides(azureVirtualMachines, tenant.Name)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		return err
 	}
 	azureVirtualDesktops = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualDesktops)
-	err = applyTenantOverrides(azureVirtualDesktops, tenant.Name)
+	azureVirtualDesktops, err = applyTenantOverrides(azureVirtualDesktops, tenant.Name)
 	if err != nil {
 		return err
 	}
