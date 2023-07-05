@@ -24,6 +24,7 @@ import (
 	"k8s.io/klog/v2"
 	controllers "totalsoft.ro/platform-controllers/internal/controllers"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging"
+	"totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	clientsetScheme "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/scheme"
@@ -476,7 +477,7 @@ func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platf
 			},
 			Namespace: platform.Spec.TargetNamespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(platform, platformv1.SchemeGroupVersion.WithKind("Platform")),
+				*metav1.NewControllerRef(platform, v1alpha1.SchemeGroupVersion.WithKind("Platform")),
 			},
 		},
 		Data:      tenantData,
@@ -509,7 +510,7 @@ func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platfor
 			},
 			Namespace: domain.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(platform, platformv1.SchemeGroupVersion.WithKind("Platform")),
+				*metav1.NewControllerRef(platform, v1alpha1.SchemeGroupVersion.WithKind("Platform")),
 			},
 		},
 		Data:      tenantData,
