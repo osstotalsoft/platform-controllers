@@ -26,6 +26,7 @@ type TenantSpecApplyConfiguration struct {
 	PlatformRef *string  `json:"platformRef,omitempty"`
 	Enabled     *bool    `json:"enabled,omitempty"`
 	DomainRefs  []string `json:"domainRefs,omitempty"`
+	AdminEmail  *string  `json:"adminEmail,omitempty"`
 }
 
 // TenantSpecApplyConfiguration constructs an declarative configuration of the TenantSpec type for use with
@@ -73,5 +74,13 @@ func (b *TenantSpecApplyConfiguration) WithDomainRefs(values ...string) *TenantS
 	for i := range values {
 		b.DomainRefs = append(b.DomainRefs, values[i])
 	}
+	return b
+}
+
+// WithAdminEmail sets the AdminEmail field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AdminEmail field is set to the value of the last call.
+func (b *TenantSpecApplyConfiguration) WithAdminEmail(value string) *TenantSpecApplyConfiguration {
+	b.AdminEmail = &value
 	return b
 }
