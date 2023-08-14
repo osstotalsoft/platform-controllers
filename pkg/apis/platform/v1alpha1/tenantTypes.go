@@ -38,6 +38,10 @@ type TenantSpec struct {
 	// DomainRefs are the business domains associated to this tenant.
 	// +optional
 	DomainRefs []string `json:"domainRefs,omitempty"`
+
+	// Tenant administrator email address.
+	// +required
+	AdminEmail string `json:"adminEmail"`
 }
 
 // TenantStatus is the status for a tenant.

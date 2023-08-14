@@ -53,6 +53,9 @@ spec:
           spec:
             description: TenantSpec is the spec for a tenant.
             properties:
+              adminEmail:
+                description: Tenant administrator email address.
+                type: string
               description:
                 type: string
               domainRefs:
@@ -70,6 +73,7 @@ spec:
                 description: PlatformRef is the target platform.
                 type: string
             required:
+            - adminEmail
             - description
             - enabled
             - id
