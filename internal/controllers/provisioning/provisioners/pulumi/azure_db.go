@@ -63,16 +63,16 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 					Name: pulumi.String(sku),
 				}
 			}
-
+			pulumiRetainOnDelete := tenant.Spec.DeletePolicy != platformv1.DeletePolicyDeleteAll
 			ignoreChanges := []string{}
-			if PulumiRetainOnDelete {
+			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"resourceGroupName", "serverName", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
 			}
 
 			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
-				pulumi.RetainOnDelete(PulumiRetainOnDelete),
+				pulumi.RetainOnDelete(pulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreChanges),
 				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
 				pulumi.Import(pulumi.ID(dbSpec.Spec.ImportDatabaseId)),

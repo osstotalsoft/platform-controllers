@@ -19,10 +19,6 @@ import (
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
-const (
-	PulumiRetainOnDelete = true
-)
-
 func Create(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
 	result := provisioners.ProvisioningResult{}
 	upRes := auto.UpResult{}

@@ -42,6 +42,11 @@ type TenantSpec struct {
 	// Tenant administrator email address.
 	// +required
 	AdminEmail string `json:"adminEmail"`
+
+	// Possible values are Standard (retain some provisioned resources), DeleteAll (delete all resources).
+	// +kubebuilder:validation:Enum=Standard;DeleteAll
+	// +kubebuilder:default:=Standard
+	DeletePolicy DeletePolicy `json:"deletePolicy"`
 }
 
 // TenantStatus is the status for a tenant.
@@ -69,3 +74,10 @@ type TenantList struct {
 
 	Items []Tenant `json:"items"`
 }
+
+type DeletePolicy string
+
+const (
+	DeletePolicyStandard  = DeletePolicy("Standard")
+	DeletePolicyDeleteAll = DeletePolicy("DeleteAll")
+)
