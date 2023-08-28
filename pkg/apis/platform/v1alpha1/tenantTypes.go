@@ -43,9 +43,9 @@ type TenantSpec struct {
 	// +required
 	AdminEmail string `json:"adminEmail"`
 
-	// Possible values are RetainStatefulResurces (retain stateful provisioned resources), DeleteAll (delete all resources).
-	// +kubebuilder:validation:Enum=RetainStatefulResurces;DeleteAll
-	// +kubebuilder:default:=RetainStatefulResurces
+	// Possible values are RetainStatefulResources (retain stateful provisioned resources), DeleteAll (delete all resources).
+	// +kubebuilder:validation:Enum=RetainStatefulResources;DeleteAll
+	// +kubebuilder:default:=RetainStatefulResources
 	DeletePolicy DeletePolicy `json:"deletePolicy"`
 }
 
@@ -78,6 +78,6 @@ type TenantList struct {
 type DeletePolicy string
 
 const (
-	DeletePolicyStandard                = DeletePolicy("RetainStatefulResurces")
+	DeletePolicyStandard                = DeletePolicy("RetainStatefulResources")
 	DeletePolicyRetainStatefulResources = DeletePolicy("DeleteAll")
 )

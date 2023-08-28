@@ -57,11 +57,11 @@ spec:
                 description: Tenant administrator email address.
                 type: string
               deletePolicy:
-                default: RetainStatefulResurces
-                description: Possible values are RetainStatefulResurces (retain stateful
+                default: RetainStatefulResources
+                description: Possible values are RetainStatefulResources (retain stateful
                   provisioned resources), DeleteAll (delete all resources).
                 enum:
-                - RetainStatefulResurces
+                - RetainStatefulResources
                 - DeleteAll
                 type: string
               description:
