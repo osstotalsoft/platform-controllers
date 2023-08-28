@@ -70,6 +70,8 @@ type AzureVirtualDesktopVMArgs struct {
 
 	ProfileSecret pulumi.StringInput
 
+	DiskDeleteOptions compute.DeleteOptions
+
 	Spec provisioningv1.AzureVirtualDesktopSpec
 }
 
@@ -162,7 +164,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 			OsDisk: compute.OSDiskArgs{
 				//Name:         pulumi.String(fmt.Sprintf("%s-os-disk", name)),
 				CreateOption: pulumi.String(compute.DiskCreateOptionFromImage),
-				DeleteOption: pulumi.String(compute.DeleteOptionsDetach),
+				DeleteOption: pulumi.String(args.DiskDeleteOptions),
 				ManagedDisk: compute.ManagedDiskParametersArgs{
 					StorageAccountType: pulumi.String(args.Spec.OSDiskType),
 				},
@@ -368,6 +370,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 		for _, azureVM := range azureVms {
 			hostPoolName := azureVM.Spec.HostPoolName
 			globalQalifier := fmt.Sprintf("%s-%s", platform, tenant.Name)
+			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
 
 			avd := &AzureVirtualDesktop{}
 			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avd)
@@ -385,7 +388,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					pulumi.String(current.ObjectId),
 				},
 				SecurityEnabled: pulumi.Bool(true),
-			}, pulumi.Parent(avd), pulumi.RetainOnDelete(true))
+			}, pulumi.Parent(avd), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 			if err != nil {
 				return err
 			}
@@ -413,7 +416,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					pulumi.String(current.ObjectId),
 				},
 				SecurityEnabled: pulumi.Bool(true),
-			}, pulumi.Parent(avd), pulumi.RetainOnDelete(true))
+			}, pulumi.Parent(avd), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 			if err != nil {
 				return err
 			}
@@ -594,7 +597,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				ResourceGroupName: resourceGroupName,
 				ShareName:         pulumi.String("profiles"),
 				ShareQuota:        pulumi.Int(100),
-			}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(true))
+			}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 			if err != nil {
 				return err
 			}
@@ -606,6 +609,13 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 
 			if err != nil {
 				return err
+			}
+
+			var diskDeleteOptions compute.DeleteOptions
+			if pulumiRetainOnDelete {
+				diskDeleteOptions = compute.DeleteOptionsDetach
+			} else {
+				diskDeleteOptions = compute.DeleteOptionsDelete
 			}
 
 			vms := make([]*AzureVirtualDesktopVM, azureVM.Spec.VmNumberOfInstances)
@@ -621,12 +631,14 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					SubnetID:          pulumi.String(azureVM.Spec.SubnetId),
 					LoginUserGroupId:  appsUserGroup.ID(),
 					LoginAdminGroupId: adminUserGroup.ID(),
+					DiskDeleteOptions: diskDeleteOptions,
 
 					ProfileFileServer: storageAccount.PrimaryEndpoints.File(),
 					ProfileShare:      profileShare.Name,
 					ProfileUser:       storageAccount.Name,
 					ProfileSecret:     storageAccountKeys.Keys().Index(pulumi.Int(0)).Value(),
-					Spec:              azureVM.Spec,
+
+					Spec: azureVM.Spec,
 				}, pulumi.Parent(avd))
 
 				if err != nil {

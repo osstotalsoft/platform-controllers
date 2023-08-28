@@ -18,15 +18,20 @@ limitations under the License.
 
 package v1alpha1
 
+import (
+	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+)
+
 // TenantSpecApplyConfiguration represents an declarative configuration of the TenantSpec type for use
 // with apply.
 type TenantSpecApplyConfiguration struct {
-	Id          *string  `json:"id,omitempty"`
-	Description *string  `json:"description,omitempty"`
-	PlatformRef *string  `json:"platformRef,omitempty"`
-	Enabled     *bool    `json:"enabled,omitempty"`
-	DomainRefs  []string `json:"domainRefs,omitempty"`
-	AdminEmail  *string  `json:"adminEmail,omitempty"`
+	Id           *string                `json:"id,omitempty"`
+	Description  *string                `json:"description,omitempty"`
+	PlatformRef  *string                `json:"platformRef,omitempty"`
+	Enabled      *bool                  `json:"enabled,omitempty"`
+	DomainRefs   []string               `json:"domainRefs,omitempty"`
+	AdminEmail   *string                `json:"adminEmail,omitempty"`
+	DeletePolicy *v1alpha1.DeletePolicy `json:"deletePolicy,omitempty"`
 }
 
 // TenantSpecApplyConfiguration constructs an declarative configuration of the TenantSpec type for use with
@@ -82,5 +87,13 @@ func (b *TenantSpecApplyConfiguration) WithDomainRefs(values ...string) *TenantS
 // If called multiple times, the AdminEmail field is set to the value of the last call.
 func (b *TenantSpecApplyConfiguration) WithAdminEmail(value string) *TenantSpecApplyConfiguration {
 	b.AdminEmail = &value
+	return b
+}
+
+// WithDeletePolicy sets the DeletePolicy field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the DeletePolicy field is set to the value of the last call.
+func (b *TenantSpecApplyConfiguration) WithDeletePolicy(value v1alpha1.DeletePolicy) *TenantSpecApplyConfiguration {
+	b.DeletePolicy = &value
 	return b
 }

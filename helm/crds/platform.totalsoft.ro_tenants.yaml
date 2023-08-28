@@ -56,6 +56,14 @@ spec:
               adminEmail:
                 description: Tenant administrator email address.
                 type: string
+              deletePolicy:
+                default: RetainStatefulResources
+                description: Possible values are RetainStatefulResources (retain stateful
+                  provisioned resources), DeleteAll (delete all resources).
+                enum:
+                - RetainStatefulResources
+                - DeleteAll
+                type: string
               description:
                 type: string
               domainRefs:
@@ -74,6 +82,7 @@ spec:
                 type: string
             required:
             - adminEmail
+            - deletePolicy
             - description
             - enabled
             - id

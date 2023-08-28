@@ -31,13 +31,15 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				args.StorageContainerSasToken = pulumi.String(restoreFrom.StorageContainer.SasToken)
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
+
+			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
 			ignoreChanges := []string{}
-			if PulumiRetainOnDelete {
+			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}
 			}
 
 			db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
-				pulumi.RetainOnDelete(PulumiRetainOnDelete),
+				pulumi.RetainOnDelete(pulumiRetainOnDelete),
 				pulumi.IgnoreChanges(ignoreChanges),
 				pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
 				pulumi.Import(pulumi.ID(dbSpec.Spec.ImportDatabaseId)),
