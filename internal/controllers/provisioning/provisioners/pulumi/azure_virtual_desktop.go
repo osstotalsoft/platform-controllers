@@ -370,7 +370,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 		for _, azureVM := range azureVms {
 			hostPoolName := azureVM.Spec.HostPoolName
 			globalQalifier := fmt.Sprintf("%s-%s", platform, tenant.Name)
-			pulumiRetainOnDelete := tenant.Spec.DeletePolicy != platformv1.DeletePolicyDeleteAll
+			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
 
 			avd := &AzureVirtualDesktop{}
 			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avd)

@@ -32,7 +32,7 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
 
-			pulumiRetainOnDelete := tenant.Spec.DeletePolicy != platformv1.DeletePolicyDeleteAll
+			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}

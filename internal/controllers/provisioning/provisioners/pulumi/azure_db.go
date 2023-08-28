@@ -63,7 +63,7 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 					Name: pulumi.String(sku),
 				}
 			}
-			pulumiRetainOnDelete := tenant.Spec.DeletePolicy != platformv1.DeletePolicyDeleteAll
+			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"resourceGroupName", "serverName", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
