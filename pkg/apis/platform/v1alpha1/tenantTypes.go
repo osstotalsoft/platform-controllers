@@ -78,6 +78,6 @@ type TenantList struct {
 type DeletePolicy string
 
 const (
-	DeletePolicyStandard                = DeletePolicy("RetainStatefulResources")
-	DeletePolicyRetainStatefulResources = DeletePolicy("DeleteAll")
+	DeletePolicyRetainStatefulResources = DeletePolicy("RetainStatefulResources")
+	DeletePolicyDeleteAll               = DeletePolicy("DeleteAll")
 )
