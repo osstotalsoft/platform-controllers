@@ -3,19 +3,20 @@ module totalsoft.ro/platform-controllers
 go 1.20
 
 require (
+	dario.cat/mergo v1.0.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/fluxcd/helm-controller/api v0.33.0
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/vault/api v1.9.1
 	github.com/hashicorp/vault/api/auth/kubernetes v0.4.0
 	github.com/json-iterator/go v1.1.12
-	github.com/pulumi/pulumi-azure-native-sdk/authorization v1.102.0
-	github.com/pulumi/pulumi-azure-native-sdk/compute v1.102.0
-	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization v1.102.0
-	github.com/pulumi/pulumi-azure-native-sdk/network v1.102.0
-	github.com/pulumi/pulumi-azure-native-sdk/resources v1.102.0
-	github.com/pulumi/pulumi-azure-native-sdk/sql v1.102.0
-	github.com/pulumi/pulumi-azure-native-sdk/storage v1.102.0
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/resources/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/sql/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/storage/v2 v2.4.0
 	github.com/pulumi/pulumi-azuread/sdk/v5 v5.38.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.28.1
 	github.com/pulumi/pulumi-random/sdk/v4 v4.13.2
@@ -35,7 +36,6 @@ require (
 )
 
 require (
-	dario.cat/mergo v1.0.0 // indirect
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20221026131551-cf6655e29de4 // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
@@ -100,7 +100,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk v1.102.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.4.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect

@@ -3,7 +3,7 @@ package pulumi
 import (
 	"fmt"
 
-	azureResources "github.com/pulumi/pulumi-azure-native-sdk/resources"
+	azureResources "github.com/pulumi/pulumi-azure-native-sdk/resources/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
