@@ -134,7 +134,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	w := s.Workspace()
 
 	// for inline source programs, we must manage plugins ourselves
-	err = w.InstallPlugin(ctx, "azure-native", "v1.102.0")
+	err = w.InstallPlugin(ctx, "azure-native", "v2.4.0")
 	if err != nil {
 		klog.Errorf("Failed to install azure-native plugin: %v", err)
 		return auto.Stack{}, err
