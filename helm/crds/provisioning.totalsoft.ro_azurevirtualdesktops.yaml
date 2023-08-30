@@ -193,6 +193,22 @@ spec:
                       type: string
                     type: array
                 type: object
+              vmApplications:
+                description: Virtual Machine Gallery Applications
+                items:
+                  properties:
+                    installOrderIndex:
+                      description: 'Installation order index. Eg: 1, 2, 3'
+                      type: integer
+                    packageId:
+                      description: 'Source gallery application id or application version
+                        id eg: subscriptions/15b38e46-ef41-4f5b-bdba-7d9354568c2d/resourceGroups/test-vm/providers/Microsoft.Compute/galleries/lfgalery/applications/charisma-client/versions/4.33.0'
+                      type: string
+                  required:
+                  - installOrderIndex
+                  - packageId
+                  type: object
+                type: array
               vmNamePrefix:
                 description: Session Host VM name prefix. Will have platform and tenant
                   suffix.
@@ -219,6 +235,7 @@ spec:
             - platformRef
             - sourceImageId
             - subnetId
+            - vmApplications
             - vmNamePrefix
             - vmNumberOfInstances
             - vmSize

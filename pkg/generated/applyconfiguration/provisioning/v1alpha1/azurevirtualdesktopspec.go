@@ -25,20 +25,21 @@ import (
 // AzureVirtualDesktopSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopSpec type for use
 // with apply.
 type AzureVirtualDesktopSpecApplyConfiguration struct {
-	HostPoolName                       *string                                            `json:"hostPoolName,omitempty"`
-	VmNamePrefix                       *string                                            `json:"vmNamePrefix,omitempty"`
-	VmSize                             *string                                            `json:"vmSize,omitempty"`
-	VmNumberOfInstances                *int                                               `json:"vmNumberOfInstances,omitempty"`
-	OSDiskType                         *string                                            `json:"osDiskType,omitempty"`
-	SourceImageId                      *string                                            `json:"sourceImageId,omitempty"`
-	SubnetId                           *string                                            `json:"subnetId,omitempty"`
-	EnableTrustedLaunch                *bool                                              `json:"enableTrustedLaunch,omitempty"`
-	InitScript                         *string                                            `json:"initScript,omitempty"`
-	InitScriptArguments                []InitScriptArgsApplyConfiguration                 `json:"initScriptArgs,omitempty"`
-	WorkspaceFriendlyName              *string                                            `json:"workspaceFriendlyName,omitempty"`
-	Applications                       []AzureVirtualDesktopApplicationApplyConfiguration `json:"applications,omitempty"`
-	Users                              *AzureVirtualDesktopUsersSpecApplyConfiguration    `json:"users,omitempty"`
-	Exports                            []AzureVirtualDesktopExportsSpecApplyConfiguration `json:"exports,omitempty"`
+	HostPoolName                       *string                                              `json:"hostPoolName,omitempty"`
+	VmNamePrefix                       *string                                              `json:"vmNamePrefix,omitempty"`
+	VmSize                             *string                                              `json:"vmSize,omitempty"`
+	VmNumberOfInstances                *int                                                 `json:"vmNumberOfInstances,omitempty"`
+	VmApplications                     []VirtualMachineGalleryApplicationApplyConfiguration `json:"vmApplications,omitempty"`
+	OSDiskType                         *string                                              `json:"osDiskType,omitempty"`
+	SourceImageId                      *string                                              `json:"sourceImageId,omitempty"`
+	SubnetId                           *string                                              `json:"subnetId,omitempty"`
+	EnableTrustedLaunch                *bool                                                `json:"enableTrustedLaunch,omitempty"`
+	InitScript                         *string                                              `json:"initScript,omitempty"`
+	InitScriptArguments                []InitScriptArgsApplyConfiguration                   `json:"initScriptArgs,omitempty"`
+	WorkspaceFriendlyName              *string                                              `json:"workspaceFriendlyName,omitempty"`
+	Applications                       []AzureVirtualDesktopApplicationApplyConfiguration   `json:"applications,omitempty"`
+	Users                              *AzureVirtualDesktopUsersSpecApplyConfiguration      `json:"users,omitempty"`
+	Exports                            []AzureVirtualDesktopExportsSpecApplyConfiguration   `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
 
@@ -77,6 +78,19 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithVmSize(value string) *Az
 // If called multiple times, the VmNumberOfInstances field is set to the value of the last call.
 func (b *AzureVirtualDesktopSpecApplyConfiguration) WithVmNumberOfInstances(value int) *AzureVirtualDesktopSpecApplyConfiguration {
 	b.VmNumberOfInstances = &value
+	return b
+}
+
+// WithVmApplications adds the given value to the VmApplications field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the VmApplications field.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithVmApplications(values ...*VirtualMachineGalleryApplicationApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithVmApplications")
+		}
+		b.VmApplications = append(b.VmApplications, *values[i])
+	}
 	return b
 }
 

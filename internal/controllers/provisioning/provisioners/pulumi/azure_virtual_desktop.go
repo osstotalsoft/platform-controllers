@@ -128,6 +128,14 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 		return nil, err
 	}
 
+	vmApplications := compute.VMGalleryApplicationArray{}
+	for _, vmApplication := range args.Spec.VmApplications {
+		vmApplications = append(vmApplications, compute.VMGalleryApplicationArgs{
+			PackageReferenceId: pulumi.String(vmApplication.PackageId),
+			Order:              pulumi.Int(vmApplication.InstallOrderIndex),
+		})
+	}
+
 	vmArgs := compute.VirtualMachineArgs{
 		//VmName:            pulumi.String(name),
 		ResourceGroupName: args.ResourceGroupName,
@@ -169,6 +177,9 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 					StorageAccountType: pulumi.String(args.Spec.OSDiskType),
 				},
 			},
+		},
+		ApplicationProfile: compute.ApplicationProfileArgs{
+			GalleryApplications: vmApplications,
 		},
 	}
 
