@@ -28,6 +28,9 @@ type AzureVirtualDesktopSpec struct {
 	// The number of virtual machines to be added to the host pool
 	VmNumberOfInstances int `json:"vmNumberOfInstances"`
 
+	// Virtual Machine Gallery Applications
+	VmApplications []VirtualMachineGalleryApplication `json:"vmApplications"`
+
 	// Possible values are Standard_LRS, StandardSSD_LRS or Premium_LRS.
 	// +kubebuilder:validation:Enum=Standard_LRS;StandardSSD_LRS;Premium_LRS
 	OSDiskType string `json:"osDiskType"`
@@ -90,6 +93,16 @@ type AzureVirtualDesktopApplication struct {
 	Name         string `json:"name"`
 	FriendlyName string `json:"friendlyName"`
 	Path         string `json:"path"`
+}
+
+type VirtualMachineGalleryApplication struct {
+
+	// Source gallery application id or application version id
+	// eg: subscriptions/15b38e46-ef41-4f5b-bdba-7d9354568c2d/resourceGroups/test-vm/providers/Microsoft.Compute/galleries/lfgalery/applications/charisma-client/versions/4.33.0
+	PackageId string `json:"packageId"`
+
+	// Installation order index. Eg: 1, 2, 3
+	InstallOrderIndex int `json:"installOrderIndex"`
 }
 
 type InitScriptArgs struct {

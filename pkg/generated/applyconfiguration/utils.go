@@ -115,6 +115,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.ValueExportApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("VaultSecretTemplate"):
 		return &applyconfigurationprovisioningv1alpha1.VaultSecretTemplateApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("VirtualMachineGalleryApplication"):
+		return &applyconfigurationprovisioningv1alpha1.VirtualMachineGalleryApplicationApplyConfiguration{}
 
 	}
 	return nil
