@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql"
+	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
