@@ -10,6 +10,8 @@ import (
 
 	"os"
 
+	"strconv"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
@@ -17,6 +19,10 @@ import (
 	"k8s.io/klog/v2"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+)
+
+var (
+	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 )
 
 func Create(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
@@ -173,15 +179,20 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true}})
 
 	klog.V(4).Info("Successfully set config")
-	klog.V(4).Info("Starting refresh")
 
-	_, err = s.Refresh(ctx)
-	if err != nil {
-		klog.Errorf("Failed to refresh stack: %v", err)
-		return auto.Stack{}, err
+	if skipRefresh, err := strconv.ParseBool(os.Getenv(EnvPulumiSkipRefresh)); err == nil && skipRefresh {
+		klog.V(4).Info("Skipping refresh")
+	} else {
+		klog.V(4).Info("Starting refresh")
+		_, err = s.Refresh(ctx)
+		if err != nil {
+			klog.Errorf("Failed to refresh stack: %v", err)
+			return auto.Stack{}, err
+		}
+
+		klog.V(4).Info("Refresh succeeded!")
 	}
 
-	klog.V(4).Info("Refresh succeeded!")
 	return s, nil
 }
 
