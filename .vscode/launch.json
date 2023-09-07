@@ -30,6 +30,7 @@
                 "VAULT_ADDR": "http://localhost:62293/",
                 //"VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN"",
                 //"RUSI_ENABLED": "true"
+                //"PULUMI_SKIP_REFRESH": "true",
             }
         },
         {
