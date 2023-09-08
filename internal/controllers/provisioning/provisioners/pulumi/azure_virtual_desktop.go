@@ -327,6 +327,8 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "Enabled" -Value 1 -force
 	New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "VHDLocations" -Value $($profileShare) -force
 	New-ItemProperty -Path "HKLM:\SOFTWARE\FSLogix\Profiles" -Name "AccessNetworkAsComputerObject" -Value 1 -force
+
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services" -Name "RemoteAppLogoffTimeLimit" -PropertyType 'DWord' -Value '300000' -Force # 5min
 	
 	# Store credentials to access the storage account
 	cmdkey.exe /add:$($fileServer) /user:$($user) /pass:$($secret)
@@ -373,18 +375,18 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 }
 
 func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName pulumi.StringOutput,
-	azureVms []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
+	avds []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(platform, tenant)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualDesktop")
 	return func(ctx *pulumi.Context) error {
-		for _, azureVM := range azureVms {
-			hostPoolName := azureVM.Spec.HostPoolName
+		for _, avd := range avds {
+			hostPoolName := avd.Spec.HostPoolName
 			globalQalifier := fmt.Sprintf("%s-%s", platform, tenant.Name)
 			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
 
-			avd := &AzureVirtualDesktop{}
-			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avd)
+			avdComponent := &AzureVirtualDesktop{}
+			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avdComponent)
 			if err != nil {
 				return err
 			}
@@ -399,12 +401,12 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					pulumi.String(current.ObjectId),
 				},
 				SecurityEnabled: pulumi.Bool(true),
-			}, pulumi.Parent(avd), pulumi.RetainOnDelete(pulumiRetainOnDelete))
+			}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 			if err != nil {
 				return err
 			}
 
-			for _, appUser := range azureVM.Spec.Users.ApplicationUsers {
+			for _, appUser := range avd.Spec.Users.ApplicationUsers {
 				user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
 					UserPrincipalName: pulumi.StringRef(appUser),
 				}, nil)
@@ -412,7 +414,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					return err
 				}
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user", appUser), &azuread.GroupMemberArgs{
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-%s", appUser, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 					GroupObjectId:  appsUserGroup.ID(),
 					MemberObjectId: pulumi.String(user.Id),
 				}, pulumi.Parent(appsUserGroup))
@@ -427,12 +429,12 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					pulumi.String(current.ObjectId),
 				},
 				SecurityEnabled: pulumi.Bool(true),
-			}, pulumi.Parent(avd), pulumi.RetainOnDelete(pulumiRetainOnDelete))
+			}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 			if err != nil {
 				return err
 			}
 
-			for _, admin := range azureVM.Spec.Users.Admins {
+			for _, admin := range avd.Spec.Users.Admins {
 				user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
 					UserPrincipalName: pulumi.StringRef(admin),
 				}, nil)
@@ -440,7 +442,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					return err
 				}
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin", admin), &azuread.GroupMemberArgs{
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", admin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 					GroupObjectId:  adminUserGroup.ID(),
 					MemberObjectId: pulumi.String(user.Id),
 				}, pulumi.Parent(adminUserGroup))
@@ -449,7 +451,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				}
 			}
 
-			avd.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
+			avdComponent.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
 				//HostPoolName:                  pulumi.String(hostPoolName),
 				HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
 				LoadBalancerType:              pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
@@ -484,31 +486,31 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					"securityType":"Standard",
 					"secureBoot":false,
 					"vTPM":false
-				}`, azureVM.Spec.SourceImageId, azureVM.Spec.VmNamePrefix, azureVM.Spec.VmSize)),
-			}, pulumi.Parent(avd))
+				}`, avd.Spec.SourceImageId, avd.Spec.VmNamePrefix, avd.Spec.VmSize)),
+			}, pulumi.Parent(avdComponent))
 			if err != nil {
 				return err
 			}
 
-			avd.DesktopAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-desktop", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
+			avdComponent.DesktopAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-desktop", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
 				//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-desktop", hostPoolName)),
 				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeDesktop),
 				FriendlyName:         pulumi.String("Desktop"),
-				HostPoolArmPath:      avd.HostPool.ID(),
+				HostPoolArmPath:      avdComponent.HostPool.ID(),
 				ResourceGroupName:    resourceGroupName,
-			}, pulumi.Parent(avd))
+			}, pulumi.Parent(avdComponent))
 
 			if err != nil {
 				return err
 			}
 
-			avd.RemoteAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
+			avdComponent.RemoteAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
 				//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
 				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeRemoteApp),
 				FriendlyName:         pulumi.String("Applications"),
-				HostPoolArmPath:      avd.HostPool.ID(),
+				HostPoolArmPath:      avdComponent.HostPool.ID(),
 				ResourceGroupName:    resourceGroupName,
-			}, pulumi.Parent(avd))
+			}, pulumi.Parent(avdComponent))
 
 			if err != nil {
 				return err
@@ -527,8 +529,8 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				PrincipalId:      appsUserGroup.ObjectId,
 				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
 				RoleDefinitionId: pulumi.String(avdUserRole.Id),
-				Scope:            avd.RemoteAppGroup.ID(),
-			}, pulumi.Parent(avd.RemoteAppGroup))
+				Scope:            avdComponent.RemoteAppGroup.ID(),
+			}, pulumi.Parent(avdComponent.RemoteAppGroup))
 
 			if err != nil {
 				return err
@@ -538,8 +540,8 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				PrincipalId:      adminUserGroup.ObjectId,
 				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
 				RoleDefinitionId: pulumi.String(avdUserRole.Id),
-				Scope:            avd.RemoteAppGroup.ID(),
-			}, pulumi.Parent(avd.RemoteAppGroup))
+				Scope:            avdComponent.RemoteAppGroup.ID(),
+			}, pulumi.Parent(avdComponent.RemoteAppGroup))
 
 			if err != nil {
 				return err
@@ -549,16 +551,16 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				PrincipalId:      adminUserGroup.ObjectId,
 				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
 				RoleDefinitionId: pulumi.String(avdUserRole.Id),
-				Scope:            avd.DesktopAppGroup.ID(),
-			}, pulumi.Parent(avd.DesktopAppGroup))
+				Scope:            avdComponent.DesktopAppGroup.ID(),
+			}, pulumi.Parent(avdComponent.DesktopAppGroup))
 
 			if err != nil {
 				return err
 			}
 
-			for _, app := range azureVM.Spec.Applications {
+			for _, app := range avd.Spec.Applications {
 				_, err = desktopvirtualization.NewApplication(ctx, fmt.Sprintf("%s-apps-%s", hostPoolName, app.Name), &desktopvirtualization.ApplicationArgs{
-					ApplicationGroupName: avd.RemoteAppGroup.Name,
+					ApplicationGroupName: avdComponent.RemoteAppGroup.Name,
 					ApplicationName:      pulumi.String(app.Name),
 					FriendlyName:         pulumi.String(app.FriendlyName),
 					FilePath:             pulumi.String(app.Path),
@@ -567,7 +569,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					CommandLineSetting:   pulumi.String(desktopvirtualization.CommandLineSettingDoNotAllow),
 					ShowInPortal:         pulumi.Bool(true),
 					ResourceGroupName:    resourceGroupName,
-				}, pulumi.Parent(avd.RemoteAppGroup))
+				}, pulumi.Parent(avdComponent.RemoteAppGroup))
 
 				if err != nil {
 					return err
@@ -576,13 +578,13 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 
 			_, err = desktopvirtualization.NewWorkspace(ctx, fmt.Sprintf("%s-ws", hostPoolName), &desktopvirtualization.WorkspaceArgs{
 				//WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
-				FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", azureVM.Spec.WorkspaceFriendlyName, tenant.Spec.Description)),
+				FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", avd.Spec.WorkspaceFriendlyName, tenant.Spec.Description)),
 				ResourceGroupName: resourceGroupName,
 				ApplicationGroupReferences: pulumi.StringArray{
-					avd.DesktopAppGroup.ID(),
-					avd.RemoteAppGroup.ID(),
+					avdComponent.DesktopAppGroup.ID(),
+					avdComponent.RemoteAppGroup.ID(),
 				},
-			}, pulumi.Parent(avd))
+			}, pulumi.Parent(avdComponent))
 
 			if err != nil {
 				return err
@@ -598,7 +600,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				Sku: &storage.SkuArgs{
 					Name: pulumi.String(storage.SkuName_Standard_LRS),
 				},
-			}, pulumi.Parent(avd))
+			}, pulumi.Parent(avdComponent))
 			if err != nil {
 				return err
 			}
@@ -629,17 +631,17 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				diskDeleteOptions = compute.DeleteOptionsDelete
 			}
 
-			vms := make([]*AzureVirtualDesktopVM, azureVM.Spec.VmNumberOfInstances)
+			vms := make([]*AzureVirtualDesktopVM, avd.Spec.VmNumberOfInstances)
 
-			for i := 0; i < azureVM.Spec.VmNumberOfInstances; i++ {
-				vmName := fmt.Sprintf("%s-%d", azureVM.Spec.HostPoolName, i)
+			for i := 0; i < avd.Spec.VmNumberOfInstances; i++ {
+				vmName := fmt.Sprintf("%s-%d", avd.Spec.HostPoolName, i)
 				avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
 					ResourceGroupName: resourceGroupName,
 					TenantName:        pulumi.String(tenant.Name),
-					HostPoolName:      avd.HostPool.Name,
-					RegistrationToken: avd.HostPool.RegistrationInfo.Token().Elem(),
-					VMSize:            pulumi.String(azureVM.Spec.VmSize),
-					SubnetID:          pulumi.String(azureVM.Spec.SubnetId),
+					HostPoolName:      avdComponent.HostPool.Name,
+					RegistrationToken: avdComponent.HostPool.RegistrationInfo.Token().Elem(),
+					VMSize:            pulumi.String(avd.Spec.VmSize),
+					SubnetID:          pulumi.String(avd.Spec.SubnetId),
 					LoginUserGroupId:  appsUserGroup.ID(),
 					LoginAdminGroupId: adminUserGroup.ID(),
 					DiskDeleteOptions: diskDeleteOptions,
@@ -649,8 +651,8 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 					ProfileUser:       storageAccount.Name,
 					ProfileSecret:     storageAccountKeys.Keys().Index(pulumi.Int(0)).Value(),
 
-					Spec: azureVM.Spec,
-				}, pulumi.Parent(avd))
+					Spec: avd.Spec,
+				}, pulumi.Parent(avdComponent))
 
 				if err != nil {
 					return err
@@ -659,22 +661,22 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				vms[i] = avdVM
 			}
 
-			for _, exp := range azureVM.Spec.Exports {
-				err = valueExporter(newExportContext(ctx, exp.Domain, azureVM.Name, azureVM.ObjectMeta, gvk),
+			for _, exp := range avd.Spec.Exports {
+				err = valueExporter(newExportContext(ctx, exp.Domain, avd.Name, avd.ObjectMeta, gvk),
 					map[string]exportTemplateWithValue{
-						"hostPoolName": {exp.HostPoolName, avd.HostPool.Name},
+						"hostPoolName": {exp.HostPoolName, avdComponent.HostPool.Name},
 						"computerName": {exp.ComputerName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.ComputerName })},
 						"adminUserName": {exp.AdminUserName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput {
 							return vm.VirtualMachine.OsProfile.AdminUsername().Elem()
 						})},
 						"adminPassword": {exp.AdminPassword, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.AdminPassword.Result })},
-					}, pulumi.Parent(avd))
+					}, pulumi.Parent(avdComponent))
 				if err != nil {
 					return err
 				}
 			}
 
-			ctx.Export(fmt.Sprintf("azureVirtualDesktop:%s", azureVM.Spec.HostPoolName), avd.HostPool.Name)
+			ctx.Export(fmt.Sprintf("azureVirtualDesktop:%s", avd.Spec.HostPoolName), avdComponent.HostPool.Name)
 		}
 
 		return nil
