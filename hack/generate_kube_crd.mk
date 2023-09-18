@@ -1,13 +1,9 @@
-CODE_GENERATOR_DIR?=~/go/pkg/mod/k8s.io/code-generator@v0.27.2
+CODE_GENERATOR_DIR?=~/go/pkg/mod/k8s.io/code-generator@v0.28.2
 # https://github.com/kubernetes/code-generator
 #
 # go install k8s.io/code-generator@latest
 generate-apis:
-	$(CODE_GENERATOR_DIR)/generate-groups.sh all \
-       totalsoft.ro/platform-controllers/pkg/generated totalsoft.ro/platform-controllers/pkg/apis \
-       "platform:v1alpha1 provisioning:v1alpha1 configuration:v1alpha1" \
-       --output-base ./../.. \
-       -h hack/boilerplate.go.txt
+	hack/update-codegen.sh
 
 
 #https://book.kubebuilder.io/reference/controller-gen.html
