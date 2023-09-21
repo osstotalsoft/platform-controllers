@@ -6,7 +6,6 @@ import (
 
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"k8s.io/utils/strings/slices"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -33,31 +32,10 @@ func getPlatformAndDomain[R ProvisioningResource](res R) (platform, domain strin
 	return platform, domain, true
 }
 
-func exludeTenant(filter provisioningv1.ProvisioningTargetFilter, tenant string) bool {
-	tenantInList := slices.Contains(filter.Values, tenant)
-	if filter.Kind == provisioningv1.ProvisioningFilterKindBlacklist && tenantInList {
-		return true
-	}
-
-	if filter.Kind == provisioningv1.ProvisioningFilterKindWhitelist && !tenantInList {
-		return true
-	}
-
-	return false
-}
-
-func selectItemsInTarget[R ProvisioningResource](platform string, tenant string, domain string, source []R) []R {
+func selectItemsInPlatformAndDomain[R ProvisioningResource](platform, domain string, source []R) []R {
 	result := []R{}
 	for _, res := range source {
-		provisioningMeta := res.GetProvisioningMeta()
-
-		if provisioningMeta.Target.Category == provisioningv1.ProvisioningTargetCategoryTenant {
-			if exludeTenant(provisioningMeta.Target.Filter, tenant) {
-				continue
-			}
-		}
-
-		if provisioningMeta.PlatformRef == platform && provisioningMeta.DomainRef == domain {
+		if res.GetProvisioningMeta().PlatformRef == platform && res.GetProvisioningMeta().DomainRef == domain {
 
 			result = append(result, res)
 		}

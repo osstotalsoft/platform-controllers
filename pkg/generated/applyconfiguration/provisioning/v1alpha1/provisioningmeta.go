@@ -25,10 +25,9 @@ import (
 // ProvisioningMetaApplyConfiguration represents an declarative configuration of the ProvisioningMeta type for use
 // with apply.
 type ProvisioningMetaApplyConfiguration struct {
-	PlatformRef     *string                               `json:"platformRef,omitempty"`
-	DomainRef       *string                               `json:"domainRef,omitempty"`
-	TenantOverrides map[string]*v1.JSON                   `json:"tenantOverrides,omitempty"`
-	Target          *ProvisioningTargetApplyConfiguration `json:"target,omitempty"`
+	PlatformRef     *string             `json:"platformRef,omitempty"`
+	DomainRef       *string             `json:"domainRef,omitempty"`
+	TenantOverrides map[string]*v1.JSON `json:"tenantOverrides,omitempty"`
 }
 
 // ProvisioningMetaApplyConfiguration constructs an declarative configuration of the ProvisioningMeta type for use with
@@ -64,13 +63,5 @@ func (b *ProvisioningMetaApplyConfiguration) WithTenantOverrides(entries map[str
 	for k, v := range entries {
 		b.TenantOverrides[k] = v
 	}
-	return b
-}
-
-// WithTarget sets the Target field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Target field is set to the value of the last call.
-func (b *ProvisioningMetaApplyConfiguration) WithTarget(value *ProvisioningTargetApplyConfiguration) *ProvisioningMetaApplyConfiguration {
-	b.Target = value
 	return b
 }

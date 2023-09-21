@@ -256,7 +256,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-	azureDbs = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureDbs)
+	azureDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureDbs)
 	azureDbs, err = applyTenantOverrides(azureDbs, tenant.Name)
 	if err != nil {
 		return err
@@ -266,7 +266,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-	azureManagedDbs = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureManagedDbs)
+	azureManagedDbs = selectItemsInPlatformAndDomain(platformKey, domainKey, azureManagedDbs)
 	azureManagedDbs, err = applyTenantOverrides(azureManagedDbs, tenant.Name)
 	if err != nil {
 		return err
@@ -276,7 +276,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-	helmReleases = selectItemsInTarget(platformKey, tenant.Name, domainKey, helmReleases)
+	helmReleases = selectItemsInPlatformAndDomain(platformKey, domainKey, helmReleases)
 	helmReleases, err = applyTenantOverrides(helmReleases, tenant.Name)
 	if err != nil {
 		return err
@@ -286,7 +286,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-	azureVirtualMachines = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureVirtualMachines)
+	azureVirtualMachines = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualMachines)
 	azureVirtualMachines, err = applyTenantOverrides(azureVirtualMachines, tenant.Name)
 	if err != nil {
 		return err
@@ -296,7 +296,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	if err != nil {
 		return err
 	}
-	azureVirtualDesktops = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureVirtualDesktops)
+	azureVirtualDesktops = selectItemsInPlatformAndDomain(platformKey, domainKey, azureVirtualDesktops)
 	azureVirtualDesktops, err = applyTenantOverrides(azureVirtualDesktops, tenant.Name)
 	if err != nil {
 		return err
