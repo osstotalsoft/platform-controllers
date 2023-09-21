@@ -102,6 +102,42 @@ spec:
                 - resourceGroupName
                 - serverName
                 type: object
+              target:
+                default:
+                  category: Tenant
+                description: The provisioning target.
+                properties:
+                  category:
+                    default: Tenant
+                    description: 'Provisioning target type. Possible values: Tenant,
+                      Platform'
+                    enum:
+                    - Tenant
+                    - Platform
+                    type: string
+                  filter:
+                    description: Filter targets (applies for category "Tenant"). If
+                      ommited all targets are selected.
+                    properties:
+                      kind:
+                        default: Blacklist
+                        description: 'Includes or excludes the speciffied targets.
+                          Possibile values: Blacklist, Whitelist'
+                        enum:
+                        - Blacklist
+                        - Whitelist
+                        type: string
+                      values:
+                        description: A list of targets to include or exculde
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - kind
+                    type: object
+                required:
+                - category
+                type: object
               tenantOverrides:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
@@ -114,6 +150,7 @@ spec:
             - domainRef
             - platformRef
             - sqlServer
+            - target
             type: object
         required:
         - spec
