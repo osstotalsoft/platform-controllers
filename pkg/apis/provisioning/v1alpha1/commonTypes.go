@@ -17,6 +17,42 @@ type VaultSecretTemplate struct {
 	KeyTemplate string `json:"keyTemplate"`
 }
 
+type ProvisioningFilterKind string
+
+const (
+	ProvisioningFilterKindBlacklist = ProvisioningFilterKind("Blacklist")
+	ProvisioningFilterKindWhitelist = ProvisioningFilterKind("Whitelist")
+)
+
+type ProvisioningTargetFilter struct {
+	// Includes or excludes the speciffied targets. Possibile values: Blacklist, Whitelist
+	// +kubebuilder:validation:Enum=Blacklist;Whitelist
+	// +kubebuilder:default:=Blacklist
+	Kind ProvisioningFilterKind `json:"kind"`
+
+	// A list of targets to include or exculde
+	Values []string `json:"values,omitempty"`
+}
+
+type ProvisioningTargetCategory string
+
+const (
+	ProvisioningTargetCategoryTenant   = ProvisioningTargetCategory("Tenant")
+	ProvisioningTargetCategoryPlatform = ProvisioningTargetCategory("Platform")
+)
+
+type ProvisioningTarget struct {
+	// Provisioning target type. Possible values: Tenant, Platform
+	// +kubebuilder:validation:Enum=Tenant;Platform
+	// +kubebuilder:default:=Tenant
+	Category ProvisioningTargetCategory `json:"category"`
+
+	// Filter targets (applies for category "Tenant").
+	// If ommited all targets are selected.
+	// +optional
+	Filter ProvisioningTargetFilter `json:"filter"`
+}
+
 type ProvisioningMeta struct {
 	// Target platform (custom resource name).
 	// +required
@@ -28,4 +64,7 @@ type ProvisioningMeta struct {
 	// The spec override has the same structure as Spec
 	// +optional
 	TenantOverrides map[string]*apiextensionsv1.JSON `json:"tenantOverrides,omitempty"`
+	// The provisioning target.
+	// +kubebuilder:default:={category: "Tenant"}
+	Target ProvisioningTarget `json:"target"`
 }
