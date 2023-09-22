@@ -1,4 +1,3 @@
-CODE_GENERATOR_DIR?=~/go/pkg/mod/k8s.io/code-generator@v0.28.2
 # https://github.com/kubernetes/code-generator
 #
 # go install k8s.io/code-generator@latest
