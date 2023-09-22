@@ -55,11 +55,11 @@ func selectItemsInTarget[R ProvisioningResource](platform string, tenant string,
 			if exludeTenant(provisioningMeta.Target.Filter, tenant) {
 				continue
 			}
-		}
 
-		if provisioningMeta.PlatformRef == platform && provisioningMeta.DomainRef == domain {
+			if provisioningMeta.PlatformRef == platform && provisioningMeta.DomainRef == domain {
 
-			result = append(result, res)
+				result = append(result, res)
+			}
 		}
 	}
 	return result
