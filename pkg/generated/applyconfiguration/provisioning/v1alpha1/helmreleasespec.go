@@ -87,3 +87,11 @@ func (b *HelmReleaseSpecApplyConfiguration) WithTenantOverrides(entries map[stri
 	}
 	return b
 }
+
+// WithTarget sets the Target field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Target field is set to the value of the last call.
+func (b *HelmReleaseSpecApplyConfiguration) WithTarget(value *ProvisioningTargetApplyConfiguration) *HelmReleaseSpecApplyConfiguration {
+	b.Target = value
+	return b
+}

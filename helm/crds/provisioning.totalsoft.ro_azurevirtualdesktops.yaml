@@ -175,6 +175,42 @@ spec:
               subnetId:
                 description: 'Subnet of the VNet used by the virtual machine eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default'
                 type: string
+              target:
+                default:
+                  category: Tenant
+                description: The provisioning target.
+                properties:
+                  category:
+                    default: Tenant
+                    description: 'Provisioning target type. Possible values: Tenant,
+                      Platform'
+                    enum:
+                    - Tenant
+                    - Platform
+                    type: string
+                  filter:
+                    description: Filter targets (applies for category "Tenant"). If
+                      ommited all targets are selected.
+                    properties:
+                      kind:
+                        default: Blacklist
+                        description: 'Includes or excludes the speciffied targets.
+                          Possibile values: Blacklist, Whitelist'
+                        enum:
+                        - Blacklist
+                        - Whitelist
+                        type: string
+                      values:
+                        description: A list of targets to include or exculde
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - kind
+                    type: object
+                required:
+                - category
+                type: object
               tenantOverrides:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
@@ -235,6 +271,7 @@ spec:
             - platformRef
             - sourceImageId
             - subnetId
+            - target
             - vmApplications
             - vmNamePrefix
             - vmNumberOfInstances

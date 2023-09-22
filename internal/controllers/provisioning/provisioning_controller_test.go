@@ -564,6 +564,9 @@ func newAzureDb(name, platform, domain string) *provisioningv1.AzureDatabase {
 			ProvisioningMeta: provisioningv1.ProvisioningMeta{
 				PlatformRef: platform,
 				DomainRef:   domain,
+				Target: provisioningv1.ProvisioningTarget{
+					Category: provisioningv1.ProvisioningTargetCategoryTenant,
+				},
 			},
 			DbName: name,
 		},
@@ -581,6 +584,9 @@ func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.A
 			ProvisioningMeta: provisioningv1.ProvisioningMeta{
 				PlatformRef: platform,
 				DomainRef:   domain,
+				Target: provisioningv1.ProvisioningTarget{
+					Category: provisioningv1.ProvisioningTargetCategoryTenant,
+				},
 			},
 			DbName: dbName,
 		},
