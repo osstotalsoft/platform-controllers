@@ -6,10 +6,9 @@
 ```bash
 apt install make
 ```
-3. Install the kubernetes code generator (from outside the project folder):
+3. Install the kubernetes code generator:
 ```bash
-go get k8s.io/code-generator@v0.27.2
-sudo chmod 777 ~/go/pkg/mod/k8s.io/code-generator@v0.27.2/generate-groups.sh
+go install k8s.io/code-generator@v0.28.2
 ```
 
 
