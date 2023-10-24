@@ -7,20 +7,20 @@ import (
 
 	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	fluxcd "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi/fluxcd/kubernetes/helm/v2beta1"
 	"totalsoft.ro/platform-controllers/internal/template"
-	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func helmReleaseDeployFunc(platform string, tenant *platformv1.Tenant,
+func helmReleaseDeployFunc[T provisioning.ProvisioningTarget](platform string, target T,
 	helmReleases []*provisioningv1.HelmRelease) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, tenant)
+	valueExporter := handleValueExport(platform, target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("HelmRelease")
 	return func(ctx *pulumi.Context) error {
 		for _, hr := range helmReleases {
-			args, err := pulumiFluxHrArgs(platform, tenant, hr)
+			args, err := pulumiFluxHrArgs(platform, target, hr)
 			if err != nil {
 				return err
 			}
@@ -43,13 +43,13 @@ func helmReleaseDeployFunc(platform string, tenant *platformv1.Tenant,
 	}
 }
 
-func pulumiFluxHrArgs(platform string, tenant *platformv1.Tenant, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {
-	helmReleaseName := fmt.Sprintf("%s-%s", hr.Spec.Release.ReleaseName, tenant.Name)
-	fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, tenant.Name)
+func pulumiFluxHrArgs[T provisioning.ProvisioningTarget](platform string, target T, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {
+	helmReleaseName := fmt.Sprintf("%s-%s", hr.Spec.Release.ReleaseName, target.GetName())
+	fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, target.GetName())
 
 	pulumiValues := pulumi.Map{}
 	if hr.Spec.Release.Values != nil {
-		tc := newTemplateContext(platform, tenant)
+		tc := target.GetTemplateContext()
 		valuesJson := string(hr.Spec.Release.Values.Raw)
 		valuesJson, err := template.ParseTemplate(valuesJson, tc)
 		if err != nil {

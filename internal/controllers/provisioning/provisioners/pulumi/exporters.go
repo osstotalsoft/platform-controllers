@@ -8,8 +8,8 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sSchema "k8s.io/apimachinery/pkg/runtime/schema"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	"totalsoft.ro/platform-controllers/internal/template"
-	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 
 	pulumiKube "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/core/v1"
@@ -36,16 +36,6 @@ type ExportContext struct {
 	ownerKind     k8sSchema.GroupVersionKind
 }
 
-type templateContext struct {
-	Tenant   templateContextTenant
-	Platform string
-}
-type templateContextTenant struct {
-	Id          string
-	Code        string
-	Description string
-}
-
 func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 	ownerMeta metav1.ObjectMeta, ownerKind k8sSchema.GroupVersionKind) ExportContext {
 	return ExportContext{
@@ -57,31 +47,12 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 	}
 }
 
-func newTemplateContext(platform string, tenant *platformv1.Tenant) templateContext {
-	tc := templateContext{
-		templateContextTenant{tenant.Spec.Id, tenant.Name, tenant.Spec.Description},
-		platform,
-	}
-	return tc
-}
-
-func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporterFunc {
-	type TemplateContextTenant struct {
-		Id          string
-		Code        string
-		Description string
-	}
-
-	type TemplateContext struct {
-		Tenant   TemplateContextTenant
-		Platform string
-	}
-
-	templateContext := newTemplateContext(platform, tenant)
+func handleValueExport[T provisioning.ProvisioningTarget](platform string, target T) ValueExporterFunc {
+	templateContext := target.GetTemplateContext()
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
-			path := strings.Join([]string{platform, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.Name, exportContext.objectName}, "/")
+			path := strings.Join([]string{platform, exportContext.ownerMeta.Namespace, exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "/")
 			err := exportToVault(exportContext.pulumiContext, path, templateContext, v, opts...)
 			if err != nil {
 				return err
@@ -90,7 +61,7 @@ func handleValueExport(platform string, tenant *platformv1.Tenant) ValueExporter
 
 		v = onlyConfigMapValues(values)
 		if len(v) > 0 {
-			name := strings.Join([]string{exportContext.domain, tenant.Name, exportContext.objectName}, "-")
+			name := strings.Join([]string{exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "-")
 			err := exportToConfigMap(exportContext, name, templateContext, platform, v, opts...)
 			if err != nil {
 				return err

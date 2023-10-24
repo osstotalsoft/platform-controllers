@@ -5,12 +5,12 @@ import (
 
 	azureResources "github.com/pulumi/pulumi-azure-native-sdk/resources/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 )
 
-func azureRGDeployFunc(platform string, tenant *platformv1.Tenant, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
+func azureRGDeployFunc[T provisioning.ProvisioningTarget](platform string, target T, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 	return func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
-		resourceGroupName := fmt.Sprintf("%s-%s-%s", platform, tenant.Name, domain)
+		resourceGroupName := fmt.Sprintf("%s-%s-%s", platform, target.GetName(), domain)
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, resourceGroupName, &azureResources.ResourceGroupArgs{
 			ResourceGroupName: pulumi.String(resourceGroupName),
 		}, pulumi.RetainOnDelete(true))

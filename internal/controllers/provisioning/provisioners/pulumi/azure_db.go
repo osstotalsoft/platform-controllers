@@ -6,14 +6,15 @@ import (
 
 	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
+func azureDbDeployFunc[T provisioning.ProvisioningTarget](platform string, target T,
 	azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, tenant)
+	valueExporter := handleValueExport(platform, target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureDatabase")
 
 	return func(ctx *pulumi.Context) error {
@@ -63,13 +64,13 @@ func azureDbDeployFunc(platform string, tenant *platformv1.Tenant,
 					Name: pulumi.String(sku),
 				}
 			}
-			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
+			pulumiRetainOnDelete := target.GetDeletePolicy() == platformv1.DeletePolicyRetainStatefulResources
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
 			}
 
-			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
+			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, target.GetName())
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
 				pulumi.RetainOnDelete(pulumiRetainOnDelete),

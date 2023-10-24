@@ -17,16 +17,15 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"k8s.io/klog/v2"
-	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
-	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 )
 
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 )
 
-func Create(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
-	result := provisioners.ProvisioningResult{}
+func Create[T provisioning.ProvisioningTarget](platform string, target T, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
+	result := provisioning.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
 	emptyDeployFunc := func(ctx *pulumi.Context) error { return nil }
@@ -40,9 +39,9 @@ func Create(platform string, tenant *platformv1.Tenant, domain string, infra *pr
 	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop
 
-	stackName := fmt.Sprintf("%s-%s", tenant.Name, domain)
+	stackName := fmt.Sprintf("%s-%s", target.GetPathSegment(), domain)
 	if anyResource {
-		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, tenant, domain, infra, needsResourceGroup))
+		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, target, domain, infra, needsResourceGroup))
 		if result.Error != nil {
 			return result
 		}
@@ -196,37 +195,37 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	return s, nil
 }
 
-func deployFunc(platform string, tenant *platformv1.Tenant, domain string,
-	infra *provisioners.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
+func deployFunc[T provisioning.ProvisioningTarget](platform string, target T, domain string,
+	infra *provisioning.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {
-		err := azureDbDeployFunc(platform, tenant, infra.AzureDbs)(ctx)
+		err := azureDbDeployFunc(platform, target, infra.AzureDbs)(ctx)
 		if err != nil {
 			return err
 		}
 
-		err = azureManagedDbDeployFunc(platform, tenant, infra.AzureManagedDbs)(ctx)
+		err = azureManagedDbDeployFunc(platform, target, infra.AzureManagedDbs)(ctx)
 		if err != nil {
 			return err
 		}
 
-		err = helmReleaseDeployFunc(platform, tenant, infra.HelmReleases)(ctx)
+		err = helmReleaseDeployFunc(platform, target, infra.HelmReleases)(ctx)
 		if err != nil {
 			return err
 		}
 
 		if needsResourceGroup {
-			rgName, err := azureRGDeployFunc(platform, tenant, domain)(ctx)
+			rgName, err := azureRGDeployFunc(platform, target, domain)(ctx)
 			if err != nil {
 				return err
 			}
 
-			err = azureVirtualMachineDeployFunc(platform, tenant, rgName, infra.AzureVirtualMachines)(ctx)
+			err = azureVirtualMachineDeployFunc(platform, target, rgName, infra.AzureVirtualMachines)(ctx)
 			if err != nil {
 				return err
 			}
 
-			err = azureVirtualDesktopDeployFunc(platform, tenant, rgName, infra.AzureVirtualDesktops)(ctx)
+			err = azureVirtualDesktopDeployFunc(platform, target, rgName, infra.AzureVirtualDesktops)(ctx)
 			if err != nil {
 				return err
 			}

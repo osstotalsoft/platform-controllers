@@ -6,18 +6,19 @@ import (
 
 	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
+func azureManagedDbDeployFunc[T provisioning.ProvisioningTarget](platform string, target T,
 	azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, tenant)
+	valueExporter := handleValueExport(platform, target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
-			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, tenant.Name)
+			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, target.GetName())
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			args := azureSql.ManagedDatabaseArgs{
 				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
@@ -32,7 +33,7 @@ func azureManagedDbDeployFunc(platform string, tenant *platformv1.Tenant,
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
 
-			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
+			pulumiRetainOnDelete := target.GetDeletePolicy() == platformv1.DeletePolicyRetainStatefulResources
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}

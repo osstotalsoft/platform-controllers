@@ -9,18 +9,18 @@ import (
 	"github.com/pulumi/pulumi-azure-native-sdk/network/v2"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureVirtualMachineDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName pulumi.StringOutput,
+func azureVirtualMachineDeployFunc[T provisioning.ProvisioningTarget](platform string, target T, resourceGroupName pulumi.StringOutput,
 	azureVms []*provisioningv1.AzureVirtualMachine) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, tenant)
+	valueExporter := handleValueExport(platform, target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualMachine")
 	return func(ctx *pulumi.Context) error {
 		for _, azureVM := range azureVms {
-			vmName := strings.ReplaceAll(fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, platform, tenant.Name), ".", "-")
+			vmName := strings.ReplaceAll(fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, platform, target.GetName()), ".", "-")
 
 			computerNameOutput, err := random.NewRandomPet(ctx, fmt.Sprintf("%s-computer-name", vmName), &random.RandomPetArgs{
 				Length:    pulumi.Int(2),
@@ -113,7 +113,7 @@ func azureVirtualMachineDeployFunc(platform string, tenant *platformv1.Tenant, r
 				},
 				OsProfile: compute.OSProfileArgs{
 					ComputerName:  computerName,
-					AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", tenant.Name)),
+					AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", target.GetName())),
 					AdminPassword: password.Result,
 				},
 				NetworkProfile: compute.NetworkProfileArgs{
