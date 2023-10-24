@@ -13,7 +13,6 @@ import (
 )
 
 type CreateInfrastructureFunc[T ProvisioningTarget] func(
-	platform string,
 	target T,
 	domain string,
 	infra *InfrastructureManifests) ProvisioningResult

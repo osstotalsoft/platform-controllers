@@ -11,14 +11,14 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureManagedDbDeployFunc[T provisioning.ProvisioningTarget](platform string, target T,
+func azureManagedDbDeployFunc[T provisioning.ProvisioningTarget](target T,
 	azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, target)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
-			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, target.GetName())
+			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, target.GetPlatformName(), target.GetPathSegment())
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			args := azureSql.ManagedDatabaseArgs{
 				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),

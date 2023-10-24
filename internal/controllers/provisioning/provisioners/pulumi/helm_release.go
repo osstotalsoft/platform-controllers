@@ -13,14 +13,14 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func helmReleaseDeployFunc[T provisioning.ProvisioningTarget](platform string, target T,
+func helmReleaseDeployFunc[T provisioning.ProvisioningTarget](target T,
 	helmReleases []*provisioningv1.HelmRelease) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, target)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("HelmRelease")
 	return func(ctx *pulumi.Context) error {
 		for _, hr := range helmReleases {
-			args, err := pulumiFluxHrArgs(platform, target, hr)
+			args, err := pulumiFluxHrArgs(target, hr)
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func helmReleaseDeployFunc[T provisioning.ProvisioningTarget](platform string, t
 	}
 }
 
-func pulumiFluxHrArgs[T provisioning.ProvisioningTarget](platform string, target T, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {
+func pulumiFluxHrArgs[T provisioning.ProvisioningTarget](target T, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {
 	helmReleaseName := fmt.Sprintf("%s-%s", hr.Spec.Release.ReleaseName, target.GetName())
 	fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, target.GetName())
 

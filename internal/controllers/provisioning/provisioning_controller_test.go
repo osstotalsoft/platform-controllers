@@ -95,8 +95,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		wg.Add(1)
 
 		var outputs []provisionerResult
-		infraCreator := func(platform string, tenant *Tenant, domain string, infra *InfrastructureManifests) ProvisioningResult {
-			outputs = append(outputs, provisionerResult{platform, (*platformv1.Tenant)(tenant), domain, infra})
+		infraCreator := func(tenant *Tenant, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			outputs = append(outputs, provisionerResult{tenant.GetPlatformName(), (*platformv1.Tenant)(tenant), domain, infra})
 			wg.Wait() //wait for other tenant updates
 			return ProvisioningResult{}
 		}
@@ -605,8 +605,8 @@ func runController(objects []runtime.Object, provisioner CreateInfrastructureFun
 func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningController, *[]provisionerResult, chan messagingMock.RcvMsg) {
 	var outputs []provisionerResult
 
-	infraCreator := func(platform string, tenant *Tenant, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		outputs = append(outputs, provisionerResult{platform, (*platformv1.Tenant)(tenant), domain, infra})
+	infraCreator := func(tenant *Tenant, domain string, infra *InfrastructureManifests) ProvisioningResult {
+		outputs = append(outputs, provisionerResult{tenant.GetPlatformName(), (*platformv1.Tenant)(tenant), domain, infra})
 		return ProvisioningResult{}
 	}
 

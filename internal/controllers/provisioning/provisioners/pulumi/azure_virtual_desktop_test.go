@@ -17,7 +17,7 @@ func TestAzureVirtualDesktopDeployFunc(t *testing.T) {
 
 	t.Run("maximal virtual Desktop spec", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			err := azureVirtualDesktopDeployFunc(platform, tenant, rg, []*provisioningv1.AzureVirtualDesktop{vm})(ctx)
+			err := azureVirtualDesktopDeployFunc(tenant, rg, []*provisioningv1.AzureVirtualDesktop{vm})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -28,7 +28,7 @@ func TestAzureVirtualDesktopDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := vm.DeepCopy()
 			hr.Spec.Exports = nil
-			err := azureVirtualDesktopDeployFunc(platform, tenant, rg, []*provisioningv1.AzureVirtualDesktop{vm})(ctx)
+			err := azureVirtualDesktopDeployFunc(tenant, rg, []*provisioningv1.AzureVirtualDesktop{vm})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -39,7 +39,7 @@ func TestAzureVirtualDesktopDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := vm.DeepCopy()
 			hr.Spec.EnableTrustedLaunch = true
-			err := azureVirtualDesktopDeployFunc(platform, tenant, rg, []*provisioningv1.AzureVirtualDesktop{vm})(ctx)
+			err := azureVirtualDesktopDeployFunc(tenant, rg, []*provisioningv1.AzureVirtualDesktop{vm})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))

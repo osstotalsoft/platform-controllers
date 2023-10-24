@@ -11,10 +11,10 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureDbDeployFunc[T provisioning.ProvisioningTarget](platform string, target T,
+func azureDbDeployFunc[T provisioning.ProvisioningTarget](target T,
 	azureDbs []*provisioningv1.AzureDatabase) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, target)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureDatabase")
 
 	return func(ctx *pulumi.Context) error {
@@ -70,7 +70,7 @@ func azureDbDeployFunc[T provisioning.ProvisioningTarget](platform string, targe
 				ignoreChanges = []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
 			}
 
-			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, platform, target.GetName())
+			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, target.GetPlatformName(), target.GetPathSegment())
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
 				pulumi.RetainOnDelete(pulumiRetainOnDelete),

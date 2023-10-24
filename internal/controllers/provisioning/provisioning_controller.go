@@ -246,7 +246,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 					!slices.Contains(tenant.Spec.DomainRefs, domainKey)))
 
 		if shouldCleanupResources {
-			cleanupResult := c.tenantProvisioner(platformKey, (*Tenant)(&platformv1.Tenant{
+			cleanupResult := c.tenantProvisioner((*Tenant)(&platformv1.Tenant{
 				ObjectMeta: metav1.ObjectMeta{Name: tenantName},
 				Spec:       platformv1.TenantSpec{PlatformRef: platformKey}}),
 				domainKey,
@@ -331,7 +331,7 @@ func syncTarget[T ProvisioningTarget](c *ProvisioningController, domain string, 
 		return err
 	}
 
-	result := provisioner(target.GetPlatformName(), target, domain, &InfrastructureManifests{
+	result := provisioner(target, domain, &InfrastructureManifests{
 		AzureDbs:             azureDbs,
 		AzureManagedDbs:      azureManagedDbs,
 		HelmReleases:         helmReleases,

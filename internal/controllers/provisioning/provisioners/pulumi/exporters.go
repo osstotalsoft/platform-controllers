@@ -47,12 +47,12 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 	}
 }
 
-func handleValueExport[T provisioning.ProvisioningTarget](platform string, target T) ValueExporterFunc {
+func handleValueExport[T provisioning.ProvisioningTarget](target T) ValueExporterFunc {
 	templateContext := target.GetTemplateContext()
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
-			path := strings.Join([]string{platform, exportContext.ownerMeta.Namespace, exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "/")
+			path := strings.Join([]string{target.GetPlatformName(), exportContext.ownerMeta.Namespace, exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "/")
 			err := exportToVault(exportContext.pulumiContext, path, templateContext, v, opts...)
 			if err != nil {
 				return err
@@ -62,7 +62,7 @@ func handleValueExport[T provisioning.ProvisioningTarget](platform string, targe
 		v = onlyConfigMapValues(values)
 		if len(v) > 0 {
 			name := strings.Join([]string{exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "-")
-			err := exportToConfigMap(exportContext, name, templateContext, platform, v, opts...)
+			err := exportToConfigMap(exportContext, name, templateContext, target.GetPlatformName(), v, opts...)
 			if err != nil {
 				return err
 			}

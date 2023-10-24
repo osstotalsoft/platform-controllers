@@ -8,9 +8,9 @@ import (
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 )
 
-func azureRGDeployFunc[T provisioning.ProvisioningTarget](platform string, target T, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
+func azureRGDeployFunc[T provisioning.ProvisioningTarget](target T, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 	return func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
-		resourceGroupName := fmt.Sprintf("%s-%s-%s", platform, target.GetName(), domain)
+		resourceGroupName := fmt.Sprintf("%s-%s-%s", target.GetPlatformName(), target.GetPathSegment(), domain)
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, resourceGroupName, &azureResources.ResourceGroupArgs{
 			ResourceGroupName: pulumi.String(resourceGroupName),
 		}, pulumi.RetainOnDelete(true))

@@ -375,15 +375,15 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	return avdVM, nil
 }
 
-func azureVirtualDesktopDeployFunc[T provisioning.ProvisioningTarget](platform string, target T, resourceGroupName pulumi.StringOutput,
+func azureVirtualDesktopDeployFunc[T provisioning.ProvisioningTarget](target T, resourceGroupName pulumi.StringOutput,
 	avds []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, target)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualDesktop")
 	return func(ctx *pulumi.Context) error {
 		for _, avd := range avds {
 			hostPoolName := avd.Spec.HostPoolName
-			globalQalifier := fmt.Sprintf("%s-%s", platform, target.GetName())
+			globalQalifier := fmt.Sprintf("%s-%s", target.GetPlatformName(), target.GetPathSegment())
 			pulumiRetainOnDelete := target.GetDeletePolicy() == platformv1.DeletePolicyRetainStatefulResources
 
 			avdComponent := &AzureVirtualDesktop{}

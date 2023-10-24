@@ -24,7 +24,7 @@ var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 )
 
-func Create[T provisioning.ProvisioningTarget](platform string, target T, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
+func Create[T provisioning.ProvisioningTarget](target T, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
 	result := provisioning.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
@@ -41,13 +41,13 @@ func Create[T provisioning.ProvisioningTarget](platform string, target T, domain
 
 	stackName := fmt.Sprintf("%s-%s", target.GetPathSegment(), domain)
 	if anyResource {
-		upRes, result.Error = updateStack(stackName, platform, deployFunc(platform, target, domain, infra, needsResourceGroup))
+		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), deployFunc(target, domain, infra, needsResourceGroup))
 		if result.Error != nil {
 			return result
 		}
 		result.HasChanges = hasChanges(upRes.Summary)
 	} else {
-		destroyRes, result.Error = tryDestroyAndDeleteStack(stackName, platform, emptyDeployFunc)
+		destroyRes, result.Error = tryDestroyAndDeleteStack(stackName, target.GetPlatformName(), emptyDeployFunc)
 		if result.Error != nil {
 			return result
 		}
@@ -195,37 +195,37 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	return s, nil
 }
 
-func deployFunc[T provisioning.ProvisioningTarget](platform string, target T, domain string,
+func deployFunc[T provisioning.ProvisioningTarget](target T, domain string,
 	infra *provisioning.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {
-		err := azureDbDeployFunc(platform, target, infra.AzureDbs)(ctx)
+		err := azureDbDeployFunc(target, infra.AzureDbs)(ctx)
 		if err != nil {
 			return err
 		}
 
-		err = azureManagedDbDeployFunc(platform, target, infra.AzureManagedDbs)(ctx)
+		err = azureManagedDbDeployFunc(target, infra.AzureManagedDbs)(ctx)
 		if err != nil {
 			return err
 		}
 
-		err = helmReleaseDeployFunc(platform, target, infra.HelmReleases)(ctx)
+		err = helmReleaseDeployFunc(target, infra.HelmReleases)(ctx)
 		if err != nil {
 			return err
 		}
 
 		if needsResourceGroup {
-			rgName, err := azureRGDeployFunc(platform, target, domain)(ctx)
+			rgName, err := azureRGDeployFunc(target, domain)(ctx)
 			if err != nil {
 				return err
 			}
 
-			err = azureVirtualMachineDeployFunc(platform, target, rgName, infra.AzureVirtualMachines)(ctx)
+			err = azureVirtualMachineDeployFunc(target, rgName, infra.AzureVirtualMachines)(ctx)
 			if err != nil {
 				return err
 			}
 
-			err = azureVirtualDesktopDeployFunc(platform, target, rgName, infra.AzureVirtualDesktops)(ctx)
+			err = azureVirtualDesktopDeployFunc(target, rgName, infra.AzureVirtualDesktops)(ctx)
 			if err != nil {
 				return err
 			}

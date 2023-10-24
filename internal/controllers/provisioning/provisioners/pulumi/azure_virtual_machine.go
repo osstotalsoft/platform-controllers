@@ -13,14 +13,14 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureVirtualMachineDeployFunc[T provisioning.ProvisioningTarget](platform string, target T, resourceGroupName pulumi.StringOutput,
+func azureVirtualMachineDeployFunc[T provisioning.ProvisioningTarget](target T, resourceGroupName pulumi.StringOutput,
 	azureVms []*provisioningv1.AzureVirtualMachine) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, target)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualMachine")
 	return func(ctx *pulumi.Context) error {
 		for _, azureVM := range azureVms {
-			vmName := strings.ReplaceAll(fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, platform, target.GetName()), ".", "-")
+			vmName := strings.ReplaceAll(fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, target.GetPlatformName(), target.GetPathSegment()), ".", "-")
 
 			computerNameOutput, err := random.NewRandomPet(ctx, fmt.Sprintf("%s-computer-name", vmName), &random.RandomPetArgs{
 				Length:    pulumi.Int(2),
