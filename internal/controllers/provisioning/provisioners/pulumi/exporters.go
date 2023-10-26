@@ -56,7 +56,7 @@ func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc
 		if len(v) > 0 {
 			path := provisioning.Match(target,
 				func(tenant *platformv1.Tenant) string {
-					return strings.Join([]string{tenant.Spec.PlatformRef, exportContext.ownerMeta.Namespace, exportContext.domain, target.GetName(), exportContext.objectName}, "/")
+					return strings.Join([]string{tenant.Spec.PlatformRef, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.GetName(), exportContext.objectName}, "/")
 				},
 				func(platform *platformv1.Platform) string {
 					return strings.Join([]string{platform.GetName(), exportContext.ownerMeta.Namespace, exportContext.domain, exportContext.objectName}, "/")

@@ -16,7 +16,7 @@ func azureRGDeployFunc(target provisioning.ProvisioningTarget, domain string) fu
 				return fmt.Sprintf("%s-%s-%s", tenant.Spec.PlatformRef, tenant.GetName(), domain)
 			},
 			func(platform *platformv1.Platform) string {
-				return fmt.Sprintf("%s-%s", target.GetPlatformName(), domain)
+				return fmt.Sprintf("%s-%s", platform.GetName(), domain)
 			},
 		)
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, resourceGroupName, &azureResources.ResourceGroupArgs{

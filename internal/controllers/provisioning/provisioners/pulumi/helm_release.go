@@ -10,6 +10,8 @@ import (
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	fluxcd "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi/fluxcd/kubernetes/helm/v2beta1"
 	"totalsoft.ro/platform-controllers/internal/template"
+	"totalsoft.ro/platform-controllers/internal/tuple"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -44,13 +46,21 @@ func helmReleaseDeployFunc(target provisioning.ProvisioningTarget,
 }
 
 func pulumiFluxHrArgs(target provisioning.ProvisioningTarget, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {
-	helmReleaseName := fmt.Sprintf("%s-%s", hr.Spec.Release.ReleaseName, target.GetName())
-	fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, target.GetName())
+	helmReleaseName, fluxHelmReleaseName := provisioning.Match(target,
+		func(tenant *platformv1.Tenant) tuple.T2[string, string] {
+			helmReleaseName := fmt.Sprintf("%s-%s", hr.Spec.Release.ReleaseName, tenant.GetName())
+			fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, tenant.GetName())
+			return tuple.New2(helmReleaseName, fluxHelmReleaseName)
+		}, func(*platformv1.Platform) tuple.T2[string, string] {
+			helmReleaseName := fmt.Sprintf("%s", hr.Spec.Release.ReleaseName)
+			fluxHelmReleaseName := fmt.Sprintf("%s", hr.Name)
+			return tuple.New2(helmReleaseName, fluxHelmReleaseName)
+		},
+	).Values()
 
 	pulumiValues := pulumi.Map{}
 	if hr.Spec.Release.Values != nil {
 		tc := provisioning.GetTemplateContext(target)
-
 		valuesJson := string(hr.Spec.Release.Values.Raw)
 		valuesJson, err := template.ParseTemplate(valuesJson, tc)
 		if err != nil {

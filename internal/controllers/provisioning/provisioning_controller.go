@@ -349,94 +349,100 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	}
 
 	if result.Error == nil {
-		c.recorder.Event(target, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain))
-
-		topic, ev := Match(target,
-			func(tenant *platformv1.Tenant) tuple.T2[string, any] {
-				var ev any = struct {
-					TenantId          string
-					TenantName        string
-					TenantDescription string
-					Platform          string
-					Domain            string
-				}{
-					TenantId:          tenant.Spec.Id,
-					TenantName:        tenant.Name,
-					TenantDescription: tenant.Spec.Description,
-					Platform:          tenant.Spec.PlatformRef,
-					Domain:            domain,
-				}
-
-				topic := tenantProvisionedSuccessfullyTopic
-				return tuple.New2(topic, ev)
-			}, func(platform *platformv1.Platform) tuple.T2[string, any] {
-				var ev any = struct {
-					Platform string
-					Domain   string
-				}{
-					Platform: platform.GetName(),
-					Domain:   domain,
-				}
-
-				topic := platformProvisionedSuccessfullyTopic
-
-				err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-				return tuple.New2(topic, ev)
-			},
-		).Values()
-
-		err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-
-		if err != nil {
-			klog.ErrorS(err, "message publisher error")
-		}
+		c.publishSuccessEvents(target, domain)
 	} else {
-		c.recorder.Event(target, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domain), result.Error.Error())
-
-		topic, ev := Match(target,
-			func(tenant *platformv1.Tenant) tuple.T2[string, any] {
-				var ev any = struct {
-					TenantId          string
-					TenantName        string
-					TenantDescription string
-					Platform          string
-					Domain            string
-					Error             string
-				}{
-					TenantId:          tenant.Spec.Id,
-					TenantName:        tenant.Name,
-					TenantDescription: tenant.Spec.Description,
-					Platform:          tenant.GetPlatformName(),
-					Domain:            domain,
-					Error:             err.Error(),
-				}
-
-				topic := tenantProvisioningFailedTopic
-				return tuple.New2(topic, ev)
-			}, func(platform *platformv1.Platform) tuple.T2[string, any] {
-				var ev any = struct {
-					Platform string
-					Domain   string
-					Error    string
-				}{
-					Platform: platform.GetName(),
-					Domain:   domain,
-					Error:    err.Error(),
-				}
-
-				topic := platformProvisioningFailedTopic
-				return tuple.New2(topic, ev)
-			},
-		).Values()
-
-		err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-
-		if err != nil {
-			klog.ErrorS(err, "message publisher error")
-		}
+		c.publishFailureEvents(target, domain, result.Error)
 	}
 
 	return result.Error
+}
+
+func (c *ProvisioningController) publishSuccessEvents(target ProvisioningTarget, domain string) {
+	c.recorder.Event(target, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain))
+
+	topic, ev := Match(target,
+		func(tenant *platformv1.Tenant) tuple.T2[string, any] {
+			var ev any = struct {
+				TenantId          string
+				TenantName        string
+				TenantDescription string
+				Platform          string
+				Domain            string
+			}{
+				TenantId:          tenant.Spec.Id,
+				TenantName:        tenant.Name,
+				TenantDescription: tenant.Spec.Description,
+				Platform:          tenant.Spec.PlatformRef,
+				Domain:            domain,
+			}
+
+			topic := tenantProvisionedSuccessfullyTopic
+			return tuple.New2(topic, ev)
+		}, func(platform *platformv1.Platform) tuple.T2[string, any] {
+			var ev any = struct {
+				Platform string
+				Domain   string
+			}{
+				Platform: platform.GetName(),
+				Domain:   domain,
+			}
+
+			topic := platformProvisionedSuccessfullyTopic
+			return tuple.New2(topic, ev)
+		},
+	).Values()
+
+	err := c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
+
+	if err != nil {
+		klog.ErrorS(err, "message publisher error")
+	}
+}
+
+func (c *ProvisioningController) publishFailureEvents(target ProvisioningTarget, domain string, err error) {
+	c.recorder.Event(target, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domain), err.Error())
+
+	topic, ev := Match(target,
+		func(tenant *platformv1.Tenant) tuple.T2[string, any] {
+			var ev any = struct {
+				TenantId          string
+				TenantName        string
+				TenantDescription string
+				Platform          string
+				Domain            string
+				Error             string
+			}{
+				TenantId:          tenant.Spec.Id,
+				TenantName:        tenant.Name,
+				TenantDescription: tenant.Spec.Description,
+				Platform:          tenant.GetPlatformName(),
+				Domain:            domain,
+				Error:             err.Error(),
+			}
+
+			topic := tenantProvisioningFailedTopic
+			return tuple.New2(topic, ev)
+		}, func(platform *platformv1.Platform) tuple.T2[string, any] {
+			var ev any = struct {
+				Platform string
+				Domain   string
+				Error    string
+			}{
+				Platform: platform.GetName(),
+				Domain:   domain,
+				Error:    err.Error(),
+			}
+
+			topic := platformProvisioningFailedTopic
+			return tuple.New2(topic, ev)
+		},
+	).Values()
+
+	err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
+
+	if err != nil {
+		klog.ErrorS(err, "message publisher error")
+	}
 }
 
 func (c *ProvisioningController) enqueueDomain(platform, domain string, target provisioningv1.ProvisioningTargetCategory) {
@@ -576,9 +582,9 @@ func addResourceHandlers[R ProvisioningResource](resType string, informer cache.
 			newComp := newObj.(R)
 			oldPlatform, oldDomain, oldTarget, oldOk := getResourceKeys(oldComp)
 			newPlatform, newDomain, newTarget, newOk := getResourceKeys(newComp)
-			platformOrDomainChanged := oldPlatform != newPlatform || oldDomain != newDomain || oldTarget != newTarget
+			resourceKeysChanged := oldPlatform != newPlatform || oldDomain != newDomain || oldTarget != newTarget
 
-			if oldOk && platformOrDomainChanged {
+			if oldOk && resourceKeysChanged {
 				msg := fmt.Sprintf("%s invalidated", resType)
 				klog.V(4).InfoS(msg, "name", oldComp.GetName(), "namespace", oldComp.GetNamespace(), "platform", oldPlatform, "domain", oldDomain)
 				handler(oldPlatform, oldDomain, oldTarget)

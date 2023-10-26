@@ -42,7 +42,7 @@ type AzureVirtualDesktopVM struct {
 
 type AzureVirtualDesktopVMArgs struct {
 	// A required username for the VM login.
-	TenantName pulumi.StringInput
+	TargetName pulumi.StringInput
 
 	HostPoolName pulumi.StringInput
 
@@ -149,7 +149,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 
 		OsProfile: compute.OSProfileArgs{
 			ComputerName:  avdVM.ComputerName,
-			AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", args.TenantName)),
+			AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", args.TargetName)),
 			AdminPassword: avdVM.AdminPassword.Result,
 			WindowsConfiguration: compute.WindowsConfigurationArgs{
 				EnableAutomaticUpdates: pulumi.Bool(false),
@@ -647,7 +647,7 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 				vmName := fmt.Sprintf("%s-%d", avd.Spec.HostPoolName, i)
 				avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
 					ResourceGroupName: resourceGroupName,
-					TenantName:        pulumi.String(target.GetName()),
+					TargetName:        pulumi.String(target.GetName()),
 					HostPoolName:      avdComponent.HostPool.Name,
 					RegistrationToken: avdComponent.HostPool.RegistrationInfo.Token().Elem(),
 					VMSize:            pulumi.String(avd.Spec.VmSize),
