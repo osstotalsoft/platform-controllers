@@ -8,7 +8,6 @@ import (
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
@@ -57,10 +56,7 @@ func Match[T any](target ProvisioningTarget, ifTenant func(*platformv1.Tenant) T
 	case *platformv1.Platform:
 		return ifPlatform(target.(*platformv1.Platform))
 	default:
-		klog.Error(fmt.Errorf("unsupported target: '%s'", reflect.TypeOf(target)))
-
-		var result T
-		return result
+		panic(fmt.Errorf("unsupported target: '%s'", reflect.TypeOf(target)))
 	}
 }
 
