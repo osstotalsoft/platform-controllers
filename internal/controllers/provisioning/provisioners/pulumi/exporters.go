@@ -10,6 +10,7 @@ import (
 	k8sSchema "k8s.io/apimachinery/pkg/runtime/schema"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	"totalsoft.ro/platform-controllers/internal/template"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 
 	pulumiKube "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/core/v1"
@@ -47,12 +48,21 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 	}
 }
 
-func handleValueExport[T provisioning.ProvisioningTarget](target T) ValueExporterFunc {
-	templateContext := target.GetTemplateContext()
+func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc {
+	templateContext := provisioning.GetTemplateContext(target)
+
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
-			path := strings.Join([]string{target.GetPlatformName(), exportContext.ownerMeta.Namespace, exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "/")
+			path := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return strings.Join([]string{tenant.Spec.PlatformRef, exportContext.ownerMeta.Namespace, exportContext.domain, target.GetName(), exportContext.objectName}, "/")
+				},
+				func(platform *platformv1.Platform) string {
+					return strings.Join([]string{platform.GetName(), exportContext.ownerMeta.Namespace, exportContext.domain, exportContext.objectName}, "/")
+				},
+			)
+
 			err := exportToVault(exportContext.pulumiContext, path, templateContext, v, opts...)
 			if err != nil {
 				return err
@@ -61,7 +71,15 @@ func handleValueExport[T provisioning.ProvisioningTarget](target T) ValueExporte
 
 		v = onlyConfigMapValues(values)
 		if len(v) > 0 {
-			name := strings.Join([]string{exportContext.domain, target.GetPathSegment(), exportContext.objectName}, "-")
+			name := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return strings.Join([]string{exportContext.domain, tenant.GetName(), exportContext.objectName}, "-")
+				},
+				func(*platformv1.Platform) string {
+					return strings.Join([]string{exportContext.domain, exportContext.objectName}, "-")
+				},
+			)
+
 			err := exportToConfigMap(exportContext, name, templateContext, target.GetPlatformName(), v, opts...)
 			if err != nil {
 				return err

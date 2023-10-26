@@ -56,8 +56,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected 3 outputs, got", len(*outputs))
 			return
 		}
-		if (*outputs)[0].tenant.Name != "dev1" {
-			t.Error("expected output tenant dev1, got", (*outputs)[0].tenant.Name)
+		if (*outputs)[0].target.GetName() != "dev1" {
+			t.Error("expected output tenant dev1, got", (*outputs)[0].target.GetName())
 		}
 
 		for i := 0; i < 3; i++ {
@@ -95,8 +95,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		wg.Add(1)
 
 		var outputs []provisionerResult
-		infraCreator := func(tenant *Tenant, domain string, infra *InfrastructureManifests) ProvisioningResult {
-			outputs = append(outputs, provisionerResult{tenant.GetPlatformName(), (*platformv1.Tenant)(tenant), domain, infra})
+		infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
 			wg.Wait() //wait for other tenant updates
 			return ProvisioningResult{}
 		}
@@ -123,8 +123,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected 1 output, got", len(outputs))
 			return
 		}
-		if outputs[0].tenant.Name != "dev1" {
-			t.Error("expected output tenant dev1, got", outputs[0].tenant.Name)
+		if outputs[0].target.GetName() != "dev1" {
+			t.Error("expected output tenant dev1, got", outputs[0].target.GetName())
 		}
 	})
 
@@ -210,40 +210,40 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
-	// t.Run("skip tenant resource provisioning", func(t *testing.T) {
-	// 	domain := "my-domain"
-	// 	tenant := newTenant("dev1", "dev", domain)
-	// 	azureDb := newAzureDb("db1", "dev", domain)
-	// 	azureDb.ObjectMeta.Labels = map[string]string{
-	// 		"provisioning.totalsoft.ro/skip-tenant-dev1": "true",
-	// 	}
-	// 	objects := []runtime.Object{
-	// 		tenant,
-	// 		azureDb,
-	// 	}
-	// 	c, outputs, _ := runControllerWithDefaultFakes(objects)
+	t.Run("skip tenant resource provisioning", func(t *testing.T) {
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
+		azureDb := newAzureDb("db1", "dev", domain)
+		azureDb.Spec.Target.Filter.Kind = provisioningv1.ProvisioningFilterKindBlacklist
+		azureDb.Spec.Target.Filter.Values = []string{"dev1"}
 
-	// 	if c.workqueue.Len() != 1 {
-	// 		t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-	// 	}
+		objects := []runtime.Object{
+			tenant,
+			azureDb,
+		}
+		c, outputs, _ := runControllerWithDefaultFakes(objects)
 
-	// 	if result := c.processNextWorkItem(1); !result {
-	// 		t.Error("processing failed")
-	// 	}
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
 
-	// 	if c.workqueue.Len() != 0 {
-	// 		item, _ := c.workqueue.Get()
-	// 		t.Error("queue should be empty, but contains ", item)
-	// 	}
+		if result := c.processNextWorkItem(1); !result {
+			t.Error("processing failed")
+		}
 
-	// 	if len(*outputs) != 1 {
-	// 		t.Error("expected 1 output, got", len(*outputs))
-	// 		return
-	// 	}
-	// 	if len((*outputs)[0].infra.AzureDbs) != 0 {
-	// 		t.Error("expected zero dbs, got", len((*outputs)[0].infra.AzureDbs))
-	// 	}
-	// })
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		if len(*outputs) != 1 {
+			t.Error("expected 1 output, got", len(*outputs))
+			return
+		}
+		if len((*outputs)[0].infra.AzureDbs) != 0 {
+			t.Error("expected zero dbs, got", len((*outputs)[0].infra.AzureDbs))
+		}
+	})
 
 	t.Run("filter resource by Domain", func(t *testing.T) {
 		tenant := newTenant("dev1", "dev", "p1")
@@ -303,7 +303,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, (*Tenant)(newTenant(tenantName, "platform", "domain")))
+		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -342,7 +342,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, (*Tenant)(newTenant(tenantName, "platform", "domain")))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -385,7 +385,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, (*Tenant)(newTenant(tenantName, "platform", "domain")))
+		result, err := applyTargetOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -433,7 +433,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, (*Tenant)(newTenant(tenantName, "platform", "domain")))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -480,7 +480,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, (*Tenant)(newTenant(tenantName, "platform", "domain")))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -522,7 +522,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides(hrs, (*Tenant)(newTenant(tenantName, "platform", "domain")))
+		result, err := applyTargetOverrides(hrs, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -592,10 +592,10 @@ func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.A
 	}
 }
 
-func runController(objects []runtime.Object, provisioner CreateInfrastructureFunc[*Tenant], msgPublisher messaging.MessagingPublisher) *ProvisioningController {
+func runController(objects []runtime.Object, provisioner CreateInfrastructureFunc, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
 	clientset := fakeClientset.NewSimpleClientset(objects...)
 
-	c := NewProvisioningController(clientset, provisioner, nil, nil, nil, msgPublisher)
+	c := NewProvisioningController(clientset, provisioner, nil, nil, msgPublisher)
 	c.factory.Start(nil)
 	c.factory.WaitForCacheSync(nil)
 
@@ -605,8 +605,8 @@ func runController(objects []runtime.Object, provisioner CreateInfrastructureFun
 func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningController, *[]provisionerResult, chan messagingMock.RcvMsg) {
 	var outputs []provisionerResult
 
-	infraCreator := func(tenant *Tenant, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		outputs = append(outputs, provisionerResult{tenant.GetPlatformName(), (*platformv1.Tenant)(tenant), domain, infra})
+	infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+		outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
 		return ProvisioningResult{}
 	}
 
@@ -622,7 +622,7 @@ func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningContr
 
 type provisionerResult struct {
 	platform string
-	tenant   *platformv1.Tenant
+	target   ProvisioningTarget
 	domain   string
 	infra    *InfrastructureManifests
 }

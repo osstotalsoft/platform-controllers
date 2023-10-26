@@ -18,7 +18,14 @@ func azureManagedDbDeployFunc[T provisioning.ProvisioningTarget](target T,
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 	return func(ctx *pulumi.Context) error {
 		for _, dbSpec := range azureDbs {
-			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, target.GetPlatformName(), target.GetPathSegment())
+			dbNameV1 := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, tenant.Spec.PlatformRef, tenant.GetName())
+				},
+				func(platform *platformv1.Platform) string {
+					return fmt.Sprintf("%s_%s", dbSpec.Spec.DbName, platform.GetName())
+				},
+			)
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			args := azureSql.ManagedDatabaseArgs{
 				ManagedInstanceName: pulumi.String(dbSpec.Spec.ManagedInstance.Name),
@@ -33,7 +40,7 @@ func azureManagedDbDeployFunc[T provisioning.ProvisioningTarget](target T,
 				args.StorageContainerUri = pulumi.String(restoreFrom.StorageContainer.Uri)
 			}
 
-			pulumiRetainOnDelete := target.GetDeletePolicy() == platformv1.DeletePolicyRetainStatefulResources
+			pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}

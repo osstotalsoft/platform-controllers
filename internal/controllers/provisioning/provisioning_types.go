@@ -2,18 +2,20 @@ package provisioning
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-type CreateInfrastructureFunc[T ProvisioningTarget] func(
-	target T,
+type CreateInfrastructureFunc func(
+	target ProvisioningTarget,
 	domain string,
 	infra *InfrastructureManifests) ProvisioningResult
 
@@ -40,190 +42,70 @@ type ProvisioningResource interface {
 }
 
 type ProvisioningTarget interface {
-	*Tenant | *Platform
-
-	GetCategory() provisioningv1.ProvisioningTargetCategory
-	GetDeletePolicy() platformv1.DeletePolicy
 	GetName() string
 	GetDescription() string
 	GetNamespace() string
 	GetPlatformName() string
-	GetRuntimeObject() runtime.Object
-	GetPathSegment() string
-	GetSuccessEvent(domain string) (string, any)
-	GetFailureEvent(domain string, err error) (string, any)
-	GetTemplateContext() any
-	GetOverrides(provisioningv1.ProvisioningMeta) map[string]*apiextensionsv1.JSON
-	IsEnabled() bool
+
+	runtime.Object
 }
 
-type Tenant platformv1.Tenant
-type Platform platformv1.Platform
+func Match[T any](target ProvisioningTarget, ifTenant func(*platformv1.Tenant) T, ifPlatform func(*platformv1.Platform) T) T {
+	switch target.(type) {
+	case *platformv1.Tenant:
+		return ifTenant(target.(*platformv1.Tenant))
+	case *platformv1.Platform:
+		return ifPlatform(target.(*platformv1.Platform))
+	default:
+		klog.Error(fmt.Errorf("unsupported target: '%s'", reflect.TypeOf(target)))
 
-func (tenant *Tenant) GetDeletePolicy() platformv1.DeletePolicy {
-	return tenant.Spec.DeletePolicy
-}
-
-func (tenant *Tenant) GetDescription() string {
-	return tenant.Spec.Description
-}
-
-func (tenant *Tenant) GetCategory() provisioningv1.ProvisioningTargetCategory {
-	return provisioningv1.ProvisioningTargetCategoryTenant
-}
-
-func (tenant *Tenant) GetPlatformName() string {
-	return tenant.Spec.PlatformRef
-}
-
-func (tenant *Tenant) GetRuntimeObject() runtime.Object {
-	return (*platformv1.Tenant)(tenant)
-}
-
-func (tenant *Tenant) GetPathSegment() string {
-	return tenant.GetName()
-}
-
-func (tenant *Tenant) GetSuccessEvent(domain string) (string, any) {
-	ev := struct {
-		TenantId          string
-		TenantName        string
-		TenantDescription string
-		Platform          string
-		Domain            string
-	}{
-		TenantId:          tenant.Spec.Id,
-		TenantName:        tenant.Name,
-		TenantDescription: tenant.Spec.Description,
-		Platform:          tenant.GetPlatformName(),
-		Domain:            domain,
+		var result T
+		return result
 	}
-
-	topic := tenantProvisionedSuccessfullyTopic
-
-	return topic, ev
 }
 
-func (tenant *Tenant) GetFailureEvent(domain string, err error) (string, any) {
-	ev := struct {
-		TenantId          string
-		TenantName        string
-		TenantDescription string
-		Platform          string
-		Domain            string
-		Error             string
-	}{
-		TenantId:          tenant.Spec.Id,
-		TenantName:        tenant.Name,
-		TenantDescription: tenant.Spec.Description,
-		Platform:          tenant.GetPlatformName(),
-		Domain:            domain,
-		Error:             err.Error(),
-	}
-
-	topic := tenantProvisionningFailedTopic
-
-	return topic, ev
-}
-
-func (tenant *Tenant) GetTemplateContext() any {
-	return struct {
-		Platform string
-		Tenant   struct {
-			Id          string
-			Code        string
-			Description string
-		}
-	}{
-		Platform: tenant.GetPlatformName(),
-		Tenant: struct {
-			Id          string
-			Code        string
-			Description string
-		}{
-			Id:          tenant.Spec.Id,
-			Code:        tenant.GetName(),
-			Description: tenant.GetDescription(),
+func GetDeletePolicy(target ProvisioningTarget) platformv1.DeletePolicy {
+	return Match(target,
+		func(tenant *platformv1.Tenant) platformv1.DeletePolicy {
+			return tenant.Spec.DeletePolicy
 		},
-	}
+		func(*platformv1.Platform) platformv1.DeletePolicy {
+			return platformv1.DeletePolicyRetainStatefulResources
+		},
+	)
 }
 
-func (tenant *Tenant) GetOverrides(meta provisioningv1.ProvisioningMeta) map[string]*apiextensionsv1.JSON {
-	return meta.TenantOverrides
-}
-
-func (tenant *Tenant) IsEnabled() bool {
-	return tenant.Spec.Enabled
-}
-
-func (platform *Platform) GetDeletePolicy() platformv1.DeletePolicy {
-	return platformv1.DeletePolicyRetainStatefulResources
-}
-
-func (platform *Platform) GetDescription() string {
-	return platform.GetName()
-}
-
-func (platform *Platform) GetCategory() provisioningv1.ProvisioningTargetCategory {
-	return provisioningv1.ProvisioningTargetCategoryPlatform
-}
-
-func (platform *Platform) GetPlatformName() string {
-	return platform.GetName()
-}
-
-func (platform *Platform) GetRuntimeObject() runtime.Object {
-	return (*platformv1.Platform)(platform)
-}
-
-func (platform *Platform) GetPathSegment() string {
-	return "platform"
-}
-
-func (platform *Platform) GetSuccessEvent(domain string) (string, any) {
-	ev := struct {
-		Platform string
-		Domain   string
-	}{
-		Platform: platform.GetName(),
-		Domain:   domain,
-	}
-
-	topic := platformProvisionedSuccessfullyTopic
-
-	return topic, ev
-}
-
-func (platform *Platform) GetFailureEvent(domain string, err error) (string, any) {
-	ev := struct {
-		Platform string
-		Domain   string
-		Error    string
-	}{
-		Platform: platform.GetName(),
-		Domain:   domain,
-		Error:    err.Error(),
-	}
-
-	topic := platformProvisionningFailedTopic
-
-	return topic, ev
-}
-
-func (platform *Platform) GetTemplateContext() any {
-	return struct {
-		Platform string
-	}{
-		Platform: platform.GetName(),
-	}
-}
-
-func (platform *Platform) GetOverrides(meta provisioningv1.ProvisioningMeta) map[string]*apiextensionsv1.JSON {
-	return nil
-}
-
-func (platform *Platform) IsEnabled() bool {
-	return true
+func GetTemplateContext(target ProvisioningTarget) any {
+	return Match(target,
+		func(tenant *platformv1.Tenant) any {
+			return struct {
+				Platform string
+				Tenant   struct {
+					Id          string
+					Code        string
+					Description string
+				}
+			}{
+				Platform: tenant.GetPlatformName(),
+				Tenant: struct {
+					Id          string
+					Code        string
+					Description string
+				}{
+					Id:          tenant.Spec.Id,
+					Code:        tenant.GetName(),
+					Description: tenant.GetDescription(),
+				},
+			}
+		},
+		func(platform *platformv1.Platform) any {
+			return struct {
+				Platform string
+			}{
+				Platform: platform.GetName(),
+			}
+		},
+	)
 }
 
 type Cloner[C any] interface {
@@ -267,7 +149,16 @@ func selectItemsInTarget[R ProvisioningResource, T ProvisioningTarget](platform 
 
 		}
 
-		if target.GetCategory() != provisioningMeta.Target.Category {
+		targetCategory := Match(target,
+			func(tenant *platformv1.Tenant) provisioningv1.ProvisioningTargetCategory {
+				return provisioningv1.ProvisioningTargetCategoryTenant
+			},
+			func(*platformv1.Platform) provisioningv1.ProvisioningTargetCategory {
+				return provisioningv1.ProvisioningTargetCategoryPlatform
+			},
+		)
+
+		if targetCategory != provisioningMeta.Target.Category {
 			continue
 		}
 
@@ -281,7 +172,7 @@ func selectItemsInTarget[R ProvisioningResource, T ProvisioningTarget](platform 
 func applyTargetOverrides[R interface {
 	ProvisioningResource
 	Cloner[R]
-}, T ProvisioningTarget](source []R, target T) ([]R, error) {
+}](source []R, target ProvisioningTarget) ([]R, error) {
 	if source == nil {
 		return source, nil
 	}
@@ -289,7 +180,15 @@ func applyTargetOverrides[R interface {
 	result := []R{}
 
 	for _, res := range source {
-		overrides := target.GetOverrides(*res.GetProvisioningMeta())
+
+		overrides := Match(target,
+			func(tenant *platformv1.Tenant) map[string]*apiextensionsv1.JSON {
+				return (res.GetProvisioningMeta()).TenantOverrides
+			},
+			func(*platformv1.Platform) map[string]*apiextensionsv1.JSON {
+				return nil
+			},
+		)
 
 		if overrides == nil {
 			result = append(result, res)

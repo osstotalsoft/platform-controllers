@@ -383,8 +383,17 @@ func azureVirtualDesktopDeployFunc[T provisioning.ProvisioningTarget](target T, 
 	return func(ctx *pulumi.Context) error {
 		for _, avd := range avds {
 			hostPoolName := avd.Spec.HostPoolName
-			globalQalifier := fmt.Sprintf("%s-%s", target.GetPlatformName(), target.GetPathSegment())
-			pulumiRetainOnDelete := target.GetDeletePolicy() == platformv1.DeletePolicyRetainStatefulResources
+
+			globalQalifier := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
+				},
+				func(platform *platformv1.Platform) string {
+					return fmt.Sprintf("%s", platform.GetName())
+				},
+			)
+
+			pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 
 			avdComponent := &AzureVirtualDesktop{}
 			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avdComponent)

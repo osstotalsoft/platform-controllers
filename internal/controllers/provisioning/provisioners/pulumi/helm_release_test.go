@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
@@ -75,8 +74,8 @@ func TestHelmReleaseDeployFunc(t *testing.T) {
 	})
 }
 
-func newTenant(name, platform string) *provisioning.Tenant {
-	tenant := provisioning.Tenant(platformv1.Tenant{
+func newTenant(name, platform string) *platformv1.Tenant {
+	tenant := platformv1.Tenant(platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: platformv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,

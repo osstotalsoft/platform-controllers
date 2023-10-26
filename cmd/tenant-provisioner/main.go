@@ -88,7 +88,7 @@ func main() {
 	eventBroadcaster.StartStructuredLogging(0)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
-	controller := provisioning.NewProvisioningController(clientset, pulumi.Create[*provisioning.Tenant], pulumi.Create[*provisioning.Platform],
+	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
 		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter), eventBroadcaster, messaging.DefaultMessagingPublisher())
 	if err = controller.Run(5, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err)

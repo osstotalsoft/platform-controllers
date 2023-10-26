@@ -64,13 +64,23 @@ func azureDbDeployFunc[T provisioning.ProvisioningTarget](target T,
 					Name: pulumi.String(sku),
 				}
 			}
-			pulumiRetainOnDelete := target.GetDeletePolicy() == platformv1.DeletePolicyRetainStatefulResources
+
+			pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
+
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
 				ignoreChanges = []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
 			}
 
-			dbNameV1 := fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, target.GetPlatformName(), target.GetPathSegment())
+			dbNameV1 := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return fmt.Sprintf("%s_%s_%s", dbSpec.Spec.DbName, tenant.Spec.PlatformRef, tenant.GetName())
+				},
+				func(platform *platformv1.Platform) string {
+					return fmt.Sprintf("%s_%s", dbSpec.Spec.DbName, platform.GetName())
+				},
+			)
+
 			dbName := strings.ReplaceAll(dbNameV1, ".", "_")
 			db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
 				pulumi.RetainOnDelete(pulumiRetainOnDelete),

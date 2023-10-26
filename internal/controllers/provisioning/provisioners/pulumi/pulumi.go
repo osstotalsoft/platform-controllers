@@ -18,13 +18,14 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"k8s.io/klog/v2"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 )
 
-func Create[T provisioning.ProvisioningTarget](target T, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
+func Create(target provisioning.ProvisioningTarget, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
 	result := provisioning.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
@@ -39,7 +40,15 @@ func Create[T provisioning.ProvisioningTarget](target T, domain string, infra *p
 	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop
 
-	stackName := fmt.Sprintf("%s-%s", target.GetPathSegment(), domain)
+	stackName := provisioning.Match(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s-%s", tenant.GetName(), domain)
+		},
+		func(*platformv1.Platform) string {
+			return fmt.Sprintf("%s", domain)
+		},
+	)
+
 	if anyResource {
 		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), deployFunc(target, domain, infra, needsResourceGroup))
 		if result.Error != nil {

@@ -49,7 +49,8 @@ func pulumiFluxHrArgs[T provisioning.ProvisioningTarget](target T, hr *provision
 
 	pulumiValues := pulumi.Map{}
 	if hr.Spec.Release.Values != nil {
-		tc := target.GetTemplateContext()
+		tc := provisioning.GetTemplateContext(target)
+
 		valuesJson := string(hr.Spec.Release.Values.Raw)
 		valuesJson, err := template.ParseTemplate(valuesJson, tc)
 		if err != nil {
