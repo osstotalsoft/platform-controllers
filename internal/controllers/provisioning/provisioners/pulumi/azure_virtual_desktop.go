@@ -375,7 +375,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	return avdVM, nil
 }
 
-func azureVirtualDesktopDeployFunc[T provisioning.ProvisioningTarget](target T, resourceGroupName pulumi.StringOutput,
+func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
 	avds []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(target)

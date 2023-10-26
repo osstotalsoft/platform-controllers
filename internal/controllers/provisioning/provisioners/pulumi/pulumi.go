@@ -204,7 +204,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	return s, nil
 }
 
-func deployFunc[T provisioning.ProvisioningTarget](target T, domain string,
+func deployFunc(target provisioning.ProvisioningTarget, domain string,
 	infra *provisioning.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {

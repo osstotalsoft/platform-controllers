@@ -9,7 +9,7 @@ import (
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
-func azureRGDeployFunc[T provisioning.ProvisioningTarget](target T, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
+func azureRGDeployFunc(target provisioning.ProvisioningTarget, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 	return func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 		resourceGroupName := provisioning.Match(target,
 			func(tenant *platformv1.Tenant) string {

@@ -133,7 +133,7 @@ func exludeTenant(filter provisioningv1.ProvisioningTargetFilter, tenant string)
 	return false
 }
 
-func selectItemsInTarget[R ProvisioningResource, T ProvisioningTarget](platform string, domain string, source []R, target T) []R {
+func selectItemsInTarget[R ProvisioningResource](platform string, domain string, source []R, target ProvisioningTarget) []R {
 	result := []R{}
 	for _, res := range source {
 		provisioningMeta := res.GetProvisioningMeta()

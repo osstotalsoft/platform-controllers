@@ -14,7 +14,7 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureVirtualMachineDeployFunc[T provisioning.ProvisioningTarget](target T, resourceGroupName pulumi.StringOutput,
+func azureVirtualMachineDeployFunc(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
 	azureVms []*provisioningv1.AzureVirtualMachine) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(target)

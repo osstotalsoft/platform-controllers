@@ -11,7 +11,7 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureManagedDbDeployFunc[T provisioning.ProvisioningTarget](target T,
+func azureManagedDbDeployFunc(target provisioning.ProvisioningTarget,
 	azureDbs []*provisioningv1.AzureManagedDatabase) pulumi.RunFunc {
 
 	valueExporter := handleValueExport(target)
