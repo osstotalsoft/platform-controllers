@@ -108,7 +108,7 @@ type Cloner[C any] interface {
 	DeepCopy() C
 }
 
-func getPlatformAndDomain[R ProvisioningResource](res R) (platform, domain string, target provisioningv1.ProvisioningTargetCategory, ok bool) {
+func getResourceKeys[R ProvisioningResource](res R) (platform, domain string, target provisioningv1.ProvisioningTargetCategory, ok bool) {
 	platform = res.GetProvisioningMeta().PlatformRef
 	domain = res.GetProvisioningMeta().DomainRef
 	target = res.GetProvisioningMeta().Target.Category

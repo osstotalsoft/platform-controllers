@@ -572,7 +572,7 @@ func addResourceHandlers[R ProvisioningResource](resType string, informer cache.
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(R)
-			if platform, domain, target, ok := getPlatformAndDomain(comp); ok {
+			if platform, domain, target, ok := getResourceKeys(comp); ok {
 				msg := fmt.Sprintf("%s added", resType)
 				klog.V(4).InfoS(msg, "name", comp.GetName(), "namespace", comp.GetNamespace(), "platform", platform, "domain", domain)
 				handler(platform, domain, target)
@@ -581,8 +581,8 @@ func addResourceHandlers[R ProvisioningResource](resType string, informer cache.
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldComp := oldObj.(R)
 			newComp := newObj.(R)
-			oldPlatform, oldDomain, oldTarget, oldOk := getPlatformAndDomain(oldComp)
-			newPlatform, newDomain, newTarget, newOk := getPlatformAndDomain(newComp)
+			oldPlatform, oldDomain, oldTarget, oldOk := getResourceKeys(oldComp)
+			newPlatform, newDomain, newTarget, newOk := getResourceKeys(newComp)
 			platformOrDomainChanged := oldPlatform != newPlatform || oldDomain != newDomain || oldTarget != newTarget
 
 			if oldOk && platformOrDomainChanged {
@@ -599,7 +599,7 @@ func addResourceHandlers[R ProvisioningResource](resType string, informer cache.
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(R)
-			if platform, domain, target, ok := getPlatformAndDomain(comp); ok {
+			if platform, domain, target, ok := getResourceKeys(comp); ok {
 				msg := fmt.Sprintf("%s deleted", resType)
 				klog.V(4).InfoS(msg, "name", comp.GetName(), "namespace", comp.GetNamespace(), "platform", platform, "domain", domain)
 				handler(platform, domain, target)
