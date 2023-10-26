@@ -36,10 +36,10 @@ const (
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 
 	tenantProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.TenantProvisionedSuccessfully"
-	tenantProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.TenantProvisioningFailed"
+	tenantProvisioningFailedTopic      = "PlatformControllers.ProvisioningController.TenantProvisioningFailed"
 
 	platformProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.PlatformProvisionedSuccessfully"
-	platformProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.PlatformProvisioningFailed"
+	platformProvisioningFailedTopic      = "PlatformControllers.ProvisioningController.PlatformProvisioningFailed"
 
 	DomainProvisionedSuccessfullyFormat string = "%s domain provisioned successfully"
 	DomainProvisionningFailedFormat     string = "%s domain provisionning failed"
@@ -411,7 +411,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 					Error:             err.Error(),
 				}
 
-				topic := tenantProvisionningFailedTopic
+				topic := tenantProvisioningFailedTopic
 				return tuple.New2(topic, ev)
 			}, func(platform *platformv1.Platform) tuple.T2[string, any] {
 				var ev any = struct {
@@ -424,7 +424,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 					Error:    err.Error(),
 				}
 
-				topic := platformProvisionningFailedTopic
+				topic := platformProvisioningFailedTopic
 				return tuple.New2(topic, ev)
 			},
 		).Values()
