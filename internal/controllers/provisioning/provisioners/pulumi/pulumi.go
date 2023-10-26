@@ -45,7 +45,7 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 			return fmt.Sprintf("%s-%s", tenant.GetName(), domain)
 		},
 		func(*platformv1.Platform) string {
-			return fmt.Sprintf("_platform-%s", domain)
+			return fmt.Sprintf("platform-%s", domain)
 		},
 	)
 
