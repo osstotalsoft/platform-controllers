@@ -351,9 +351,9 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	if result.Error == nil {
 		c.recorder.Event(target, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain))
 
-		err := Match(target,
-			func(tenant *platformv1.Tenant) error {
-				ev := struct {
+		topic, ev := Match(target,
+			func(tenant *platformv1.Tenant) tuple.T2[string, any] {
+				var ev any = struct {
 					TenantId          string
 					TenantName        string
 					TenantDescription string
@@ -368,11 +368,9 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 				}
 
 				topic := tenantProvisionedSuccessfullyTopic
-				err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-				return err
-
-			}, func(platform *platformv1.Platform) error {
-				ev := struct {
+				return tuple.New2(topic, ev)
+			}, func(platform *platformv1.Platform) tuple.T2[string, any] {
+				var ev any = struct {
 					Platform string
 					Domain   string
 				}{
@@ -383,9 +381,11 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 				topic := platformProvisionedSuccessfullyTopic
 
 				err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-				return err
+				return tuple.New2(topic, ev)
 			},
-		)
+		).Values()
+
+		err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
 
 		if err != nil {
 			klog.ErrorS(err, "message publisher error")
@@ -413,7 +413,6 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 
 				topic := tenantProvisionningFailedTopic
 				return tuple.New2(topic, ev)
-
 			}, func(platform *platformv1.Platform) tuple.T2[string, any] {
 				var ev any = struct {
 					Platform string
