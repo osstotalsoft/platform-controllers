@@ -20,6 +20,7 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging"
+	"totalsoft.ro/platform-controllers/internal/tuple"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -332,25 +333,19 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		AzureVirtualDesktops: azureVirtualDesktops,
 	})
 
-	if result.Error == nil {
-		if c.tenantMigrator != nil && result.HasChanges {
-			if err == nil {
-				result.Error = Match(target,
-					func(tenant *platformv1.Tenant) error {
-						if tenant.Spec.Enabled {
-							return c.tenantMigrator(target.GetNamespace(), tenant, domain)
-						} else {
-							return nil
-						}
-					},
-					func(*platformv1.Platform) error {
-						return nil
-					},
-				)
-			} else {
-				klog.ErrorS(err, "platform not found")
-			}
-		}
+	if result.Error == nil && result.HasChanges {
+		result.Error = Match(target,
+			func(tenant *platformv1.Tenant) error {
+				if c.tenantMigrator != nil && tenant.Spec.Enabled {
+					return c.tenantMigrator(tenant.GetNamespace(), tenant, domain)
+				} else {
+					return nil
+				}
+			},
+			func(*platformv1.Platform) error {
+				return nil
+			},
+		)
 	}
 
 	if result.Error == nil {
@@ -398,9 +393,9 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	} else {
 		c.recorder.Event(target, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domain), result.Error.Error())
 
-		err := Match(target,
-			func(tenant *platformv1.Tenant) error {
-				ev := struct {
+		topic, ev := Match(target,
+			func(tenant *platformv1.Tenant) tuple.T2[string, any] {
+				var ev any = struct {
 					TenantId          string
 					TenantName        string
 					TenantDescription string
@@ -417,11 +412,10 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 				}
 
 				topic := tenantProvisionningFailedTopic
-				err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-				return err
+				return tuple.New2(topic, ev)
 
-			}, func(platform *platformv1.Platform) error {
-				ev := struct {
+			}, func(platform *platformv1.Platform) tuple.T2[string, any] {
+				var ev any = struct {
 					Platform string
 					Domain   string
 					Error    string
@@ -432,11 +426,11 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 				}
 
 				topic := platformProvisionningFailedTopic
-
-				err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
-				return err
+				return tuple.New2(topic, ev)
 			},
-		)
+		).Values()
+
+		err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
 
 		if err != nil {
 			klog.ErrorS(err, "message publisher error")
