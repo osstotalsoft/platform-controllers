@@ -35,10 +35,10 @@ const (
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 
 	tenantProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.TenantProvisionedSuccessfully"
-	tenantProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.TenantProvisionningFailed"
+	tenantProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.TenantProvisioningFailed"
 
 	platformProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.PlatformProvisionedSuccessfully"
-	platformProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.PlatformProvisionningFailed"
+	platformProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.PlatformProvisioningFailed"
 
 	DomainProvisionedSuccessfullyFormat string = "%s domain provisioned successfully"
 	DomainProvisionningFailedFormat     string = "%s domain provisionning failed"
