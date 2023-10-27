@@ -69,7 +69,7 @@ func azureDbDeployFunc(target provisioning.ProvisioningTarget,
 
 			ignoreChanges := []string{}
 			if pulumiRetainOnDelete {
-				ignoreChanges = []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId"}
+				ignoreChanges = []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId", "isLedgerOn"}
 			}
 
 			dbNameV1 := provisioning.Match(target,
