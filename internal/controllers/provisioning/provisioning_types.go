@@ -2,13 +2,34 @@ package provisioning
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/strings/slices"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
+
+type CreateInfrastructureFunc func(
+	target ProvisioningTarget,
+	domain string,
+	infra *InfrastructureManifests) ProvisioningResult
+
+type InfrastructureManifests struct {
+	AzureDbs             []*provisioningv1.AzureDatabase
+	AzureManagedDbs      []*provisioningv1.AzureManagedDatabase
+	HelmReleases         []*provisioningv1.HelmRelease
+	AzureVirtualMachines []*provisioningv1.AzureVirtualMachine
+	AzureVirtualDesktops []*provisioningv1.AzureVirtualDesktop
+}
+
+type ProvisioningResult struct {
+	Error      error
+	HasChanges bool
+}
 
 type ProvisioningResource interface {
 	*provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
@@ -19,18 +40,84 @@ type ProvisioningResource interface {
 	GetNamespace() string
 }
 
+type ProvisioningTarget interface {
+	GetName() string
+	GetDescription() string
+	GetNamespace() string
+	GetPlatformName() string
+
+	runtime.Object
+}
+
+func Match[T any](target ProvisioningTarget, ifTenant func(*platformv1.Tenant) T, ifPlatform func(*platformv1.Platform) T) T {
+	switch target.(type) {
+	case *platformv1.Tenant:
+		return ifTenant(target.(*platformv1.Tenant))
+	case *platformv1.Platform:
+		return ifPlatform(target.(*platformv1.Platform))
+	default:
+		panic(fmt.Errorf("unsupported target: '%s'", reflect.TypeOf(target)))
+	}
+}
+
+func GetDeletePolicy(target ProvisioningTarget) platformv1.DeletePolicy {
+	return Match(target,
+		func(tenant *platformv1.Tenant) platformv1.DeletePolicy {
+			return tenant.Spec.DeletePolicy
+		},
+		func(*platformv1.Platform) platformv1.DeletePolicy {
+			return platformv1.DeletePolicyRetainStatefulResources
+		},
+	)
+}
+
+func GetTemplateContext(target ProvisioningTarget) any {
+	return Match(target,
+		func(tenant *platformv1.Tenant) any {
+			return struct {
+				Platform string
+				Tenant   struct {
+					Id          string
+					Code        string
+					Description string
+				}
+			}{
+				Platform: tenant.GetPlatformName(),
+				Tenant: struct {
+					Id          string
+					Code        string
+					Description string
+				}{
+					Id:          tenant.Spec.Id,
+					Code:        tenant.GetName(),
+					Description: tenant.GetDescription(),
+				},
+			}
+		},
+		func(platform *platformv1.Platform) any {
+			return struct {
+				Platform string
+			}{
+				Platform: platform.GetName(),
+			}
+		},
+	)
+}
+
 type Cloner[C any] interface {
 	DeepCopy() C
 }
 
-func getPlatformAndDomain[R ProvisioningResource](res R) (platform, domain string, ok bool) {
+func getResourceKeys[R ProvisioningResource](res R) (platform, domain string, target provisioningv1.ProvisioningTargetCategory, ok bool) {
 	platform = res.GetProvisioningMeta().PlatformRef
 	domain = res.GetProvisioningMeta().DomainRef
+	target = res.GetProvisioningMeta().Target.Category
+
 	if len(platform) == 0 || len(domain) == 0 {
-		return platform, domain, false
+		return platform, domain, target, false
 	}
 
-	return platform, domain, true
+	return platform, domain, target, true
 }
 
 func exludeTenant(filter provisioningv1.ProvisioningTargetFilter, tenant string) bool {
@@ -46,29 +133,42 @@ func exludeTenant(filter provisioningv1.ProvisioningTargetFilter, tenant string)
 	return false
 }
 
-func selectItemsInTarget[R ProvisioningResource](platform string, tenant string, domain string, source []R) []R {
+func selectItemsInTarget[R ProvisioningResource](platform string, domain string, source []R, target ProvisioningTarget) []R {
 	result := []R{}
 	for _, res := range source {
 		provisioningMeta := res.GetProvisioningMeta()
 
 		if provisioningMeta.Target.Category == provisioningv1.ProvisioningTargetCategoryTenant {
-			if exludeTenant(provisioningMeta.Target.Filter, tenant) {
+			if exludeTenant(provisioningMeta.Target.Filter, target.GetName()) {
 				continue
 			}
 
-			if provisioningMeta.PlatformRef == platform && provisioningMeta.DomainRef == domain {
+		}
 
-				result = append(result, res)
-			}
+		targetCategory := Match(target,
+			func(tenant *platformv1.Tenant) provisioningv1.ProvisioningTargetCategory {
+				return provisioningv1.ProvisioningTargetCategoryTenant
+			},
+			func(*platformv1.Platform) provisioningv1.ProvisioningTargetCategory {
+				return provisioningv1.ProvisioningTargetCategoryPlatform
+			},
+		)
+
+		if targetCategory != provisioningMeta.Target.Category {
+			continue
+		}
+
+		if provisioningMeta.PlatformRef == platform && provisioningMeta.DomainRef == domain {
+			result = append(result, res)
 		}
 	}
 	return result
 }
 
-func applyTenantOverrides[R interface {
+func applyTargetOverrides[R interface {
 	ProvisioningResource
 	Cloner[R]
-}](source []R, tenantName string) ([]R, error) {
+}](source []R, target ProvisioningTarget) ([]R, error) {
 	if source == nil {
 		return source, nil
 	}
@@ -76,14 +176,22 @@ func applyTenantOverrides[R interface {
 	result := []R{}
 
 	for _, res := range source {
-		overrides := res.GetProvisioningMeta().TenantOverrides
+
+		overrides := Match(target,
+			func(tenant *platformv1.Tenant) map[string]*apiextensionsv1.JSON {
+				return (res.GetProvisioningMeta()).TenantOverrides
+			},
+			func(*platformv1.Platform) map[string]*apiextensionsv1.JSON {
+				return nil
+			},
+		)
 
 		if overrides == nil {
 			result = append(result, res)
 			continue
 		}
 
-		tenantOverridesJson, exists := overrides[tenantName]
+		tenantOverridesJson, exists := overrides[target.GetName()]
 		if !exists {
 			result = append(result, res)
 			continue
@@ -133,13 +241,13 @@ func (t jsonTransformer) Transformer(typ reflect.Type) func(dst, src reflect.Val
 		return func(dst, src reflect.Value) error {
 			if dst.CanSet() {
 				srcRaw := src.FieldByName("Raw").Bytes()
-				var srcMap map[string]interface{}
+				var srcMap map[string]any
 				if err := json.Unmarshal(srcRaw, &srcMap); err != nil {
 					return err
 				}
 
 				dstRaw := dst.FieldByName("Raw").Bytes()
-				var dstMap map[string]interface{}
+				var dstMap map[string]any
 				if err := json.Unmarshal(dstRaw, &dstMap); err != nil {
 					return err
 				}

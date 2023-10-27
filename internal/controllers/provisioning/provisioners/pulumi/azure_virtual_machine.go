@@ -9,18 +9,28 @@ import (
 	"github.com/pulumi/pulumi-azure-native-sdk/network/v2"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func azureVirtualMachineDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName pulumi.StringOutput,
+func azureVirtualMachineDeployFunc(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
 	azureVms []*provisioningv1.AzureVirtualMachine) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, tenant)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualMachine")
 	return func(ctx *pulumi.Context) error {
 		for _, azureVM := range azureVms {
-			vmName := strings.ReplaceAll(fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, platform, tenant.Name), ".", "-")
+			vmName := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, tenant.Spec.PlatformRef, tenant.GetName())
+				},
+				func(platform *platformv1.Platform) string {
+					return fmt.Sprintf("%s-%s", azureVM.Spec.VmName, platform.GetName())
+				},
+			)
+
+			vmName = strings.ReplaceAll(vmName, ".", "-")
 
 			computerNameOutput, err := random.NewRandomPet(ctx, fmt.Sprintf("%s-computer-name", vmName), &random.RandomPetArgs{
 				Length:    pulumi.Int(2),
@@ -113,7 +123,7 @@ func azureVirtualMachineDeployFunc(platform string, tenant *platformv1.Tenant, r
 				},
 				OsProfile: compute.OSProfileArgs{
 					ComputerName:  computerName,
-					AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", tenant.Name)),
+					AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", target.GetName())),
 					AdminPassword: password.Result,
 				},
 				NetworkProfile: compute.NetworkProfileArgs{

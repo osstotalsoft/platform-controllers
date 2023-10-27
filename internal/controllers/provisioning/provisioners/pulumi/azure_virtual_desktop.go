@@ -15,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi-azuread/sdk/v5/go/azuread"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
@@ -41,7 +42,7 @@ type AzureVirtualDesktopVM struct {
 
 type AzureVirtualDesktopVMArgs struct {
 	// A required username for the VM login.
-	TenantName pulumi.StringInput
+	TargetName pulumi.StringInput
 
 	HostPoolName pulumi.StringInput
 
@@ -148,7 +149,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 
 		OsProfile: compute.OSProfileArgs{
 			ComputerName:  avdVM.ComputerName,
-			AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", args.TenantName)),
+			AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", args.TargetName)),
 			AdminPassword: avdVM.AdminPassword.Result,
 			WindowsConfiguration: compute.WindowsConfigurationArgs{
 				EnableAutomaticUpdates: pulumi.Bool(false),
@@ -374,16 +375,25 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	return avdVM, nil
 }
 
-func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, resourceGroupName pulumi.StringOutput,
+func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
 	avds []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
 
-	valueExporter := handleValueExport(platform, tenant)
+	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualDesktop")
 	return func(ctx *pulumi.Context) error {
 		for _, avd := range avds {
 			hostPoolName := avd.Spec.HostPoolName
-			globalQalifier := fmt.Sprintf("%s-%s", platform, tenant.Name)
-			pulumiRetainOnDelete := tenant.Spec.DeletePolicy == platformv1.DeletePolicyRetainStatefulResources
+
+			globalQalifier := provisioning.Match(target,
+				func(tenant *platformv1.Tenant) string {
+					return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
+				},
+				func(platform *platformv1.Platform) string {
+					return fmt.Sprintf("%s", platform.GetName())
+				},
+			)
+
+			pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 
 			avdComponent := &AzureVirtualDesktop{}
 			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avdComponent)
@@ -578,7 +588,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 
 			_, err = desktopvirtualization.NewWorkspace(ctx, fmt.Sprintf("%s-ws", hostPoolName), &desktopvirtualization.WorkspaceArgs{
 				//WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
-				FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", avd.Spec.WorkspaceFriendlyName, tenant.Spec.Description)),
+				FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", avd.Spec.WorkspaceFriendlyName, target.GetDescription())),
 				ResourceGroupName: resourceGroupName,
 				ApplicationGroupReferences: pulumi.StringArray{
 					avdComponent.DesktopAppGroup.ID(),
@@ -637,7 +647,7 @@ func azureVirtualDesktopDeployFunc(platform string, tenant *platformv1.Tenant, r
 				vmName := fmt.Sprintf("%s-%d", avd.Spec.HostPoolName, i)
 				avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
 					ResourceGroupName: resourceGroupName,
-					TenantName:        pulumi.String(tenant.Name),
+					TargetName:        pulumi.String(target.GetName()),
 					HostPoolName:      avdComponent.HostPool.Name,
 					RegistrationToken: avdComponent.HostPool.RegistrationInfo.Token().Elem(),
 					VMSize:            pulumi.String(avd.Spec.VmSize),

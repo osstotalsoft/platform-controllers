@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	"totalsoft.ro/platform-controllers/internal/messaging"
 	messagingMock "totalsoft.ro/platform-controllers/internal/messaging/mock"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -57,8 +56,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected 3 outputs, got", len(*outputs))
 			return
 		}
-		if (*outputs)[0].tenant.Name != "dev1" {
-			t.Error("expected output tenant dev1, got", (*outputs)[0].tenant.Name)
+		if (*outputs)[0].target.GetName() != "dev1" {
+			t.Error("expected output tenant dev1, got", (*outputs)[0].target.GetName())
 		}
 
 		for i := 0; i < 3; i++ {
@@ -96,10 +95,10 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		wg.Add(1)
 
 		var outputs []provisionerResult
-		infraCreator := func(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
-			outputs = append(outputs, provisionerResult{platform, tenant, domain, infra})
+		infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
 			wg.Wait() //wait for other tenant updates
-			return provisioners.ProvisioningResult{}
+			return ProvisioningResult{}
 		}
 		c := runController(objects, infraCreator, messaging.NilMessagingPublisher)
 
@@ -124,8 +123,8 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected 1 output, got", len(outputs))
 			return
 		}
-		if outputs[0].tenant.Name != "dev1" {
-			t.Error("expected output tenant dev1, got", outputs[0].tenant.Name)
+		if outputs[0].target.GetName() != "dev1" {
+			t.Error("expected output tenant dev1, got", outputs[0].target.GetName())
 		}
 	})
 
@@ -215,9 +214,9 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		domain := "my-domain"
 		tenant := newTenant("dev1", "dev", domain)
 		azureDb := newAzureDb("db1", "dev", domain)
-		azureDb.ObjectMeta.Labels = map[string]string{
-			"provisioning.totalsoft.ro/skip-tenant-dev1": "true",
-		}
+		azureDb.Spec.Target.Filter.Kind = provisioningv1.ProvisioningFilterKindBlacklist
+		azureDb.Spec.Target.Filter.Values = []string{"dev1"}
+
 		objects := []runtime.Object{
 			tenant,
 			azureDb,
@@ -278,7 +277,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 	})
 }
 
-func TestProvisioningController_applyTenantOverrides(t *testing.T) {
+func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 
 	t.Run("apply managedDb tenant overrides", func(t *testing.T) {
 		tenantName := "tenant1"
@@ -304,7 +303,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTenantOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenantName)
+		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -343,7 +342,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -386,7 +385,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTenantOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, tenantName)
+		result, err := applyTargetOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -434,7 +433,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -481,7 +480,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTenantOverrides([]*provisioningv1.HelmRelease{&hr}, tenantName)
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -523,7 +522,7 @@ func TestProvisioningController_applyTenantOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTenantOverrides(hrs, tenantName)
+		result, err := applyTargetOverrides(hrs, newTenant(tenantName, "platform", "domain"))
 		if err != nil {
 			t.Error(err)
 		}
@@ -593,7 +592,7 @@ func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.A
 	}
 }
 
-func runController(objects []runtime.Object, provisioner provisioners.CreateInfrastructureFunc, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
+func runController(objects []runtime.Object, provisioner CreateInfrastructureFunc, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
 	clientset := fakeClientset.NewSimpleClientset(objects...)
 
 	c := NewProvisioningController(clientset, provisioner, nil, nil, msgPublisher)
@@ -606,9 +605,9 @@ func runController(objects []runtime.Object, provisioner provisioners.CreateInfr
 func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningController, *[]provisionerResult, chan messagingMock.RcvMsg) {
 	var outputs []provisionerResult
 
-	infraCreator := func(platform string, tenant *platformv1.Tenant, domain string, infra *provisioners.InfrastructureManifests) provisioners.ProvisioningResult {
-		outputs = append(outputs, provisionerResult{platform, tenant, domain, infra})
-		return provisioners.ProvisioningResult{}
+	infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+		outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
+		return ProvisioningResult{}
 	}
 
 	msgChan := make(chan messagingMock.RcvMsg)
@@ -623,7 +622,7 @@ func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningContr
 
 type provisionerResult struct {
 	platform string
-	tenant   *platformv1.Tenant
+	target   ProvisioningTarget
 	domain   string
-	infra    *provisioners.InfrastructureManifests
+	infra    *InfrastructureManifests
 }

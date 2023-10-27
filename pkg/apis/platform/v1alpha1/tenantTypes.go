@@ -81,3 +81,11 @@ const (
 	DeletePolicyRetainStatefulResources = DeletePolicy("RetainStatefulResources")
 	DeletePolicyDeleteAll               = DeletePolicy("DeleteAll")
 )
+
+func (tenant *Tenant) GetDescription() string {
+	return tenant.Spec.Description
+}
+
+func (tenant *Tenant) GetPlatformName() string {
+	return tenant.Spec.PlatformRef
+}

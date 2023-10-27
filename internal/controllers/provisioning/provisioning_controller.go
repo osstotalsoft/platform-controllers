@@ -19,8 +19,8 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/strings/slices"
-	provisioners "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging"
+	"totalsoft.ro/platform-controllers/internal/tuple"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
@@ -36,7 +36,10 @@ const (
 	SkipProvisioningLabel = "provisioning.totalsoft.ro/skip-provisioning"
 
 	tenantProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.TenantProvisionedSuccessfully"
-	tenantProvisionningFailedTopic     = "PlatformControllers.ProvisioningController.TenantProvisionningFailed"
+	tenantProvisioningFailedTopic      = "PlatformControllers.ProvisioningController.TenantProvisioningFailed"
+
+	platformProvisionedSuccessfullyTopic = "PlatformControllers.ProvisioningController.PlatformProvisionedSuccessfully"
+	platformProvisioningFailedTopic      = "PlatformControllers.ProvisioningController.PlatformProvisioningFailed"
 
 	DomainProvisionedSuccessfullyFormat string = "%s domain provisioned successfully"
 	DomainProvisionningFailedFormat     string = "%s domain provisionning failed"
@@ -44,9 +47,9 @@ const (
 
 // ProvisioningController is the controller implementation for Tenant resources
 type ProvisioningController struct {
-	factory   informers.SharedInformerFactory
-	clientset clientset.Interface
-	migrator  func(platform string, tenant *platformv1.Tenant, domain string) error
+	factory        informers.SharedInformerFactory
+	clientset      clientset.Interface
+	tenantMigrator func(platform string, tenant *platformv1.Tenant, domain string) error
 
 	// workqueue is a rate limited work queue. This is used to queue work to be
 	// processed instead of performing it as soon as a change happens. This
@@ -58,7 +61,7 @@ type ProvisioningController struct {
 	// Kubernetes API.
 	recorder record.EventRecorder
 
-	provisioner provisioners.CreateInfrastructureFunc
+	provisioner CreateInfrastructureFunc
 
 	platformInformer            platformInformersv1.PlatformInformer
 	tenantInformer              platformInformersv1.TenantInformer
@@ -72,8 +75,8 @@ type ProvisioningController struct {
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
-	provisioner provisioners.CreateInfrastructureFunc,
-	migrator func(platform string, tenant *platformv1.Tenant, domain string) error,
+	tenantProvisioner CreateInfrastructureFunc,
+	tenantMigrator func(platform string, tenant *platformv1.Tenant, domain string) error,
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher) *ProvisioningController {
 
@@ -98,9 +101,9 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureVirtualMachineInformer: factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 		azureVirtualDesktopInformer: factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 
-		provisioner:        provisioner,
+		provisioner:        tenantProvisioner,
 		clientset:          clientSet,
-		migrator:           migrator,
+		tenantMigrator:     tenantMigrator,
 		messagingPublisher: messagingPublisher,
 	}
 
@@ -209,100 +212,120 @@ func (c *ProvisioningController) processNextWorkItem(i int) bool {
 // with the current status of the resource.
 func (c *ProvisioningController) syncHandler(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
+	var err error
 	platformKey, tenantKey, domainKey, _ := decodeKey(key)
-	tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
-	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("invalid tenant key: %s", tenantKey))
-		return nil
-	}
-
-	// Get the Tenant resource with this namespace/name
-	// use the live query API, to get the latest version instead of listers which are cached
-	tenant, err := c.clientset.PlatformV1alpha1().Tenants(tenantNamespace).Get(context.TODO(), tenantName, metav1.GetOptions{})
-	shouldCleanupResources :=
-		(err != nil && errors.IsNotFound(err)) ||
-			(err == nil && (tenant.Spec.PlatformRef != platformKey ||
-				!slices.Contains(tenant.Spec.DomainRefs, domainKey)))
-
-	if shouldCleanupResources {
-		cleanupResult := c.provisioner(platformKey, &platformv1.Tenant{
-			ObjectMeta: metav1.ObjectMeta{Name: tenantName},
-			Spec:       platformv1.TenantSpec{PlatformRef: platformKey}},
-			domainKey,
-			&provisioners.InfrastructureManifests{
-				AzureDbs:             []*provisioningv1.AzureDatabase{},
-				AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
-				HelmReleases:         []*provisioningv1.HelmRelease{},
-				AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
-				AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
-			})
-		if cleanupResult.Error != nil {
-			utilruntime.HandleError(cleanupResult.Error)
+	if tenantKey == "" {
+		platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformKey, metav1.GetOptions{})
+		platformNotFound := err != nil && errors.IsNotFound(err)
+		if platformNotFound {
+			utilruntime.HandleError(fmt.Errorf("platform not found: %s", platformKey))
+			return nil
 		}
 
-		return nil
+		if err != nil {
+			return err
+		}
+
+		err = c.syncTarget(platform, domainKey)
+
+	} else {
+		tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
+		if err != nil {
+			utilruntime.HandleError(fmt.Errorf("invalid tenant key: %s", tenantKey))
+			return nil
+		}
+
+		// Get the Tenant resource with this namespace/name
+		// use the live query API, to get the latest version instead of listers which are cached
+		tenant, err := c.clientset.PlatformV1alpha1().Tenants(tenantNamespace).Get(context.TODO(), tenantName, metav1.GetOptions{})
+		shouldCleanupResources :=
+			(err != nil && errors.IsNotFound(err)) ||
+				(err == nil && (tenant.Spec.PlatformRef != platformKey ||
+					!slices.Contains(tenant.Spec.DomainRefs, domainKey)))
+
+		if shouldCleanupResources {
+			cleanupResult := c.provisioner(&platformv1.Tenant{
+				ObjectMeta: metav1.ObjectMeta{Name: tenantName},
+				Spec:       platformv1.TenantSpec{PlatformRef: platformKey}},
+				domainKey,
+				&InfrastructureManifests{
+					AzureDbs:             []*provisioningv1.AzureDatabase{},
+					AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
+					HelmReleases:         []*provisioningv1.HelmRelease{},
+					AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
+					AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
+				},
+			)
+			if cleanupResult.Error != nil {
+				utilruntime.HandleError(cleanupResult.Error)
+			}
+
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		err = c.syncTarget(tenant, domainKey)
 	}
+
+	return err
+
+}
+
+func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain string) error {
+
+	azureDbs, err := c.azureDbInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	azureDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureDbs, target)
+	azureDbs, err = applyTargetOverrides(azureDbs, target)
 	if err != nil {
 		return err
 	}
 
-	skipTenantLabel := fmt.Sprintf(SkipTenantLabelFormat, tenant.Name)
-	skipTenantLabelSelector, err := labels.Parse(fmt.Sprintf("%s!=true", skipTenantLabel))
+	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	azureManagedDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureManagedDbs, target)
+	azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target)
 	if err != nil {
 		return err
 	}
 
-	azureDbs, err := c.azureDbInformer.Lister().List(skipTenantLabelSelector)
+	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	azureDbs = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureDbs)
-	azureDbs, err = applyTenantOverrides(azureDbs, tenant.Name)
-	if err != nil {
-		return err
-	}
-
-	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(skipTenantLabelSelector)
-	if err != nil {
-		return err
-	}
-	azureManagedDbs = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureManagedDbs)
-	azureManagedDbs, err = applyTenantOverrides(azureManagedDbs, tenant.Name)
+	helmReleases = selectItemsInTarget(target.GetPlatformName(), domain, helmReleases, target)
+	helmReleases, err = applyTargetOverrides(helmReleases, target)
 	if err != nil {
 		return err
 	}
 
-	helmReleases, err := c.helmReleaseInformer.Lister().List(skipTenantLabelSelector)
+	azureVirtualMachines, err := c.azureVirtualMachineInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	helmReleases = selectItemsInTarget(platformKey, tenant.Name, domainKey, helmReleases)
-	helmReleases, err = applyTenantOverrides(helmReleases, tenant.Name)
-	if err != nil {
-		return err
-	}
-
-	azureVirtualMachines, err := c.azureVirtualMachineInformer.Lister().List(skipTenantLabelSelector)
-	if err != nil {
-		return err
-	}
-	azureVirtualMachines = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureVirtualMachines)
-	azureVirtualMachines, err = applyTenantOverrides(azureVirtualMachines, tenant.Name)
+	azureVirtualMachines = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualMachines, target)
+	azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target)
 	if err != nil {
 		return err
 	}
 
-	azureVirtualDesktops, err := c.azureVirtualDesktopInformer.Lister().List(skipTenantLabelSelector)
+	azureVirtualDesktops, err := c.azureVirtualDesktopInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
-	azureVirtualDesktops = selectItemsInTarget(platformKey, tenant.Name, domainKey, azureVirtualDesktops)
-	azureVirtualDesktops, err = applyTenantOverrides(azureVirtualDesktops, tenant.Name)
+	azureVirtualDesktops = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualDesktops, target)
+	azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target)
 	if err != nil {
 		return err
 	}
 
-	result := c.provisioner(platformKey, tenant, domainKey, &provisioners.InfrastructureManifests{
+	result := c.provisioner(target, domain, &InfrastructureManifests{
 		AzureDbs:             azureDbs,
 		AzureManagedDbs:      azureManagedDbs,
 		HelmReleases:         helmReleases,
@@ -310,74 +333,132 @@ func (c *ProvisioningController) syncHandler(key string) error {
 		AzureVirtualDesktops: azureVirtualDesktops,
 	})
 
-	if result.Error == nil {
-		if c.migrator != nil && result.HasChanges && tenant.Spec.Enabled {
-			platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformKey, metav1.GetOptions{})
-			if err == nil {
-				result.Error = c.migrator(platform.Spec.TargetNamespace, tenant, domainKey)
-			} else {
-				klog.ErrorS(err, "platform not found")
-			}
-		}
+	if result.Error == nil && result.HasChanges {
+		result.Error = Match(target,
+			func(tenant *platformv1.Tenant) error {
+				if c.tenantMigrator != nil && tenant.Spec.Enabled {
+					return c.tenantMigrator(tenant.GetNamespace(), tenant, domain)
+				} else {
+					return nil
+				}
+			},
+			func(*platformv1.Platform) error {
+				return nil
+			},
+		)
 	}
 
 	if result.Error == nil {
-		c.recorder.Event(tenant, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domainKey), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domainKey))
-
-		var ev = struct {
-			TenantId          string
-			TenantName        string
-			TenantDescription string
-			Platform          string
-			Domain            string
-		}{
-			TenantId:          tenant.Spec.Id,
-			TenantName:        tenant.Name,
-			TenantDescription: tenant.Spec.Description,
-			Platform:          platformKey,
-			Domain:            domainKey,
-		}
-		err = c.messagingPublisher(context.TODO(), tenantProvisionedSuccessfullyTopic, ev, platformKey)
-		if err != nil {
-			klog.ErrorS(err, "message publisher error")
-		}
+		c.publishSuccessEvents(target, domain)
 	} else {
-		c.recorder.Event(tenant, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domainKey), result.Error.Error())
-
-		var ev = struct {
-			TenantId          string
-			TenantName        string
-			TenantDescription string
-			Platform          string
-			Error             string
-			Domain            string
-		}{
-			TenantId:          tenant.Spec.Id,
-			TenantName:        tenant.Name,
-			TenantDescription: tenant.Spec.Description,
-			Platform:          platformKey,
-			Domain:            domainKey,
-			Error:             result.Error.Error(),
-		}
-		err = c.messagingPublisher(context.TODO(), tenantProvisionningFailedTopic, ev, platformKey)
-		if err != nil {
-			klog.ErrorS(err, "message publisher error")
-		}
+		c.publishFailureEvents(target, domain, result.Error)
 	}
 
 	return result.Error
 }
 
-func (c *ProvisioningController) enqueueDomain(platform, domain string) {
+func (c *ProvisioningController) publishSuccessEvents(target ProvisioningTarget, domain string) {
+	c.recorder.Event(target, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain))
+
+	topic, ev := Match(target,
+		func(tenant *platformv1.Tenant) tuple.T2[string, any] {
+			var ev any = struct {
+				TenantId          string
+				TenantName        string
+				TenantDescription string
+				Platform          string
+				Domain            string
+			}{
+				TenantId:          tenant.Spec.Id,
+				TenantName:        tenant.Name,
+				TenantDescription: tenant.Spec.Description,
+				Platform:          tenant.Spec.PlatformRef,
+				Domain:            domain,
+			}
+
+			topic := tenantProvisionedSuccessfullyTopic
+			return tuple.New2(topic, ev)
+		}, func(platform *platformv1.Platform) tuple.T2[string, any] {
+			var ev any = struct {
+				Platform string
+				Domain   string
+			}{
+				Platform: platform.GetName(),
+				Domain:   domain,
+			}
+
+			topic := platformProvisionedSuccessfullyTopic
+			return tuple.New2(topic, ev)
+		},
+	).Values()
+
+	err := c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
+
+	if err != nil {
+		klog.ErrorS(err, "message publisher error")
+	}
+}
+
+func (c *ProvisioningController) publishFailureEvents(target ProvisioningTarget, domain string, err error) {
+	c.recorder.Event(target, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domain), err.Error())
+
+	topic, ev := Match(target,
+		func(tenant *platformv1.Tenant) tuple.T2[string, any] {
+			var ev any = struct {
+				TenantId          string
+				TenantName        string
+				TenantDescription string
+				Platform          string
+				Domain            string
+				Error             string
+			}{
+				TenantId:          tenant.Spec.Id,
+				TenantName:        tenant.Name,
+				TenantDescription: tenant.Spec.Description,
+				Platform:          tenant.GetPlatformName(),
+				Domain:            domain,
+				Error:             err.Error(),
+			}
+
+			topic := tenantProvisioningFailedTopic
+			return tuple.New2(topic, ev)
+		}, func(platform *platformv1.Platform) tuple.T2[string, any] {
+			var ev any = struct {
+				Platform string
+				Domain   string
+				Error    string
+			}{
+				Platform: platform.GetName(),
+				Domain:   domain,
+				Error:    err.Error(),
+			}
+
+			topic := platformProvisioningFailedTopic
+			return tuple.New2(topic, ev)
+		},
+	).Values()
+
+	err = c.messagingPublisher(context.TODO(), topic, ev, target.GetPlatformName())
+
+	if err != nil {
+		klog.ErrorS(err, "message publisher error")
+	}
+}
+
+func (c *ProvisioningController) enqueueDomain(platform, domain string, target provisioningv1.ProvisioningTargetCategory) {
 	tenants, err := c.tenantInformer.Lister().List(labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
-	for _, tenant := range tenants {
-		if tenant.Spec.PlatformRef == platform {
-			c.enqueueTenantDomain(tenant, domain)
+	if target == provisioningv1.ProvisioningTargetCategoryTenant {
+		for _, tenant := range tenants {
+			if tenant.Spec.PlatformRef == platform {
+				c.enqueueTenantDomain(tenant, domain)
+			}
 		}
+	} else if target == provisioningv1.ProvisioningTargetCategoryPlatform {
+		c.enqueuePlatformDomain(platform, domain)
 	}
 }
 
@@ -415,6 +496,10 @@ func (c *ProvisioningController) enqueueTenantDomain(tenant *platformv1.Tenant, 
 	if slices.Contains(tenant.Spec.DomainRefs, domain) {
 		c.workqueue.Add(encodeKey(tenant.Spec.PlatformRef, tenantKey, domain))
 	}
+}
+
+func (c *ProvisioningController) enqueuePlatformDomain(platform, domain string) {
+	c.workqueue.Add(encodeKey(platform, "", domain))
 }
 
 func encodeKey(platform, tenant, domain string) (key string) {
@@ -482,41 +567,41 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 	})
 }
 
-func addResourceHandlers[R ProvisioningResource](resType string, informer cache.SharedIndexInformer, handler func(platform, domain string)) {
+func addResourceHandlers[R ProvisioningResource](resType string, informer cache.SharedIndexInformer, handler func(platform, domain string, target provisioningv1.ProvisioningTargetCategory)) {
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(R)
-			if platform, domain, ok := getPlatformAndDomain(comp); ok {
+			if platform, domain, target, ok := getResourceKeys(comp); ok {
 				msg := fmt.Sprintf("%s added", resType)
 				klog.V(4).InfoS(msg, "name", comp.GetName(), "namespace", comp.GetNamespace(), "platform", platform, "domain", domain)
-				handler(platform, domain)
+				handler(platform, domain, target)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldComp := oldObj.(R)
 			newComp := newObj.(R)
-			oldPlatform, oldDomain, oldOk := getPlatformAndDomain(oldComp)
-			newPlatform, newDomain, newOk := getPlatformAndDomain(newComp)
-			platformOrDomainChanged := oldPlatform != newPlatform || oldDomain != newDomain
+			oldPlatform, oldDomain, oldTarget, oldOk := getResourceKeys(oldComp)
+			newPlatform, newDomain, newTarget, newOk := getResourceKeys(newComp)
+			resourceKeysChanged := oldPlatform != newPlatform || oldDomain != newDomain || oldTarget != newTarget
 
-			if oldOk && platformOrDomainChanged {
+			if oldOk && resourceKeysChanged {
 				msg := fmt.Sprintf("%s invalidated", resType)
 				klog.V(4).InfoS(msg, "name", oldComp.GetName(), "namespace", oldComp.GetNamespace(), "platform", oldPlatform, "domain", oldDomain)
-				handler(oldPlatform, oldDomain)
+				handler(oldPlatform, oldDomain, oldTarget)
 			}
 
 			if newOk {
 				msg := fmt.Sprintf("%s updated", resType)
 				klog.V(4).InfoS(msg, "name", newComp.GetName(), "namespace", newComp.GetNamespace(), "platform", newPlatform, "domain", newDomain)
-				handler(newPlatform, newDomain)
+				handler(newPlatform, newDomain, newTarget)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(R)
-			if platform, domain, ok := getPlatformAndDomain(comp); ok {
+			if platform, domain, target, ok := getResourceKeys(comp); ok {
 				msg := fmt.Sprintf("%s deleted", resType)
 				klog.V(4).InfoS(msg, "name", comp.GetName(), "namespace", comp.GetNamespace(), "platform", platform, "domain", domain)
-				handler(platform, domain)
+				handler(platform, domain, target)
 			}
 		},
 	})

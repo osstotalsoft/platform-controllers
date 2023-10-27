@@ -33,7 +33,7 @@ func TestHelmReleaseDeployFunc(t *testing.T) {
 
 	t.Run("maximal helm release spec", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			err := helmReleaseDeployFunc(platform, tenant, []*provisioningv1.HelmRelease{hr})(ctx)
+			err := helmReleaseDeployFunc(tenant, []*provisioningv1.HelmRelease{hr})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -44,7 +44,7 @@ func TestHelmReleaseDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := hr.DeepCopy()
 			hr.Spec.Release.Upgrade = nil
-			err := helmReleaseDeployFunc(platform, tenant, []*provisioningv1.HelmRelease{hr})(ctx)
+			err := helmReleaseDeployFunc(tenant, []*provisioningv1.HelmRelease{hr})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -55,7 +55,7 @@ func TestHelmReleaseDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := hr.DeepCopy()
 			hr.Spec.Exports = nil
-			err := helmReleaseDeployFunc(platform, tenant, []*provisioningv1.HelmRelease{hr})(ctx)
+			err := helmReleaseDeployFunc(tenant, []*provisioningv1.HelmRelease{hr})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -66,7 +66,7 @@ func TestHelmReleaseDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := hr.DeepCopy()
 			hr.Spec.Release.Values = nil
-			err := helmReleaseDeployFunc(platform, tenant, []*provisioningv1.HelmRelease{hr})(ctx)
+			err := helmReleaseDeployFunc(tenant, []*provisioningv1.HelmRelease{hr})(ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -75,7 +75,7 @@ func TestHelmReleaseDeployFunc(t *testing.T) {
 }
 
 func newTenant(name, platform string) *platformv1.Tenant {
-	return &platformv1.Tenant{
+	tenant := platformv1.Tenant(platformv1.Tenant{
 		TypeMeta: metav1.TypeMeta{APIVersion: platformv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -87,7 +87,9 @@ func newTenant(name, platform string) *platformv1.Tenant {
 			Id:          uuid.New().String(),
 			Enabled:     true,
 		},
-	}
+	})
+
+	return &tenant
 }
 
 func newHr(name, platform string) *provisioningv1.HelmRelease {

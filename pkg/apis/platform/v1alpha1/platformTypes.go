@@ -41,3 +41,11 @@ type PlatformList struct {
 
 	Items []Platform `json:"items"`
 }
+
+func (platform *Platform) GetDescription() string {
+	return platform.GetName()
+}
+
+func (platform *Platform) GetPlatformName() string {
+	return platform.GetName()
+}
