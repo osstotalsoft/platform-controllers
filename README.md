@@ -31,9 +31,9 @@ spec:
 ```
 
 ## provisioning.totalsoft.ro
-monitors infrastructure manifests and provisions the desired infrastructure for every platform tenant.
+monitors infrastructure manifests and provisions the desired infrastructure for every platform / tenant.
 
-> *Note* You can skip provisioning for one tenant by adding the label `provisioning.totalsoft.ro/skip-provisioning`="true"
+
 
 ### Env
 | Variable       | example value         | details                                            |
@@ -42,6 +42,44 @@ monitors infrastructure manifests and provisions the desired infrastructure for 
 | VAULT_ADDR     | http://localhost:8200 | address to vault server                            |
 | VAULT_TOKEN    | {token}               | vault token                                        |
 
+
+### Target
+The infrastructure manifests can specify wheather the infrastructure can be provisioned for each tenant in a platform, or for the entire platform
+
+#### Tenant target (default)
+The provisioning target can be set to [Tenant], allowing provioning of 'per tenant' infrastructure resources.
+
+> *Note* You can skip provisioning for a list of tenants you can specify a [Blacklist] filter. To allow provisioning for a subset of the tenants, you can specify a [Whitelist] filter.
+
+Example:
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureDatabase
+spec:
+  ....
+  target:
+   category: Tenant
+   filter:
+     kind: Blacklist
+     values:
+       - mbfs
+       - bnpro
+```
+
+#### Platform target
+The [Platform] target allows provisioning shared resources for the entire platform.
+
+Example:
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureDatabase
+metadata:
+  name: mercury-db  
+spec:
+ ...
+  target:
+    category: Platform
+```
 
 ### AzureDatabase
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuredatabases.yaml)
