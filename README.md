@@ -47,9 +47,9 @@ monitors infrastructure manifests and provisions the desired infrastructure for 
 The infrastructure manifests can specify wheather the infrastructure can be provisioned for each tenant in a platform, or for the entire platform
 
 #### Tenant target (default)
-The provisioning target can be set to [Tenant], allowing provioning of 'per tenant' infrastructure resources.
+The provisioning target can be set to `Tenant`, allowing provioning of 'per tenant' infrastructure resources.
 
-> *Note* You can skip provisioning for a list of tenants you can specify a [Blacklist] filter. To allow provisioning for a subset of the tenants, you can specify a [Whitelist] filter.
+> *Note* You can skip provisioning for a list of tenants you can specify a `Blacklist` filter. To allow provisioning for a subset of the tenants, you can specify a `Whitelist` filter.
 
 Example:
 ```yaml
@@ -67,7 +67,7 @@ spec:
 ```
 
 #### Platform target
-The [Platform] target allows provisioning shared resources for the entire platform.
+The `Platform` target allows provisioning shared resources for the entire platform.
 
 Example:
 ```yaml
