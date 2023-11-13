@@ -84,14 +84,14 @@ func main() {
 
 // InitFlags is for explicitly initializing the flags.
 func InitFlags() {
+	klog.InitFlags(nil)
+
 	flag.Set("alsologtostderr", "true")
 	if home := homedir.HomeDir(); home != "" {
 		flag.StringVar(&kubeConfigPath, "kubeConfigPath", filepath.Join(home, ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	} else {
 		flag.StringVar(&kubeConfigPath, "kubeConfigPath", "", "absolute path to the kubeconfig file")
 	}
-
-	klog.InitFlags(nil)
 
 	flag.Parse()
 }
