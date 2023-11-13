@@ -19,6 +19,9 @@ type DomainSpec struct {
 	// PlatformRef is the target platform.
 	// +required
 	PlatformRef string `json:"platformRef"`
+
+	// +optional
+	ExportActiveDomains bool `json:"exportActiveDomains"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

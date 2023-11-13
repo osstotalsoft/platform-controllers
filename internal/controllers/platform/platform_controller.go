@@ -331,7 +331,7 @@ func (c *PlatformController) syncHandler(key string) error {
 	}
 	domains = domains[:n]
 
-	platformCfgMap := c.genPlatformTenantsCfgMap(platform, tenants, domains)
+	platformCfgMap := c.genPlatformTenantsCfgMap(platform, tenants)
 	err = c.syncConfigMap(platformCfgMap, platform)
 
 	// If an error occurs we'll requeue the item so we can
@@ -459,16 +459,12 @@ func (c *PlatformController) enqueuePlatform(platform *platformv1.Platform) {
 	c.workqueue.Add(platform.Name)
 }
 
-func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platform, tenants []*platformv1.Tenant, domains []*platformv1.Domain) *corev1.ConfigMap {
+func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platform, tenants []*platformv1.Tenant) *corev1.ConfigMap {
 	cfgMapName := fmt.Sprintf("%s-tenants", platform.Name)
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled)
-		for _, domain := range domains {
-			tenantHasAccessToDomain := tenantHasAccessToDomain(tenant, domain.Name)
-			tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Domains__%s__Enabled", tenant.Name, domain.Name)] = strconv.FormatBool(tenantHasAccessToDomain)
-		}
 	}
 
 	return &corev1.ConfigMap{
@@ -494,6 +490,11 @@ func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platfor
 	for _, tenant := range tenants {
 		tenantEnabled := tenant.Spec.Enabled && tenantHasAccessToDomain(tenant, domain.Name)
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled && tenantEnabled)
+		if domain.Spec.ExportActiveDomains && tenantEnabled {
+			for _, domain := range tenant.Spec.DomainRefs {
+				tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Domains__%s__Enabled", tenant.Name, domain)] = strconv.FormatBool(true)
+			}
+		}
 	}
 
 	return &corev1.ConfigMap{
@@ -514,12 +515,10 @@ func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platfor
 }
 
 func tenantHasAccessToDomain(tenant *platformv1.Tenant, domainName string) bool {
-
 	for _, d := range tenant.Spec.DomainRefs {
 		if d == domainName {
 			return true
 		}
 	}
-
 	return false
 }
