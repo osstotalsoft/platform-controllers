@@ -469,7 +469,6 @@ func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platf
 			tenantHasAccessToDomain := tenantHasAccessToDomain(tenant, domain.Name)
 			tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Domains_%s_Enabled", tenant.Name, domain.Name)] = strconv.FormatBool(tenantHasAccessToDomain)
 		}
-
 	}
 
 	return &corev1.ConfigMap{
@@ -493,8 +492,8 @@ func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platfor
 	cfgMapName := fmt.Sprintf("%s-tenants", domain.Name)
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
-		tenantHasAccessToDomain := tenantHasAccessToDomain(tenant, domain.Name)
-		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled && tenantHasAccessToDomain)
+		tenantEnabled := tenant.Spec.Enabled && tenantHasAccessToDomain(tenant, domain.Name)
+		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled && tenantEnabled)
 	}
 
 	return &corev1.ConfigMap{
@@ -515,11 +514,10 @@ func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platfor
 }
 
 func tenantHasAccessToDomain(tenant *platformv1.Tenant, domainName string) bool {
-	if tenant.Spec.Enabled {
-		for _, d := range tenant.Spec.DomainRefs {
-			if d == domainName {
-				return true
-			}
+
+	for _, d := range tenant.Spec.DomainRefs {
+		if d == domainName {
+			return true
 		}
 	}
 
