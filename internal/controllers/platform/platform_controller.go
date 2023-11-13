@@ -467,7 +467,7 @@ func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platf
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled)
 		for _, domain := range domains {
 			tenantHasAccessToDomain := tenantHasAccessToDomain(tenant, domain.Name)
-			tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Domains_%s_Enabled", tenant.Name, domain.Name)] = strconv.FormatBool(tenantHasAccessToDomain)
+			tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Domains__%s__Enabled", tenant.Name, domain.Name)] = strconv.FormatBool(tenantHasAccessToDomain)
 		}
 	}
 
