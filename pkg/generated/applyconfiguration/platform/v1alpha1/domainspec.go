@@ -21,7 +21,8 @@ package v1alpha1
 // DomainSpecApplyConfiguration represents an declarative configuration of the DomainSpec type for use
 // with apply.
 type DomainSpecApplyConfiguration struct {
-	PlatformRef *string `json:"platformRef,omitempty"`
+	PlatformRef         *string `json:"platformRef,omitempty"`
+	ExportActiveDomains *bool   `json:"exportActiveDomains,omitempty"`
 }
 
 // DomainSpecApplyConfiguration constructs an declarative configuration of the DomainSpec type for use with
@@ -35,5 +36,13 @@ func DomainSpec() *DomainSpecApplyConfiguration {
 // If called multiple times, the PlatformRef field is set to the value of the last call.
 func (b *DomainSpecApplyConfiguration) WithPlatformRef(value string) *DomainSpecApplyConfiguration {
 	b.PlatformRef = &value
+	return b
+}
+
+// WithExportActiveDomains sets the ExportActiveDomains field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ExportActiveDomains field is set to the value of the last call.
+func (b *DomainSpecApplyConfiguration) WithExportActiveDomains(value bool) *DomainSpecApplyConfiguration {
+	b.ExportActiveDomains = &value
 	return b
 }
