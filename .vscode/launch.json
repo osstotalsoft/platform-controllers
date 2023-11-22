@@ -39,7 +39,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "./cmd/platform-controller",
-            "args": ["-v", "4"]
+            "args": ["-v", "4", "-kubeConfigPath", "C:\\Users\\lfrateanu\\.kube\\kubeDevRadu"]
         },
         {
             "name": "Run configuration domain controller",

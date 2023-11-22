@@ -25,6 +25,7 @@ import (
 	serializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
+	orchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/orchestrator/v1alpha1"
 	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
@@ -34,6 +35,7 @@ var Codecs = serializer.NewCodecFactory(Scheme)
 var ParameterCodec = runtime.NewParameterCodec(Scheme)
 var localSchemeBuilder = runtime.SchemeBuilder{
 	configurationv1alpha1.AddToScheme,
+	orchestratorv1alpha1.AddToScheme,
 	platformv1alpha1.AddToScheme,
 	provisioningv1alpha1.AddToScheme,
 }

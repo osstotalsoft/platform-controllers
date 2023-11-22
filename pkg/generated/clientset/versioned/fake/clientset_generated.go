@@ -27,6 +27,8 @@ import (
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/configuration/v1alpha1"
 	fakeconfigurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/configuration/v1alpha1/fake"
+	orchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/orchestrator/v1alpha1"
+	fakeorchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/orchestrator/v1alpha1/fake"
 	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/platform/v1alpha1"
 	fakeplatformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/platform/v1alpha1/fake"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/provisioning/v1alpha1"
@@ -86,6 +88,11 @@ var (
 // ConfigurationV1alpha1 retrieves the ConfigurationV1alpha1Client
 func (c *Clientset) ConfigurationV1alpha1() configurationv1alpha1.ConfigurationV1alpha1Interface {
 	return &fakeconfigurationv1alpha1.FakeConfigurationV1alpha1{Fake: &c.Fake}
+}
+
+// OrchestratorV1alpha1 retrieves the OrchestratorV1alpha1Client
+func (c *Clientset) OrchestratorV1alpha1() orchestratorv1alpha1.OrchestratorV1alpha1Interface {
+	return &fakeorchestratorv1alpha1.FakeOrchestratorV1alpha1{Fake: &c.Fake}
 }
 
 // PlatformV1alpha1 retrieves the PlatformV1alpha1Client

@@ -26,6 +26,7 @@ import (
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
 	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/configuration/v1alpha1"
+	orchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/orchestrator/v1alpha1"
 	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/platform/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/typed/provisioning/v1alpha1"
 )
@@ -33,6 +34,7 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	ConfigurationV1alpha1() configurationv1alpha1.ConfigurationV1alpha1Interface
+	OrchestratorV1alpha1() orchestratorv1alpha1.OrchestratorV1alpha1Interface
 	PlatformV1alpha1() platformv1alpha1.PlatformV1alpha1Interface
 	ProvisioningV1alpha1() provisioningv1alpha1.ProvisioningV1alpha1Interface
 }
@@ -41,6 +43,7 @@ type Interface interface {
 type Clientset struct {
 	*discovery.DiscoveryClient
 	configurationV1alpha1 *configurationv1alpha1.ConfigurationV1alpha1Client
+	orchestratorV1alpha1  *orchestratorv1alpha1.OrchestratorV1alpha1Client
 	platformV1alpha1      *platformv1alpha1.PlatformV1alpha1Client
 	provisioningV1alpha1  *provisioningv1alpha1.ProvisioningV1alpha1Client
 }
@@ -48,6 +51,11 @@ type Clientset struct {
 // ConfigurationV1alpha1 retrieves the ConfigurationV1alpha1Client
 func (c *Clientset) ConfigurationV1alpha1() configurationv1alpha1.ConfigurationV1alpha1Interface {
 	return c.configurationV1alpha1
+}
+
+// OrchestratorV1alpha1 retrieves the OrchestratorV1alpha1Client
+func (c *Clientset) OrchestratorV1alpha1() orchestratorv1alpha1.OrchestratorV1alpha1Interface {
+	return c.orchestratorV1alpha1
 }
 
 // PlatformV1alpha1 retrieves the PlatformV1alpha1Client
@@ -108,6 +116,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 	if err != nil {
 		return nil, err
 	}
+	cs.orchestratorV1alpha1, err = orchestratorv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.platformV1alpha1, err = platformv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -138,6 +150,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.configurationV1alpha1 = configurationv1alpha1.New(c)
+	cs.orchestratorV1alpha1 = orchestratorv1alpha1.New(c)
 	cs.platformV1alpha1 = platformv1alpha1.New(c)
 	cs.provisioningV1alpha1 = provisioningv1alpha1.New(c)
 

@@ -21,9 +21,11 @@ package applyconfiguration
 import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
+	orchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/orchestrator/v1alpha1"
 	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 	configurationv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/configuration/v1alpha1"
+	applyconfigurationorchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/orchestrator/v1alpha1"
 	applyconfigurationplatformv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/platform/v1alpha1"
 	applyconfigurationprovisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/generated/applyconfiguration/provisioning/v1alpha1"
 )
@@ -39,6 +41,14 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configurationv1alpha1.ConfigurationDomainSpecApplyConfiguration{}
 	case v1alpha1.SchemeGroupVersion.WithKind("ConfigurationDomainStatus"):
 		return &configurationv1alpha1.ConfigurationDomainStatusApplyConfiguration{}
+
+		// Group=orchestrator.totalsoft.ro, Version=v1alpha1
+	case orchestratorv1alpha1.SchemeGroupVersion.WithKind("DomainConfigurator"):
+		return &applyconfigurationorchestratorv1alpha1.DomainConfiguratorApplyConfiguration{}
+	case orchestratorv1alpha1.SchemeGroupVersion.WithKind("DomainConfiguratorSpec"):
+		return &applyconfigurationorchestratorv1alpha1.DomainConfiguratorSpecApplyConfiguration{}
+	case orchestratorv1alpha1.SchemeGroupVersion.WithKind("DomainConfiguratorStatus"):
+		return &applyconfigurationorchestratorv1alpha1.DomainConfiguratorStatusApplyConfiguration{}
 
 		// Group=platform.totalsoft.ro, Version=v1alpha1
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Domain"):

@@ -24,6 +24,7 @@ import (
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 	v1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
+	orchestratorv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/orchestrator/v1alpha1"
 	platformv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1alpha1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
@@ -57,6 +58,10 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 	// Group=configuration.totalsoft.ro, Version=v1alpha1
 	case v1alpha1.SchemeGroupVersion.WithResource("configurationdomains"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Configuration().V1alpha1().ConfigurationDomains().Informer()}, nil
+
+		// Group=orchestrator.totalsoft.ro, Version=v1alpha1
+	case orchestratorv1alpha1.SchemeGroupVersion.WithResource("domainconfigurators"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Orchestrator().V1alpha1().DomainConfigurators().Informer()}, nil
 
 		// Group=platform.totalsoft.ro, Version=v1alpha1
 	case platformv1alpha1.SchemeGroupVersion.WithResource("domains"):

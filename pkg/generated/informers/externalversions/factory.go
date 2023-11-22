@@ -30,6 +30,7 @@ import (
 	versioned "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	configuration "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/configuration"
 	internalinterfaces "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/internalinterfaces"
+	orchestrator "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/orchestrator"
 	platform "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/platform"
 	provisioning "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions/provisioning"
 )
@@ -246,12 +247,17 @@ type SharedInformerFactory interface {
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
 	Configuration() configuration.Interface
+	Orchestrator() orchestrator.Interface
 	Platform() platform.Interface
 	Provisioning() provisioning.Interface
 }
 
 func (f *sharedInformerFactory) Configuration() configuration.Interface {
 	return configuration.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Orchestrator() orchestrator.Interface {
+	return orchestrator.New(f, f.namespace, f.tweakListOptions)
 }
 
 func (f *sharedInformerFactory) Platform() platform.Interface {
