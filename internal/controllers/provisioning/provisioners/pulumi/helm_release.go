@@ -52,8 +52,8 @@ func pulumiFluxHrArgs(target provisioning.ProvisioningTarget, hr *provisioningv1
 			fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, tenant.GetName())
 			return tuple.New2(helmReleaseName, fluxHelmReleaseName)
 		}, func(*platformv1.Platform) tuple.T2[string, string] {
-			helmReleaseName := fmt.Sprintf("%s", hr.Spec.Release.ReleaseName)
-			fluxHelmReleaseName := fmt.Sprintf("%s", hr.Name)
+			helmReleaseName := hr.Spec.Release.ReleaseName
+			fluxHelmReleaseName := hr.Name
 			return tuple.New2(helmReleaseName, fluxHelmReleaseName)
 		},
 	).Values()
@@ -74,7 +74,8 @@ func pulumiFluxHrArgs(target provisioning.ProvisioningTarget, hr *provisioningv1
 
 	args := fluxcd.HelmReleaseArgs{
 		Metadata: &metav1.ObjectMetaArgs{
-			Name: pulumi.String(fluxHelmReleaseName),
+			Name:      pulumi.String(fluxHelmReleaseName),
+			Namespace: pulumi.String(hr.Namespace),
 		},
 		Spec: fluxcd.HelmReleaseSpecArgs{
 			Chart: fluxcd.HelmReleaseSpecChartArgs{
