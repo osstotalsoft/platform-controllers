@@ -62,6 +62,9 @@ type AzureVirtualDesktopSpec struct {
 	Users AzureVirtualDesktopUsersSpec `json:"users"`
 
 	// +optional
+	Groups AzureVirtualDesktopGroupsSpec `json:"groups"`
+
+	// +optional
 	Exports []AzureVirtualDesktopExportsSpec `json:"exports,omitempty"`
 
 	ProvisioningMeta `json:",inline"`
@@ -87,10 +90,13 @@ type AzureVirtualDesktopUsersSpec struct {
 	Admins []string `json:"admins,omitempty"`
 	// +optional
 	ApplicationUsers []string `json:"applicationUsers,omitempty"`
+}
+
+type AzureVirtualDesktopGroupsSpec struct {
 	// +optional
-	AdminGroups []string `json:"adminGroups,omitempty"`
+	Admins []string `json:"adminGroups,omitempty"`
 	// +optional
-	ApplicationUserGroups []string `json:"applicationUserGroups,omitempty"`
+	ApplicationUsers []string `json:"applicationUserGroups,omitempty"`
 }
 
 type AzureVirtualDesktopApplication struct {

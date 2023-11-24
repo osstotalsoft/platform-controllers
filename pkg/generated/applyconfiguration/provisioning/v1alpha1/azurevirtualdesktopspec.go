@@ -39,6 +39,7 @@ type AzureVirtualDesktopSpecApplyConfiguration struct {
 	WorkspaceFriendlyName              *string                                              `json:"workspaceFriendlyName,omitempty"`
 	Applications                       []AzureVirtualDesktopApplicationApplyConfiguration   `json:"applications,omitempty"`
 	Users                              *AzureVirtualDesktopUsersSpecApplyConfiguration      `json:"users,omitempty"`
+	Groups                             *AzureVirtualDesktopGroupsSpecApplyConfiguration     `json:"groups,omitempty"`
 	Exports                            []AzureVirtualDesktopExportsSpecApplyConfiguration   `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -173,6 +174,14 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithApplications(values ...*
 // If called multiple times, the Users field is set to the value of the last call.
 func (b *AzureVirtualDesktopSpecApplyConfiguration) WithUsers(value *AzureVirtualDesktopUsersSpecApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
 	b.Users = value
+	return b
+}
+
+// WithGroups sets the Groups field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Groups field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithGroups(value *AzureVirtualDesktopGroupsSpecApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.Groups = value
 	return b
 }
 

@@ -432,7 +432,7 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 					return err
 				}
 			}
-			for _, childAppsUserGroupName := range avd.Spec.Users.ApplicationUserGroups {
+			for _, childAppsUserGroupName := range avd.Spec.Groups.ApplicationUsers {
 				childAppsUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
 					DisplayName: pulumi.StringRef(childAppsUserGroupName),
 				}, nil)
@@ -477,7 +477,7 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 				}
 			}
 
-			for _, childAdminUserGroupName := range avd.Spec.Users.AdminGroups {
+			for _, childAdminUserGroupName := range avd.Spec.Groups.Admins {
 				childAdminUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
 					DisplayName: pulumi.StringRef(childAdminUserGroupName),
 				}, nil)

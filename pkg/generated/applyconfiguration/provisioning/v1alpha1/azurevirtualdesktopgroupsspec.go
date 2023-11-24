@@ -18,23 +18,23 @@ limitations under the License.
 
 package v1alpha1
 
-// AzureVirtualDesktopUsersSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopUsersSpec type for use
+// AzureVirtualDesktopGroupsSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopGroupsSpec type for use
 // with apply.
-type AzureVirtualDesktopUsersSpecApplyConfiguration struct {
-	Admins           []string `json:"admins,omitempty"`
-	ApplicationUsers []string `json:"applicationUsers,omitempty"`
+type AzureVirtualDesktopGroupsSpecApplyConfiguration struct {
+	Admins           []string `json:"adminGroups,omitempty"`
+	ApplicationUsers []string `json:"applicationUserGroups,omitempty"`
 }
 
-// AzureVirtualDesktopUsersSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopUsersSpec type for use with
+// AzureVirtualDesktopGroupsSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopGroupsSpec type for use with
 // apply.
-func AzureVirtualDesktopUsersSpec() *AzureVirtualDesktopUsersSpecApplyConfiguration {
-	return &AzureVirtualDesktopUsersSpecApplyConfiguration{}
+func AzureVirtualDesktopGroupsSpec() *AzureVirtualDesktopGroupsSpecApplyConfiguration {
+	return &AzureVirtualDesktopGroupsSpecApplyConfiguration{}
 }
 
 // WithAdmins adds the given value to the Admins field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Admins field.
-func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithAdmins(values ...string) *AzureVirtualDesktopUsersSpecApplyConfiguration {
+func (b *AzureVirtualDesktopGroupsSpecApplyConfiguration) WithAdmins(values ...string) *AzureVirtualDesktopGroupsSpecApplyConfiguration {
 	for i := range values {
 		b.Admins = append(b.Admins, values[i])
 	}
@@ -44,7 +44,7 @@ func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithAdmins(values ...st
 // WithApplicationUsers adds the given value to the ApplicationUsers field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the ApplicationUsers field.
-func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithApplicationUsers(values ...string) *AzureVirtualDesktopUsersSpecApplyConfiguration {
+func (b *AzureVirtualDesktopGroupsSpecApplyConfiguration) WithApplicationUsers(values ...string) *AzureVirtualDesktopGroupsSpecApplyConfiguration {
 	for i := range values {
 		b.ApplicationUsers = append(b.ApplicationUsers, values[i])
 	}

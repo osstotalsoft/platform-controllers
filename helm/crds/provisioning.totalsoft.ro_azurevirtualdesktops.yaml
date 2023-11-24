@@ -138,6 +138,17 @@ spec:
                   - domain
                   type: object
                 type: array
+              groups:
+                properties:
+                  adminGroups:
+                    items:
+                      type: string
+                    type: array
+                  applicationUserGroups:
+                    items:
+                      type: string
+                    type: array
+                type: object
               hostPoolName:
                 description: Virtual Desktop name prefix. Will have platform and tenant
                   suffix.
@@ -220,15 +231,7 @@ spec:
                 type: object
               users:
                 properties:
-                  adminGroups:
-                    items:
-                      type: string
-                    type: array
                   admins:
-                    items:
-                      type: string
-                    type: array
-                  applicationUserGroups:
                     items:
                       type: string
                     type: array
