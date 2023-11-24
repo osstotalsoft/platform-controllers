@@ -21,8 +21,8 @@ package v1alpha1
 // AzureVirtualDesktopGroupsSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopGroupsSpec type for use
 // with apply.
 type AzureVirtualDesktopGroupsSpecApplyConfiguration struct {
-	Admins           []string `json:"adminGroups,omitempty"`
-	ApplicationUsers []string `json:"applicationUserGroups,omitempty"`
+	Admins           []string `json:"admins,omitempty"`
+	ApplicationUsers []string `json:"applicationUsers,omitempty"`
 }
 
 // AzureVirtualDesktopGroupsSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopGroupsSpec type for use with

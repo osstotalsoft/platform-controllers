@@ -140,11 +140,11 @@ spec:
                 type: array
               groups:
                 properties:
-                  adminGroups:
+                  admins:
                     items:
                       type: string
                     type: array
-                  applicationUserGroups:
+                  applicationUsers:
                     items:
                       type: string
                     type: array

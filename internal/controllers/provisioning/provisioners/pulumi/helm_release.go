@@ -39,6 +39,9 @@ func helmReleaseDeployFunc(target provisioning.ProvisioningTarget,
 					return err
 				}
 			}
+
+			_, err1 := pulumiKube.GetService(ctx, "charisma-server", pulumi.IDfmt.Sprintf("%s/%s-nginx", *namespace, *name)) )
+
 			ctx.Export(fmt.Sprintf("helmRelease:%s", hr.Name), fluxHr.Spec.ReleaseName().Elem())
 		}
 		return nil

@@ -94,9 +94,9 @@ type AzureVirtualDesktopUsersSpec struct {
 
 type AzureVirtualDesktopGroupsSpec struct {
 	// +optional
-	Admins []string `json:"adminGroups,omitempty"`
+	Admins []string `json:"admins,omitempty"`
 	// +optional
-	ApplicationUsers []string `json:"applicationUserGroups,omitempty"`
+	ApplicationUsers []string `json:"applicationUsers,omitempty"`
 }
 
 type AzureVirtualDesktopApplication struct {
