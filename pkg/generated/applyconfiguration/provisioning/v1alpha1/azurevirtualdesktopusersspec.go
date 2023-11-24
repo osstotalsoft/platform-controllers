@@ -21,8 +21,10 @@ package v1alpha1
 // AzureVirtualDesktopUsersSpecApplyConfiguration represents an declarative configuration of the AzureVirtualDesktopUsersSpec type for use
 // with apply.
 type AzureVirtualDesktopUsersSpecApplyConfiguration struct {
-	Admins           []string `json:"admins,omitempty"`
-	ApplicationUsers []string `json:"applicationUsers,omitempty"`
+	Admins                []string `json:"admins,omitempty"`
+	ApplicationUsers      []string `json:"applicationUsers,omitempty"`
+	AdminGroups           []string `json:"adminGroups,omitempty"`
+	ApplicationUserGroups []string `json:"applicationUserGroups,omitempty"`
 }
 
 // AzureVirtualDesktopUsersSpecApplyConfiguration constructs an declarative configuration of the AzureVirtualDesktopUsersSpec type for use with
@@ -47,6 +49,26 @@ func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithAdmins(values ...st
 func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithApplicationUsers(values ...string) *AzureVirtualDesktopUsersSpecApplyConfiguration {
 	for i := range values {
 		b.ApplicationUsers = append(b.ApplicationUsers, values[i])
+	}
+	return b
+}
+
+// WithAdminGroups adds the given value to the AdminGroups field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the AdminGroups field.
+func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithAdminGroups(values ...string) *AzureVirtualDesktopUsersSpecApplyConfiguration {
+	for i := range values {
+		b.AdminGroups = append(b.AdminGroups, values[i])
+	}
+	return b
+}
+
+// WithApplicationUserGroups adds the given value to the ApplicationUserGroups field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ApplicationUserGroups field.
+func (b *AzureVirtualDesktopUsersSpecApplyConfiguration) WithApplicationUserGroups(values ...string) *AzureVirtualDesktopUsersSpecApplyConfiguration {
+	for i := range values {
+		b.ApplicationUserGroups = append(b.ApplicationUserGroups, values[i])
 	}
 	return b
 }

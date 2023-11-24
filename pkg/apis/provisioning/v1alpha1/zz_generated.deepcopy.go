@@ -423,6 +423,16 @@ func (in *AzureVirtualDesktopUsersSpec) DeepCopyInto(out *AzureVirtualDesktopUse
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.AdminGroups != nil {
+		in, out := &in.AdminGroups, &out.AdminGroups
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.ApplicationUserGroups != nil {
+		in, out := &in.ApplicationUserGroups, &out.ApplicationUserGroups
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 

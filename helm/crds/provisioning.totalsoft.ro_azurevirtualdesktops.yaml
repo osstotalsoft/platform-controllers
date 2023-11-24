@@ -220,7 +220,15 @@ spec:
                 type: object
               users:
                 properties:
+                  adminGroups:
+                    items:
+                      type: string
+                    type: array
                   admins:
+                    items:
+                      type: string
+                    type: array
+                  applicationUserGroups:
                     items:
                       type: string
                     type: array
