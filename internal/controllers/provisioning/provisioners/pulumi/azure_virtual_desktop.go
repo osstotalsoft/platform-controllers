@@ -486,7 +486,7 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 					return err
 				}
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", childAdminUserGroup, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", childAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 					GroupObjectId:  adminUserGroup.ID(),
 					MemberObjectId: pulumi.String(childAdminUserGroup.Id),
 				}, pulumi.Parent(adminUserGroup))
