@@ -39,7 +39,6 @@ func helmReleaseDeployFunc(target provisioning.ProvisioningTarget,
 					return err
 				}
 			}
-
 			ctx.Export(fmt.Sprintf("helmRelease:%s", hr.Name), fluxHr.Spec.ReleaseName().Elem())
 		}
 		return nil
