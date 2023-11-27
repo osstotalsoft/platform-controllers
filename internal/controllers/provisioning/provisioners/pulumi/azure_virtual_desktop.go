@@ -304,8 +304,9 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 		Source: compute.VirtualMachineRunCommandScriptSourceArgs{
 			Script: pulumi.String(args.Spec.InitScript),
 		},
-		Parameters:       params,
-		TimeoutInSeconds: pulumi.Int(60),
+		Parameters:                      params,
+		TimeoutInSeconds:                pulumi.Int(60),
+		TreatFailureAsDeploymentFailure: pulumi.Bool(true),
 	}, pulumi.Parent(avdVM.VirtualMachine))
 
 	if err != nil {
