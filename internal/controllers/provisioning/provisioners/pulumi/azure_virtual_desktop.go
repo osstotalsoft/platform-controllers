@@ -16,6 +16,7 @@ import (
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	"totalsoft.ro/platform-controllers/internal/template"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
@@ -72,6 +73,8 @@ type AzureVirtualDesktopVMArgs struct {
 	ProfileSecret pulumi.StringInput
 
 	DiskDeleteOptions compute.DeleteOptions
+
+	Target provisioning.ProvisioningTarget
 
 	Spec provisioningv1.AzureVirtualDesktopSpec
 }
@@ -277,11 +280,19 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 		return nil, err
 	}
 
+	tc := provisioning.GetTemplateContext(args.Target)
+
 	params := compute.RunCommandInputParameterArray{}
 	for _, arg := range args.Spec.InitScriptArguments {
+
+		parsedValue, err := template.ParseTemplate(arg.Value, tc)
+		if err != nil {
+			return nil, err
+		}
+
 		params = append(params, compute.RunCommandInputParameterArgs{
 			Name:  pulumi.String(arg.Name),
-			Value: pulumi.String(arg.Value),
+			Value: pulumi.String(parsedValue),
 		})
 	}
 
@@ -695,7 +706,8 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 					ProfileUser:       storageAccount.Name,
 					ProfileSecret:     storageAccountKeys.Keys().Index(pulumi.Int(0)).Value(),
 
-					Spec: avd.Spec,
+					Target: target,
+					Spec:   avd.Spec,
 				}, pulumi.Parent(avdComponent))
 
 				if err != nil {
