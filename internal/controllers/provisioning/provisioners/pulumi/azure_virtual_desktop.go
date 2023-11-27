@@ -432,6 +432,22 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 					return err
 				}
 			}
+			for _, childAppsUserGroupName := range avd.Spec.Groups.ApplicationUsers {
+				childAppsUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
+					DisplayName: pulumi.StringRef(childAppsUserGroupName),
+				}, nil)
+				if err != nil {
+					return err
+				}
+
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-group-%s", childAppsUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+					GroupObjectId:  appsUserGroup.ID(),
+					MemberObjectId: pulumi.String(childAppsUserGroup.Id),
+				}, pulumi.Parent(appsUserGroup))
+				if err != nil {
+					return err
+				}
+			}
 
 			adminUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-admin", hostPoolName), &azuread.GroupArgs{
 				DisplayName: pulumi.String(fmt.Sprintf("%s-%s-admin", globalQalifier, hostPoolName)),
@@ -455,6 +471,24 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", admin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 					GroupObjectId:  adminUserGroup.ID(),
 					MemberObjectId: pulumi.String(user.Id),
+				}, pulumi.Parent(adminUserGroup))
+				if err != nil {
+					return err
+				}
+			}
+
+			for _, childAdminUserGroupName := range avd.Spec.Groups.Admins {
+				childAdminUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
+					DisplayName: pulumi.StringRef(childAdminUserGroupName),
+				}, nil)
+
+				if err != nil {
+					return err
+				}
+
+				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", childAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+					GroupObjectId:  adminUserGroup.ID(),
+					MemberObjectId: pulumi.String(childAdminUserGroup.Id),
 				}, pulumi.Parent(adminUserGroup))
 				if err != nil {
 					return err

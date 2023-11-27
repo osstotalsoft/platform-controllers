@@ -87,6 +87,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopApplicationApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopExportsSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopGroupsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopGroupsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualDesktopSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktopUsersSpec"):
