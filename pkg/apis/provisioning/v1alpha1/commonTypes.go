@@ -67,4 +67,26 @@ type ProvisioningMeta struct {
 	// The provisioning target.
 	// +kubebuilder:default:={category: "Tenant"}
 	Target ProvisioningTarget `json:"target"`
+	// List of dependencies
+	// +optional
+	DependsOn []ProvisioningResourceIdendtifier `json:"dependsOn,omitempty"`
 }
+
+type ProvisioningResourceIdendtifier struct {
+	// Kind is a string value representing the REST resource this dependency represents.
+	// +required
+	Kind ProvisioningResourceKind `json:"kind"`
+	//  The name of the dependency.
+	// +required
+	Name string `json:"name"`
+}
+
+type ProvisioningResourceKind string
+
+const (
+	ProvisioningResourceKindAzureDatabase        = ProvisioningResourceKind("AzureDatabase")
+	ProvisioningResourceKindAzureManagedDatabase = ProvisioningResourceKind("AzureManagedDatabase")
+	ProvisioningResourceKindAzureVirtualDesktop  = ProvisioningResourceKind("AzureVirtualDesktop")
+	ProvisioningResourceKindAzureVirtualMachine  = ProvisioningResourceKind("AzureVirtualMachine")
+	ProvisioningResourceKindHelmRelease          = ProvisioningResourceKind("HelmRelease")
+)

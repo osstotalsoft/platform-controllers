@@ -235,3 +235,16 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithTarget(value *Provisioni
 	b.Target = value
 	return b
 }
+
+// WithDependsOn adds the given value to the DependsOn field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the DependsOn field.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDependsOn(values ...*DependsOnApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithDependsOn")
+		}
+		b.DependsOn = append(b.DependsOn, *values[i])
+	}
+	return b
+}

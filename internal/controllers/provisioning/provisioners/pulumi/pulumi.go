@@ -5,6 +5,7 @@ package pulumi
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 
@@ -19,11 +20,14 @@ import (
 	"k8s.io/klog/v2"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 )
+
+type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
 
 func Create(target provisioning.ProvisioningTarget, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
 	result := provisioning.ProvisioningResult{}
@@ -204,37 +208,112 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	return s, nil
 }
 
+func deployResource(target provisioning.ProvisioningTarget,
+	rgName *pulumi.StringOutput,
+	res provisioning.BaseProvisioningResource,
+	dependencies []pulumi.Resource,
+	ctx *pulumi.Context) (pulumi.Resource, error) {
+
+	kind := res.GetObjectKind().GroupVersionKind().Kind
+
+	// https://github.com/kubernetes/client-go/issues/308
+	if kind == "" {
+		kind = reflect.Indirect(reflect.ValueOf(res)).Type().Name()
+	}
+
+	switch kind {
+	case string(provisioningv1.ProvisioningResourceKindAzureDatabase):
+		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, ctx)
+	case string(provisioningv1.ProvisioningResourceKindAzureManagedDatabase):
+		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, ctx)
+	case string(provisioningv1.ProvisioningResourceKindHelmRelease):
+		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, ctx)
+	case string(provisioningv1.ProvisioningResourceKindAzureVirtualMachine):
+		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
+	case string(provisioningv1.ProvisioningResourceKindAzureVirtualDesktop):
+		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
+	default:
+		return nil, fmt.Errorf("unknown resource kind: %s", kind)
+	}
+}
+
+func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulumi.StringOutput, res provisioning.BaseProvisioningResource, provisionedRes provisionedResourceMap, infra *provisioning.InfrastructureManifests, ctx *pulumi.Context) (pulumi.Resource, error) {
+
+	id := provisioningv1.ProvisioningResourceIdendtifier{Name: res.GetName(), Kind: provisioningv1.ProvisioningResourceKind(res.GetObjectKind().GroupVersionKind().Kind)}
+	if pulumiRes, found := provisionedRes[id]; found {
+		return pulumiRes, nil
+	}
+
+	pulumiDeps := []pulumi.Resource{}
+
+	for _, dep := range res.GetProvisioningMeta().DependsOn {
+		if provRes, found := infra.Get(dep); found {
+			pulumiRes, err := deployResourceWithDeps(target, rgName, provRes, provisionedRes, infra, ctx)
+			if err != nil {
+				return nil, err
+			}
+			pulumiDeps = append(pulumiDeps, pulumiRes)
+		}
+	}
+
+	pulumiRes, err := deployResource(target, rgName, res, pulumiDeps, ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	provisionedRes[id] = pulumiRes
+
+	return pulumiRes, nil
+}
+
 func deployFunc(target provisioning.ProvisioningTarget, domain string,
 	infra *provisioning.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {
-		err := azureDbDeployFunc(target, infra.AzureDbs)(ctx)
-		if err != nil {
-			return err
-		}
 
-		err = azureManagedDbDeployFunc(target, infra.AzureManagedDbs)(ctx)
-		if err != nil {
-			return err
-		}
+		provisionedRes := make(provisionedResourceMap)
 
-		err = helmReleaseDeployFunc(target, infra.HelmReleases)(ctx)
-		if err != nil {
-			return err
-		}
+		var rgName *pulumi.StringOutput
 
 		if needsResourceGroup {
-			rgName, err := azureRGDeployFunc(target, domain)(ctx)
+			resGroupName, err := deployAzureRG(target, domain)(ctx)
 			if err != nil {
 				return err
 			}
 
-			err = azureVirtualMachineDeployFunc(target, rgName, infra.AzureVirtualMachines)(ctx)
+			rgName = &resGroupName
+		}
+
+		for _, db := range infra.AzureDbs {
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
 			if err != nil {
 				return err
 			}
+		}
 
-			err = azureVirtualDesktopDeployFunc(target, rgName, infra.AzureVirtualDesktops)(ctx)
+		for _, db := range infra.AzureManagedDbs {
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, hr := range infra.HelmReleases {
+			_, err := deployResourceWithDeps(target, rgName, hr, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, vm := range infra.AzureVirtualMachines {
+			_, err := deployResourceWithDeps(target, rgName, vm, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, avd := range infra.AzureVirtualDesktops {
+			_, err := deployResourceWithDeps(target, rgName, avd, provisionedRes, infra, ctx)
 			if err != nil {
 				return err
 			}

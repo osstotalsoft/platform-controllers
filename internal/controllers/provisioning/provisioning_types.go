@@ -8,6 +8,7 @@ import (
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/strings/slices"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
@@ -26,6 +27,32 @@ type InfrastructureManifests struct {
 	AzureVirtualDesktops []*provisioningv1.AzureVirtualDesktop
 }
 
+func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResourceIdendtifier) (BaseProvisioningResource, bool) {
+	switch id.Kind {
+	case provisioningv1.ProvisioningResourceKindAzureDatabase:
+		return FindByName[*provisioningv1.AzureDatabase](id.Name, infra.AzureDbs)
+	case provisioningv1.ProvisioningResourceKindAzureManagedDatabase:
+		return FindByName[*provisioningv1.AzureManagedDatabase](id.Name, infra.AzureManagedDbs)
+	case provisioningv1.ProvisioningResourceKindHelmRelease:
+		return FindByName[*provisioningv1.HelmRelease](id.Name, infra.HelmReleases)
+	case provisioningv1.ProvisioningResourceKindAzureVirtualMachine:
+		return FindByName[*provisioningv1.AzureVirtualMachine](id.Name, infra.AzureVirtualMachines)
+	case provisioningv1.ProvisioningResourceKindAzureVirtualDesktop:
+		return FindByName[*provisioningv1.AzureVirtualDesktop](id.Name, infra.AzureVirtualDesktops)
+	default:
+		return nil, false
+	}
+}
+
+func FindByName[R ProvisioningResource](name string, slice []R) (R, bool) {
+	for _, res := range slice {
+		if res.GetName() == name {
+			return res, true
+		}
+	}
+	return nil, false
+}
+
 type ProvisioningResult struct {
 	Error      error
 	HasChanges bool
@@ -38,6 +65,14 @@ type ProvisioningResource interface {
 	GetSpec() any
 	GetName() string
 	GetNamespace() string
+	GetObjectKind() schema.ObjectKind
+}
+
+type BaseProvisioningResource interface {
+	GetProvisioningMeta() *provisioningv1.ProvisioningMeta
+	GetName() string
+	GetNamespace() string
+	GetObjectKind() schema.ObjectKind
 }
 
 type ProvisioningTarget interface {
