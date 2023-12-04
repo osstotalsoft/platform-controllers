@@ -15,34 +15,34 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
-func helmReleaseDeployFunc(target provisioning.ProvisioningTarget,
-	helmReleases []*provisioningv1.HelmRelease) pulumi.RunFunc {
+func deployHelmRelease(target provisioning.ProvisioningTarget,
+	hr *provisioningv1.HelmRelease,
+	dependencies []pulumi.Resource,
+	ctx *pulumi.Context) (*fluxcd.HelmRelease, error) {
 
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("HelmRelease")
-	return func(ctx *pulumi.Context) error {
-		for _, hr := range helmReleases {
-			args, err := pulumiFluxHrArgs(target, hr)
-			if err != nil {
-				return err
-			}
 
-			fluxHr, err := fluxcd.NewHelmRelease(ctx, hr.Name, args)
-			if err != nil {
-				return err
-			}
-
-			for _, exp := range hr.Spec.Exports {
-				err = valueExporter(newExportContext(ctx, exp.Domain, hr.Name, hr.ObjectMeta, gvk),
-					map[string]exportTemplateWithValue{"releaseName": {exp.ReleaseName, fluxHr.Spec.ReleaseName().Elem()}})
-				if err != nil {
-					return err
-				}
-			}
-			ctx.Export(fmt.Sprintf("helmRelease:%s", hr.Name), fluxHr.Spec.ReleaseName().Elem())
-		}
-		return nil
+	args, err := pulumiFluxHrArgs(target, hr)
+	if err != nil {
+		return nil, err
 	}
+
+	fluxHr, err := fluxcd.NewHelmRelease(ctx, hr.Name, args, pulumi.DependsOn(dependencies))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, exp := range hr.Spec.Exports {
+		err = valueExporter(newExportContext(ctx, exp.Domain, hr.Name, hr.ObjectMeta, gvk),
+			map[string]exportTemplateWithValue{"releaseName": {exp.ReleaseName, fluxHr.Spec.ReleaseName().Elem()}})
+		if err != nil {
+			return nil, err
+		}
+	}
+	ctx.Export(fmt.Sprintf("helmRelease:%s", hr.Name), fluxHr.Spec.ReleaseName().Elem())
+
+	return fluxHr, nil
 }
 
 func pulumiFluxHrArgs(target provisioning.ProvisioningTarget, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {

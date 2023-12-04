@@ -36,6 +36,22 @@ spec:
             type: object
           spec:
             properties:
+              dependsOn:
+                description: List of dependencies
+                items:
+                  properties:
+                    kind:
+                      description: Kind is a string value representing the REST resource
+                        this dependency represents.
+                      type: string
+                    name:
+                      description: The name of the dependency.
+                      type: string
+                  required:
+                  - kind
+                  - name
+                  type: object
+                type: array
               domainRef:
                 description: Business Domain that this resource is provision for.
                 type: string

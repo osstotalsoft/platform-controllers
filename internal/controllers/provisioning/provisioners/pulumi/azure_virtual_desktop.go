@@ -387,145 +387,145 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	return avdVM, nil
 }
 
-func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
-	avds []*provisioningv1.AzureVirtualDesktop) pulumi.RunFunc {
+func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
+	avd *provisioningv1.AzureVirtualDesktop, dependencies []pulumi.Resource,
+	ctx *pulumi.Context) (*AzureVirtualDesktop, error) {
 
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualDesktop")
-	return func(ctx *pulumi.Context) error {
-		for _, avd := range avds {
-			hostPoolName := avd.Spec.HostPoolName
 
-			globalQalifier := provisioning.Match(target,
-				func(tenant *platformv1.Tenant) string {
-					return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
-				},
-				func(platform *platformv1.Platform) string {
-					return fmt.Sprintf("%s", platform.GetName())
-				},
-			)
+	hostPoolName := avd.Spec.HostPoolName
 
-			pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
+	globalQalifier := provisioning.Match(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
+		},
+		func(platform *platformv1.Platform) string {
+			return fmt.Sprintf("%s", platform.GetName())
+		},
+	)
 
-			avdComponent := &AzureVirtualDesktop{}
-			err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avdComponent)
-			if err != nil {
-				return err
-			}
+	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 
-			current, err := azuread.GetClientConfig(ctx, nil, nil)
-			if err != nil {
-				return err
-			}
-			appsUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &azuread.GroupArgs{
-				DisplayName: pulumi.String(fmt.Sprintf("%s-%s-apps", globalQalifier, hostPoolName)),
-				Owners: pulumi.StringArray{
-					pulumi.String(current.ObjectId),
-				},
-				SecurityEnabled: pulumi.Bool(true),
-			}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
-			if err != nil {
-				return err
-			}
+	avdComponent := &AzureVirtualDesktop{}
+	err := ctx.RegisterComponentResource("ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop", hostPoolName, avdComponent, pulumi.DependsOn(dependencies))
+	if err != nil {
+		return nil, err
+	}
 
-			for _, appUser := range avd.Spec.Users.ApplicationUsers {
-				user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
-					UserPrincipalName: pulumi.StringRef(appUser),
-				}, nil)
-				if err != nil {
-					return err
-				}
+	current, err := azuread.GetClientConfig(ctx, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	appsUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &azuread.GroupArgs{
+		DisplayName: pulumi.String(fmt.Sprintf("%s-%s-apps", globalQalifier, hostPoolName)),
+		Owners: pulumi.StringArray{
+			pulumi.String(current.ObjectId),
+		},
+		SecurityEnabled: pulumi.Bool(true),
+	}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
+	if err != nil {
+		return nil, err
+	}
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-%s", appUser, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
-					GroupObjectId:  appsUserGroup.ID(),
-					MemberObjectId: pulumi.String(user.Id),
-				}, pulumi.Parent(appsUserGroup))
-				if err != nil {
-					return err
-				}
-			}
-			for _, childAppsUserGroupName := range avd.Spec.Groups.ApplicationUsers {
-				childAppsUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
-					DisplayName: pulumi.StringRef(childAppsUserGroupName),
-				}, nil)
-				if err != nil {
-					return err
-				}
+	for _, appUser := range avd.Spec.Users.ApplicationUsers {
+		user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
+			UserPrincipalName: pulumi.StringRef(appUser),
+		}, nil)
+		if err != nil {
+			return nil, err
+		}
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-group-%s", childAppsUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
-					GroupObjectId:  appsUserGroup.ID(),
-					MemberObjectId: pulumi.String(childAppsUserGroup.Id),
-				}, pulumi.Parent(appsUserGroup))
-				if err != nil {
-					return err
-				}
-			}
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-%s", appUser, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+			GroupObjectId:  appsUserGroup.ID(),
+			MemberObjectId: pulumi.String(user.Id),
+		}, pulumi.Parent(appsUserGroup))
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, childAppsUserGroupName := range avd.Spec.Groups.ApplicationUsers {
+		childAppsUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
+			DisplayName: pulumi.StringRef(childAppsUserGroupName),
+		}, nil)
+		if err != nil {
+			return nil, err
+		}
 
-			adminUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-admin", hostPoolName), &azuread.GroupArgs{
-				DisplayName: pulumi.String(fmt.Sprintf("%s-%s-admin", globalQalifier, hostPoolName)),
-				Owners: pulumi.StringArray{
-					pulumi.String(current.ObjectId),
-				},
-				SecurityEnabled: pulumi.Bool(true),
-			}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
-			if err != nil {
-				return err
-			}
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-group-%s", childAppsUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+			GroupObjectId:  appsUserGroup.ID(),
+			MemberObjectId: pulumi.String(childAppsUserGroup.Id),
+		}, pulumi.Parent(appsUserGroup))
+		if err != nil {
+			return nil, err
+		}
+	}
 
-			for _, admin := range avd.Spec.Users.Admins {
-				user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
-					UserPrincipalName: pulumi.StringRef(admin),
-				}, nil)
-				if err != nil {
-					return err
-				}
+	adminUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-admin", hostPoolName), &azuread.GroupArgs{
+		DisplayName: pulumi.String(fmt.Sprintf("%s-%s-admin", globalQalifier, hostPoolName)),
+		Owners: pulumi.StringArray{
+			pulumi.String(current.ObjectId),
+		},
+		SecurityEnabled: pulumi.Bool(true),
+	}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
+	if err != nil {
+		return nil, err
+	}
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", admin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
-					GroupObjectId:  adminUserGroup.ID(),
-					MemberObjectId: pulumi.String(user.Id),
-				}, pulumi.Parent(adminUserGroup))
-				if err != nil {
-					return err
-				}
-			}
+	for _, admin := range avd.Spec.Users.Admins {
+		user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
+			UserPrincipalName: pulumi.StringRef(admin),
+		}, nil)
+		if err != nil {
+			return nil, err
+		}
 
-			for _, childAdminUserGroupName := range avd.Spec.Groups.Admins {
-				childAdminUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
-					DisplayName: pulumi.StringRef(childAdminUserGroupName),
-				}, nil)
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", admin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+			GroupObjectId:  adminUserGroup.ID(),
+			MemberObjectId: pulumi.String(user.Id),
+		}, pulumi.Parent(adminUserGroup))
+		if err != nil {
+			return nil, err
+		}
+	}
 
-				if err != nil {
-					return err
-				}
+	for _, childAdminUserGroupName := range avd.Spec.Groups.Admins {
+		childAdminUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
+			DisplayName: pulumi.StringRef(childAdminUserGroupName),
+		}, nil)
 
-				_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", childAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
-					GroupObjectId:  adminUserGroup.ID(),
-					MemberObjectId: pulumi.String(childAdminUserGroup.Id),
-				}, pulumi.Parent(adminUserGroup))
-				if err != nil {
-					return err
-				}
-			}
+		if err != nil {
+			return nil, err
+		}
 
-			avdComponent.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
-				//HostPoolName:                  pulumi.String(hostPoolName),
-				HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
-				LoadBalancerType:              pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
-				CustomRdpProperty:             pulumi.String("targetisaadjoined:i:1;drivestoredirect:s:*;audiomode:i:0;videoplaybackmode:i:1;redirectclipboard:i:1;redirectprinters:i:1;devicestoredirect:s:*;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:*;enablecredsspsupport:i:1;redirectwebauthn:i:1;use multimon:i:1"),
-				PreferredAppGroupType:         pulumi.String(desktopvirtualization.PreferredAppGroupTypeDesktop),
-				PersonalDesktopAssignmentType: pulumi.String(desktopvirtualization.PersonalDesktopAssignmentTypeAutomatic),
-				//MaxSessionLimit:               pulumi.Int(999999),
-				ValidationEnvironment: pulumi.Bool(false),
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", childAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+			GroupObjectId:  adminUserGroup.ID(),
+			MemberObjectId: pulumi.String(childAdminUserGroup.Id),
+		}, pulumi.Parent(adminUserGroup))
+		if err != nil {
+			return nil, err
+		}
+	}
 
-				ResourceGroupName: resourceGroupName,
-				StartVMOnConnect:  pulumi.Bool(false),
+	avdComponent.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
+		//HostPoolName:                  pulumi.String(hostPoolName),
+		HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
+		LoadBalancerType:              pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
+		CustomRdpProperty:             pulumi.String("targetisaadjoined:i:1;drivestoredirect:s:*;audiomode:i:0;videoplaybackmode:i:1;redirectclipboard:i:1;redirectprinters:i:1;devicestoredirect:s:*;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:*;enablecredsspsupport:i:1;redirectwebauthn:i:1;use multimon:i:1"),
+		PreferredAppGroupType:         pulumi.String(desktopvirtualization.PreferredAppGroupTypeDesktop),
+		PersonalDesktopAssignmentType: pulumi.String(desktopvirtualization.PersonalDesktopAssignmentTypeAutomatic),
+		//MaxSessionLimit:               pulumi.Int(999999),
+		ValidationEnvironment: pulumi.Bool(false),
 
-				RegistrationInfo: &desktopvirtualization.RegistrationInfoArgs{
-					ExpirationTime:             pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339)),
-					RegistrationTokenOperation: pulumi.String(desktopvirtualization.RegistrationTokenOperationUpdate),
-				},
+		ResourceGroupName: resourceGroupName,
+		StartVMOnConnect:  pulumi.Bool(false),
 
-				VmTemplate: pulumi.String(fmt.Sprintf(`
+		RegistrationInfo: &desktopvirtualization.RegistrationInfoArgs{
+			ExpirationTime:             pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339)),
+			RegistrationTokenOperation: pulumi.String(desktopvirtualization.RegistrationTokenOperationUpdate),
+		},
+
+		VmTemplate: pulumi.String(fmt.Sprintf(`
 				{
 					"domain":"",
 					"galleryImageOffer":null,
@@ -543,201 +543,200 @@ func azureVirtualDesktopDeployFunc(target provisioning.ProvisioningTarget, resou
 					"secureBoot":false,
 					"vTPM":false
 				}`, avd.Spec.SourceImageId, avd.Spec.VmNamePrefix, avd.Spec.VmSize)),
-			}, pulumi.Parent(avdComponent))
-			if err != nil {
-				return err
-			}
+	}, pulumi.Parent(avdComponent))
+	if err != nil {
+		return nil, err
+	}
 
-			avdComponent.DesktopAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-desktop", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
-				//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-desktop", hostPoolName)),
-				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeDesktop),
-				FriendlyName:         pulumi.String("Desktop"),
-				HostPoolArmPath:      avdComponent.HostPool.ID(),
-				ResourceGroupName:    resourceGroupName,
-			}, pulumi.Parent(avdComponent))
+	avdComponent.DesktopAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-desktop", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
+		//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-desktop", hostPoolName)),
+		ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeDesktop),
+		FriendlyName:         pulumi.String("Desktop"),
+		HostPoolArmPath:      avdComponent.HostPool.ID(),
+		ResourceGroupName:    resourceGroupName,
+	}, pulumi.Parent(avdComponent))
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			avdComponent.RemoteAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
-				//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
-				ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeRemoteApp),
-				FriendlyName:         pulumi.String("Applications"),
-				HostPoolArmPath:      avdComponent.HostPool.ID(),
-				ResourceGroupName:    resourceGroupName,
-			}, pulumi.Parent(avdComponent))
+	avdComponent.RemoteAppGroup, err = desktopvirtualization.NewApplicationGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &desktopvirtualization.ApplicationGroupArgs{
+		//ApplicationGroupName: pulumi.String(fmt.Sprintf("%s-apps", hostPoolName)),
+		ApplicationGroupType: pulumi.String(desktopvirtualization.ApplicationGroupTypeRemoteApp),
+		FriendlyName:         pulumi.String("Applications"),
+		HostPoolArmPath:      avdComponent.HostPool.ID(),
+		ResourceGroupName:    resourceGroupName,
+	}, pulumi.Parent(avdComponent))
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			avdUserRole, err := authorization.LookupRoleDefinition(ctx, &authorization.LookupRoleDefinitionArgs{
-				RoleDefinitionId: "1d18fff3-a72a-46b5-b4a9-0b38a3cd7e63", //Desktop Virtualization User
-				Scope:            "/",
-			})
+	avdUserRole, err := authorization.LookupRoleDefinition(ctx, &authorization.LookupRoleDefinitionArgs{
+		RoleDefinitionId: "1d18fff3-a72a-46b5-b4a9-0b38a3cd7e63", //Desktop Virtualization User
+		Scope:            "/",
+	})
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-apps-user-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
-				PrincipalId:      appsUserGroup.ObjectId,
-				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
-				RoleDefinitionId: pulumi.String(avdUserRole.Id),
-				Scope:            avdComponent.RemoteAppGroup.ID(),
-			}, pulumi.Parent(avdComponent.RemoteAppGroup))
+	_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-apps-user-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
+		PrincipalId:      appsUserGroup.ObjectId,
+		PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+		RoleDefinitionId: pulumi.String(avdUserRole.Id),
+		Scope:            avdComponent.RemoteAppGroup.ID(),
+	}, pulumi.Parent(avdComponent.RemoteAppGroup))
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-apps-admin-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
-				PrincipalId:      adminUserGroup.ObjectId,
-				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
-				RoleDefinitionId: pulumi.String(avdUserRole.Id),
-				Scope:            avdComponent.RemoteAppGroup.ID(),
-			}, pulumi.Parent(avdComponent.RemoteAppGroup))
+	_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-apps-admin-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
+		PrincipalId:      adminUserGroup.ObjectId,
+		PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+		RoleDefinitionId: pulumi.String(avdUserRole.Id),
+		Scope:            avdComponent.RemoteAppGroup.ID(),
+	}, pulumi.Parent(avdComponent.RemoteAppGroup))
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-desktop-admin-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
-				PrincipalId:      adminUserGroup.ObjectId,
-				PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
-				RoleDefinitionId: pulumi.String(avdUserRole.Id),
-				Scope:            avdComponent.DesktopAppGroup.ID(),
-			}, pulumi.Parent(avdComponent.DesktopAppGroup))
+	_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-desktop-admin-assignment", hostPoolName), &authorization.RoleAssignmentArgs{
+		PrincipalId:      adminUserGroup.ObjectId,
+		PrincipalType:    pulumi.String(authorization.PrincipalTypeGroup),
+		RoleDefinitionId: pulumi.String(avdUserRole.Id),
+		Scope:            avdComponent.DesktopAppGroup.ID(),
+	}, pulumi.Parent(avdComponent.DesktopAppGroup))
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			for _, app := range avd.Spec.Applications {
-				_, err = desktopvirtualization.NewApplication(ctx, fmt.Sprintf("%s-apps-%s", hostPoolName, app.Name), &desktopvirtualization.ApplicationArgs{
-					ApplicationGroupName: avdComponent.RemoteAppGroup.Name,
-					ApplicationName:      pulumi.String(app.Name),
-					FriendlyName:         pulumi.String(app.FriendlyName),
-					FilePath:             pulumi.String(app.Path),
-					IconPath:             pulumi.String(app.Path),
-					IconIndex:            pulumi.Int(0),
-					CommandLineSetting:   pulumi.String(desktopvirtualization.CommandLineSettingDoNotAllow),
-					ShowInPortal:         pulumi.Bool(true),
-					ResourceGroupName:    resourceGroupName,
-				}, pulumi.Parent(avdComponent.RemoteAppGroup))
+	for _, app := range avd.Spec.Applications {
+		_, err = desktopvirtualization.NewApplication(ctx, fmt.Sprintf("%s-apps-%s", hostPoolName, app.Name), &desktopvirtualization.ApplicationArgs{
+			ApplicationGroupName: avdComponent.RemoteAppGroup.Name,
+			ApplicationName:      pulumi.String(app.Name),
+			FriendlyName:         pulumi.String(app.FriendlyName),
+			FilePath:             pulumi.String(app.Path),
+			IconPath:             pulumi.String(app.Path),
+			IconIndex:            pulumi.Int(0),
+			CommandLineSetting:   pulumi.String(desktopvirtualization.CommandLineSettingDoNotAllow),
+			ShowInPortal:         pulumi.Bool(true),
+			ResourceGroupName:    resourceGroupName,
+		}, pulumi.Parent(avdComponent.RemoteAppGroup))
 
-				if err != nil {
-					return err
-				}
-			}
+		if err != nil {
+			return nil, err
+		}
+	}
 
-			_, err = desktopvirtualization.NewWorkspace(ctx, fmt.Sprintf("%s-ws", hostPoolName), &desktopvirtualization.WorkspaceArgs{
-				//WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
-				FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", avd.Spec.WorkspaceFriendlyName, target.GetDescription())),
-				ResourceGroupName: resourceGroupName,
-				ApplicationGroupReferences: pulumi.StringArray{
-					avdComponent.DesktopAppGroup.ID(),
-					avdComponent.RemoteAppGroup.ID(),
-				},
-			}, pulumi.Parent(avdComponent))
+	_, err = desktopvirtualization.NewWorkspace(ctx, fmt.Sprintf("%s-ws", hostPoolName), &desktopvirtualization.WorkspaceArgs{
+		//WorkspaceName:     pulumi.String(fmt.Sprintf("%s-ws", hostPoolName)),
+		FriendlyName:      pulumi.String(fmt.Sprintf("%s - %s", avd.Spec.WorkspaceFriendlyName, target.GetDescription())),
+		ResourceGroupName: resourceGroupName,
+		ApplicationGroupReferences: pulumi.StringArray{
+			avdComponent.DesktopAppGroup.ID(),
+			avdComponent.RemoteAppGroup.ID(),
+		},
+	}, pulumi.Parent(avdComponent))
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			storageAccountName := strings.ToLower(hostPoolName)
-			storageAccountName = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(storageAccountName, "")
-			storageAccountName = storageAccountName[:int32(math.Min(float64(len(storageAccountName)), 16))] // extra 8 chars for UID, total max 24 chars
+	storageAccountName := strings.ToLower(hostPoolName)
+	storageAccountName = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(storageAccountName, "")
+	storageAccountName = storageAccountName[:int32(math.Min(float64(len(storageAccountName)), 16))] // extra 8 chars for UID, total max 24 chars
 
-			storageAccount, err := storage.NewStorageAccount(ctx, storageAccountName, &storage.StorageAccountArgs{
-				Kind:              pulumi.String(storage.KindStorage),
-				ResourceGroupName: resourceGroupName,
-				Sku: &storage.SkuArgs{
-					Name: pulumi.String(storage.SkuName_Standard_LRS),
-				},
-			}, pulumi.Parent(avdComponent))
-			if err != nil {
-				return err
-			}
+	storageAccount, err := storage.NewStorageAccount(ctx, storageAccountName, &storage.StorageAccountArgs{
+		Kind:              pulumi.String(storage.KindStorage),
+		ResourceGroupName: resourceGroupName,
+		Sku: &storage.SkuArgs{
+			Name: pulumi.String(storage.SkuName_Standard_LRS),
+		},
+	}, pulumi.Parent(avdComponent))
+	if err != nil {
+		return nil, err
+	}
 
-			profileShare, err := storage.NewFileShare(ctx, fmt.Sprintf("%s-profile-share", hostPoolName), &storage.FileShareArgs{
-				AccountName:       storageAccount.Name,
-				ResourceGroupName: resourceGroupName,
-				ShareName:         pulumi.String("profiles"),
-				ShareQuota:        pulumi.Int(100),
-			}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(pulumiRetainOnDelete))
-			if err != nil {
-				return err
-			}
+	profileShare, err := storage.NewFileShare(ctx, fmt.Sprintf("%s-profile-share", hostPoolName), &storage.FileShareArgs{
+		AccountName:       storageAccount.Name,
+		ResourceGroupName: resourceGroupName,
+		ShareName:         pulumi.String("profiles"),
+		ShareQuota:        pulumi.Int(100),
+	}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(pulumiRetainOnDelete))
+	if err != nil {
+		return nil, err
+	}
 
-			storageAccountKeys := storage.ListStorageAccountKeysOutput(ctx, storage.ListStorageAccountKeysOutputArgs{
-				AccountName:       storageAccount.Name,
-				ResourceGroupName: resourceGroupName,
-			})
+	storageAccountKeys := storage.ListStorageAccountKeysOutput(ctx, storage.ListStorageAccountKeysOutputArgs{
+		AccountName:       storageAccount.Name,
+		ResourceGroupName: resourceGroupName,
+	})
 
-			if err != nil {
-				return err
-			}
+	if err != nil {
+		return nil, err
+	}
 
-			var diskDeleteOptions compute.DeleteOptions
-			if pulumiRetainOnDelete {
-				diskDeleteOptions = compute.DeleteOptionsDetach
-			} else {
-				diskDeleteOptions = compute.DeleteOptionsDelete
-			}
+	var diskDeleteOptions compute.DeleteOptions
+	if pulumiRetainOnDelete {
+		diskDeleteOptions = compute.DeleteOptionsDetach
+	} else {
+		diskDeleteOptions = compute.DeleteOptionsDelete
+	}
 
-			vms := make([]*AzureVirtualDesktopVM, avd.Spec.VmNumberOfInstances)
+	vms := make([]*AzureVirtualDesktopVM, avd.Spec.VmNumberOfInstances)
 
-			for i := 0; i < avd.Spec.VmNumberOfInstances; i++ {
-				vmName := fmt.Sprintf("%s-%d", avd.Spec.HostPoolName, i)
-				avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
-					ResourceGroupName: resourceGroupName,
-					TargetName:        pulumi.String(target.GetName()),
-					HostPoolName:      avdComponent.HostPool.Name,
-					RegistrationToken: avdComponent.HostPool.RegistrationInfo.Token().Elem(),
-					VMSize:            pulumi.String(avd.Spec.VmSize),
-					SubnetID:          pulumi.String(avd.Spec.SubnetId),
-					LoginUserGroupId:  appsUserGroup.ID(),
-					LoginAdminGroupId: adminUserGroup.ID(),
-					DiskDeleteOptions: diskDeleteOptions,
+	for i := 0; i < avd.Spec.VmNumberOfInstances; i++ {
+		vmName := fmt.Sprintf("%s-%d", avd.Spec.HostPoolName, i)
+		avdVM, err := NewAzureVirtualDesktopVM(ctx, vmName, &AzureVirtualDesktopVMArgs{
+			ResourceGroupName: resourceGroupName,
+			TargetName:        pulumi.String(target.GetName()),
+			HostPoolName:      avdComponent.HostPool.Name,
+			RegistrationToken: avdComponent.HostPool.RegistrationInfo.Token().Elem(),
+			VMSize:            pulumi.String(avd.Spec.VmSize),
+			SubnetID:          pulumi.String(avd.Spec.SubnetId),
+			LoginUserGroupId:  appsUserGroup.ID(),
+			LoginAdminGroupId: adminUserGroup.ID(),
+			DiskDeleteOptions: diskDeleteOptions,
 
-					ProfileFileServer: storageAccount.PrimaryEndpoints.File(),
-					ProfileShare:      profileShare.Name,
-					ProfileUser:       storageAccount.Name,
-					ProfileSecret:     storageAccountKeys.Keys().Index(pulumi.Int(0)).Value(),
+			ProfileFileServer: storageAccount.PrimaryEndpoints.File(),
+			ProfileShare:      profileShare.Name,
+			ProfileUser:       storageAccount.Name,
+			ProfileSecret:     storageAccountKeys.Keys().Index(pulumi.Int(0)).Value(),
 
-					Target: target,
-					Spec:   avd.Spec,
-				}, pulumi.Parent(avdComponent))
+			Target: target,
+			Spec:   avd.Spec,
+		}, pulumi.Parent(avdComponent))
 
-				if err != nil {
-					return err
-				}
-
-				vms[i] = avdVM
-			}
-
-			for _, exp := range avd.Spec.Exports {
-				err = valueExporter(newExportContext(ctx, exp.Domain, avd.Name, avd.ObjectMeta, gvk),
-					map[string]exportTemplateWithValue{
-						"hostPoolName": {exp.HostPoolName, avdComponent.HostPool.Name},
-						"computerName": {exp.ComputerName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.ComputerName })},
-						"adminUserName": {exp.AdminUserName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput {
-							return vm.VirtualMachine.OsProfile.AdminUsername().Elem()
-						})},
-						"adminPassword": {exp.AdminPassword, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.AdminPassword.Result })},
-					}, pulumi.Parent(avdComponent))
-				if err != nil {
-					return err
-				}
-			}
-
-			ctx.Export(fmt.Sprintf("azureVirtualDesktop:%s", avd.Spec.HostPoolName), avdComponent.HostPool.Name)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil
+		vms[i] = avdVM
 	}
+
+	for _, exp := range avd.Spec.Exports {
+		err = valueExporter(newExportContext(ctx, exp.Domain, avd.Name, avd.ObjectMeta, gvk),
+			map[string]exportTemplateWithValue{
+				"hostPoolName": {exp.HostPoolName, avdComponent.HostPool.Name},
+				"computerName": {exp.ComputerName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.ComputerName })},
+				"adminUserName": {exp.AdminUserName, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput {
+					return vm.VirtualMachine.OsProfile.AdminUsername().Elem()
+				})},
+				"adminPassword": {exp.AdminPassword, joinProp(vms, func(vm *AzureVirtualDesktopVM) pulumi.StringOutput { return vm.AdminPassword.Result })},
+			}, pulumi.Parent(avdComponent))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	ctx.Export(fmt.Sprintf("azureVirtualDesktop:%s", avd.Spec.HostPoolName), avdComponent.HostPool.Name)
+
+	return avdComponent, nil
+
 }
 
 func joinProp(vms []*AzureVirtualDesktopVM, selector func(vm *AzureVirtualDesktopVM) pulumi.StringOutput) pulumi.StringOutput {
