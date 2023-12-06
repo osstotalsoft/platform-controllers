@@ -81,6 +81,34 @@ spec:
     category: Platform
 ```
 
+### Dependencies
+An infrastructure manifests can specify wheather the provisioned resources depend on the resources provisioned by another manifest.
+If a dependency is specified, the provisioning of the dependent resource is delayed until the dependency is provisioned.
+
+> *Note* Dependencies can be specified between resources provisioned for the same platform, tenant and domain.
+
+The dependency list is specified in the "dependsOn" present on every provisoning manifest. A dependency is identified by kind and name.
+
+Example:
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureManagedDatabase
+metadata:
+  name: my-db
+spec:
+  ...
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: HelmRelease
+metadata:
+  name: my-server
+spec:
+  dependsOn:
+    - kind: AzureManagedDatabase
+      name: my-db
+  ...
+```
+
 ### AzureDatabase
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuredatabases.yaml)
 
