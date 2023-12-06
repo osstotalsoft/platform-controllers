@@ -90,14 +90,13 @@ If a dependency is specified, the provisioning of the dependent resource is dela
 The dependency list is specified in the "dependsOn" present on every provisoning manifest. A dependency is identified by kind and name.
 
 Example:
+```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
 metadata:
   name: my-db
 spec:
   ...
-
-```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: HelmRelease
 metadata:
