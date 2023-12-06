@@ -231,7 +231,7 @@ func getSecretWithKubernetesAuth(platform, namespace, domain, role string) ([]se
 			if err != nil {
 				return fmt.Errorf("unable to read secret: %w", err)
 			}
-			if secret == nil {
+			if secret == nil || secret.Data["data"] == nil {
 				return nil
 			}
 			secretData, ok := secret.Data["data"].(map[string]interface{})

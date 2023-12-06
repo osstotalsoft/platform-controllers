@@ -116,8 +116,9 @@ func exportToVault(ctx *pulumi.Context, secretPath string, templateContext inter
 	}).(pulumi.StringOutput)
 
 	_, err := vault.NewSecret(ctx, secretPath, &vault.SecretArgs{
-		DataJson: dataJson,
-		Path:     pulumi.String(secretPath),
+		DataJson:          dataJson,
+		Path:              pulumi.String(secretPath),
+		DeleteAllVersions: pulumi.Bool(true),
 	}, opts...)
 	return err
 }
