@@ -97,6 +97,9 @@ metadata:
   name: my-db
 spec:
   ...
+
+---
+
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: HelmRelease
 metadata:
