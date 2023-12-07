@@ -19,9 +19,12 @@ func deployAzureRG(target provisioning.ProvisioningTarget, domain string) func(c
 				return fmt.Sprintf("%s-%s", platform.GetName(), domain)
 			},
 		)
+
+		pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
+
 		resourceGroup, err := azureResources.NewResourceGroup(ctx, resourceGroupName, &azureResources.ResourceGroupArgs{
 			ResourceGroupName: pulumi.String(resourceGroupName),
-		}, pulumi.RetainOnDelete(true))
+		}, pulumi.RetainOnDelete(pulumiRetainOnDelete))
 		if err != nil {
 			return pulumi.StringOutput{}, err
 		}
