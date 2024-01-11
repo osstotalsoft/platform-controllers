@@ -119,6 +119,17 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 		return nil, ErrNonRetryAble
 	}
 
+	domainNsAndPlatformLabelSelector, err :=
+		labels.ValidatedSelectorFromSet(map[string]string{
+			controllers.DomainLabelName:   namespace + "." + domain,
+			controllers.PlatformLabelName: platform.Name,
+		})
+
+	if err != nil {
+		utilruntime.HandleError(err)
+		return nil, ErrNonRetryAble
+	}
+
 	globalDomainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
 			controllers.DomainLabelName:   controllers.GlobalDomainLabelValue,
@@ -140,13 +151,18 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 		return nil, err
 	}
 
-	configMaps, err := h.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
+	currentNsConfigMaps, err := h.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	configMaps = append(append(platformConfigMaps, globalDomainConfigMaps...), configMaps...)
-	return configMaps, nil
+	nsConfigMaps, err := h.configMapsLister.List(domainNsAndPlatformLabelSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	currentNsConfigMaps = append(append(append(platformConfigMaps, globalDomainConfigMaps...), currentNsConfigMaps...), nsConfigMaps...)
+	return currentNsConfigMaps, nil
 }
 
 func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1.ConfigurationDomain, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {

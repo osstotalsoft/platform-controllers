@@ -135,6 +135,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			newConfigMap("configMap4", controllers.GlobalDomainLabelValue, namespace2, platform, map[string]string{"k4": "v4"}),
 		}
 		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace1, platform, true, false),
 			newConfigurationDomain(domain, namespace2, platform, true, false),
 		}
 		platforms := []runtime.Object{
@@ -167,12 +168,22 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		outputConfigmap := getOutputConfigmapName(domain)
-		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace2).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace1).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
 			return
 		}
-		expectedOutput := map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"}
+		expectedOutput := map[string]string{"k1": "v1", "k3": "v3"}
+		if !reflect.DeepEqual(output.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output.Data)
+		}
+
+		output, err = c.kubeClientset.CoreV1().ConfigMaps(namespace2).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput = map[string]string{"k2": "v2", "k4": "v4"}
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
