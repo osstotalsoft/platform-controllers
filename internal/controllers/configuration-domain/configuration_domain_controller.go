@@ -263,7 +263,13 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	}
 
 	// Get the ConfigurationDomain resource
-	configDomain, err := c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
+	var configDomain *v1alpha1.ConfigurationDomain
+	domainNamespace, domain, found := checkIfDomainContainsNamespace(domain)
+	if found {
+		configDomain, err = c.configDomainsLister.ConfigurationDomains(domainNamespace).Get(domain)
+	} else {
+		configDomain, err = c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
+	}
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
@@ -414,6 +420,7 @@ func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, dom
 
 func (c *ConfigurationDomainController) enqueueConfigurationDomain(namespace, domain string) {
 	key := encodeDomainKey(namespace, domain)
+	klog.InfoS("enqueue ConfigurationDomain", "namespace", namespace, "domain", domain)
 	c.workqueue.Add(key)
 }
 
@@ -427,6 +434,15 @@ func decodeDomainKey(key string) (namespace, domain string, err error) {
 		return res[0], res[1], nil
 	}
 	return "", "", fmt.Errorf("cannot decode key: %v", key)
+}
+
+func checkIfDomainContainsNamespace(domain string) (string, string, bool) {
+	ns, d, found := strings.Cut(domain, ".")
+	if found {
+		return ns, d, found
+	} else {
+		return "", ns, found
+	}
 }
 
 func addConfigurationDomainHandlers(informer informers.ConfigurationDomainInformer, handler func(namespace, domain string)) {
