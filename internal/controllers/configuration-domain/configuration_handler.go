@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -121,7 +122,7 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 
 	domainNsAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
-			controllers.DomainLabelName:   namespace + "." + domain,
+			controllers.DomainLabelName:   domain + "." + namespace,
 			controllers.PlatformLabelName: platform.Name,
 		})
 
@@ -207,16 +208,22 @@ func isOutputConfigMap(configMap *corev1.ConfigMap) bool {
 		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
 }
 
-func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
+func getConfigMapPlatformNsAndDomain(configMap *corev1.ConfigMap) (platform, namespace, domain string, ok bool) {
+
 	domain, domainLabelExists := configMap.Labels[controllers.DomainLabelName]
 	if !domainLabelExists || len(domain) == 0 {
-		return "", domain, false
+		return "", configMap.Namespace, domain, false
 	}
 
 	platform, platformLabelExists := configMap.Labels[controllers.PlatformLabelName]
 	if !platformLabelExists || len(platform) == 0 {
-		return platform, domain, false
+		return platform, configMap.Namespace, domain, false
 	}
 
-	return platform, domain, true
+	domain, namespace, found := strings.Cut(domain, ".")
+	if !found {
+		return platform, configMap.Namespace, domain, false
+	}
+
+	return platform, namespace, domain, true
 }

@@ -130,7 +130,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		platform, namespace1, namespace2, domain := "pl1", "n1", "n2", "domain"
 		configMaps := []runtime.Object{
 			newConfigMap("configMap1", domain, namespace1, platform, map[string]string{"k1": "v1"}),
-			newConfigMap("configMap2", namespace2+"."+domain, namespace1, platform, map[string]string{"k2": "v2"}),
+			newConfigMap("configMap2", domain+"."+namespace2, namespace1, platform, map[string]string{"k2": "v2"}),
 			newConfigMap("configMap3", controllers.GlobalDomainLabelValue, namespace1, platform, map[string]string{"k3": "v3"}),
 			newConfigMap("configMap4", controllers.GlobalDomainLabelValue, namespace2, platform, map[string]string{"k4": "v4"}),
 		}
@@ -144,16 +144,13 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 
 		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
-		if c.workqueue.Len() != 3 {
+		if c.workqueue.Len() != 2 {
 			items := c.workqueue.Len()
-			t.Error("queue should have only 3 items, but it has", items)
+			t.Error("queue should have only 2 items, but it has", items)
 			return
 		}
 
 		// Act
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
@@ -289,9 +286,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
 
 		// Assert
 		if c.workqueue.Len() != 0 {
@@ -343,10 +337,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		time.Sleep(100 * time.Millisecond)
-
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
 
 		// Assert
 		if c.workqueue.Len() != 0 {
