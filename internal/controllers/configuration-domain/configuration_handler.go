@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -119,6 +120,17 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 		return nil, ErrNonRetryAble
 	}
 
+	domainNsAndPlatformLabelSelector, err :=
+		labels.ValidatedSelectorFromSet(map[string]string{
+			controllers.DomainLabelName:   domain + "." + namespace,
+			controllers.PlatformLabelName: platform.Name,
+		})
+
+	if err != nil {
+		utilruntime.HandleError(err)
+		return nil, ErrNonRetryAble
+	}
+
 	globalDomainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
 			controllers.DomainLabelName:   controllers.GlobalDomainLabelValue,
@@ -140,13 +152,18 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 		return nil, err
 	}
 
-	configMaps, err := h.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
+	currentNsConfigMaps, err := h.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	configMaps = append(append(platformConfigMaps, globalDomainConfigMaps...), configMaps...)
-	return configMaps, nil
+	nsConfigMaps, err := h.configMapsLister.List(domainNsAndPlatformLabelSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	currentNsConfigMaps = append(append(append(platformConfigMaps, globalDomainConfigMaps...), currentNsConfigMaps...), nsConfigMaps...)
+	return currentNsConfigMaps, nil
 }
 
 func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1.ConfigurationDomain, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
@@ -191,16 +208,22 @@ func isOutputConfigMap(configMap *corev1.ConfigMap) bool {
 		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
 }
 
-func getConfigMapPlatformAndDomain(configMap *corev1.ConfigMap) (platform string, domain string, ok bool) {
+func getConfigMapPlatformNsAndDomain(configMap *corev1.ConfigMap) (platform, namespace, domain string, ok bool) {
+
 	domain, domainLabelExists := configMap.Labels[controllers.DomainLabelName]
 	if !domainLabelExists || len(domain) == 0 {
-		return "", domain, false
+		return "", configMap.Namespace, domain, false
 	}
 
 	platform, platformLabelExists := configMap.Labels[controllers.PlatformLabelName]
 	if !platformLabelExists || len(platform) == 0 {
-		return platform, domain, false
+		return platform, configMap.Namespace, domain, false
 	}
 
-	return platform, domain, true
+	domain, namespace, found := strings.Cut(domain, ".")
+	if !found {
+		return platform, configMap.Namespace, domain, false
+	}
+
+	return platform, namespace, domain, true
 }

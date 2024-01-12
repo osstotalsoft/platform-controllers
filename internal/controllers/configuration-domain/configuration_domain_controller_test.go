@@ -121,6 +121,72 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 
 		msg := <-msgChan
 		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message published to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
+	})
+
+	t.Run("aggregate domain specific config maps from a different namespace", func(t *testing.T) {
+		// Arrange
+		platform, namespace1, namespace2, domain := "pl1", "n1", "n2", "domain"
+		configMaps := []runtime.Object{
+			newConfigMap("configMap1", domain, namespace1, platform, map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", domain+"."+namespace2, namespace1, platform, map[string]string{"k2": "v2"}),
+			newConfigMap("configMap3", controllers.GlobalDomainLabelValue, namespace1, platform, map[string]string{"k3": "v3"}),
+			newConfigMap("configMap4", controllers.GlobalDomainLabelValue, namespace2, platform, map[string]string{"k4": "v4"}),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace1, platform, true, false),
+			newConfigurationDomain(domain, namespace2, platform, true, false),
+		}
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		spcs := []runtime.Object{}
+
+		c, msgChan := runController(platforms, configurationDomains, configMaps, spcs)
+		if c.workqueue.Len() != 2 {
+			items := c.workqueue.Len()
+			t.Error("queue should have only 2 items, but it has", items)
+			return
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		outputConfigmap := getOutputConfigmapName(domain)
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace1).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput := map[string]string{"k1": "v1", "k3": "v3"}
+		if !reflect.DeepEqual(output.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output.Data)
+		}
+
+		output, err = c.kubeClientset.CoreV1().ConfigMaps(namespace2).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		expectedOutput = map[string]string{"k2": "v2", "k4": "v4"}
+		if !reflect.DeepEqual(output.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output.Data)
+		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
 			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
@@ -220,9 +286,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
 
 		// Assert
 		if c.workqueue.Len() != 0 {
@@ -274,10 +337,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		time.Sleep(100 * time.Millisecond)
-
-		if result := c.processNextWorkItem(); !result {
-			t.Error("processing failed")
-		}
 
 		// Assert
 		if c.workqueue.Len() != 0 {

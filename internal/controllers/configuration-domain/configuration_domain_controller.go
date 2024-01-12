@@ -264,6 +264,7 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 
 	// Get the ConfigurationDomain resource
 	configDomain, err := c.configDomainsLister.ConfigurationDomains(namespace).Get(domain)
+
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil
@@ -414,6 +415,7 @@ func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, dom
 
 func (c *ConfigurationDomainController) enqueueConfigurationDomain(namespace, domain string) {
 	key := encodeDomainKey(namespace, domain)
+	klog.InfoS("enqueue ConfigurationDomain", "namespace", namespace, "domain", domain)
 	c.workqueue.Add(key)
 }
 
@@ -461,13 +463,13 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*corev1.ConfigMap)
 
-			if platform, domain, ok := getConfigMapPlatformAndDomain(comp); ok {
+			if platform, domainNs, domain, ok := getConfigMapPlatformNsAndDomain(comp); ok {
 				if isOutputConfigMap(comp) {
 					return
 				}
 
-				klog.V(4).InfoS("Config map added", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
-				handler(platform, comp.Namespace, domain)
+				klog.V(4).InfoS("Config map added", "name", comp.Name, "namespace", domainNs, "platform", platform, "domain", domain)
+				handler(platform, domainNs, domain)
 			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
@@ -478,8 +480,8 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			// 	return
 			// }
 
-			oldPlatform, oldDomain, oldOk := getConfigMapPlatformAndDomain(oldComp)
-			newPlatform, newDomain, newOk := getConfigMapPlatformAndDomain(newComp)
+			oldPlatform, oldDomainNs, oldDomain, oldOk := getConfigMapPlatformNsAndDomain(oldComp)
+			newPlatform, newDomainNs, newDomain, newOk := getConfigMapPlatformNsAndDomain(newComp)
 			targetChanged := oldPlatform != newPlatform || oldDomain != newDomain
 
 			if !oldOk && !newOk {
@@ -487,13 +489,13 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			}
 
 			if oldOk && targetChanged {
-				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", oldPlatform, "domain", oldDomain)
-				handler(oldPlatform, oldComp.Namespace, oldDomain)
+				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", oldDomainNs, "platform", oldPlatform, "domain", oldDomain)
+				handler(oldPlatform, oldDomainNs, oldDomain)
 			}
 			dataChanged := !reflect.DeepEqual(oldComp.Data, newComp.Data) || !reflect.DeepEqual(oldComp.Labels, newComp.Labels)
 			if newOk && dataChanged {
-				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", newComp.Namespace, "platform", newPlatform, "domain", newDomain)
-				handler(newPlatform, newComp.Namespace, newDomain)
+				klog.V(4).InfoS("Config map updated", "name", newComp.Name, "namespace", newDomainNs, "platform", newPlatform, "domain", newDomain)
+				handler(newPlatform, newDomainNs, newDomain)
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
@@ -503,10 +505,10 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			// 	return
 			// }
 
-			if platform, domain, ok := getConfigMapPlatformAndDomain(comp); ok {
+			if platform, domainNs, domain, ok := getConfigMapPlatformNsAndDomain(comp); ok {
 
-				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", comp.Namespace, "platform", platform, "domain", domain)
-				handler(platform, comp.Namespace, domain)
+				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", domainNs, "platform", platform, "domain", domain)
+				handler(platform, domainNs, domain)
 			}
 		},
 	})
