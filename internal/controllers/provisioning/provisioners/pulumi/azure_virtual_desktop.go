@@ -518,7 +518,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		ValidationEnvironment: pulumi.Bool(false),
 
 		ResourceGroupName: resourceGroupName,
-		StartVMOnConnect:  pulumi.Bool(false),
+		StartVMOnConnect:  pulumi.Bool(true),
 
 		RegistrationInfo: &desktopvirtualization.RegistrationInfoArgs{
 			ExpirationTime:             pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339)),
