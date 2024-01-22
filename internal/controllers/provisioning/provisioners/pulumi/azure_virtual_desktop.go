@@ -30,6 +30,7 @@ type AzureVirtualDesktop struct {
 	RemoteAppGroup               *desktopvirtualization.ApplicationGroup
 	RemoteAppGroupAssignment     *authorization.RoleAssignment
 	RemoteDesktopGroupAssignment *authorization.RoleAssignment
+	ScalingPlan                  *desktopvirtualization.ScalingPlan
 }
 
 type AzureVirtualDesktopVM struct {
@@ -507,18 +508,17 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		}
 	}
 
-	avdComponent.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &desktopvirtualization.HostPoolArgs{
+	hostPoolArgs := desktopvirtualization.HostPoolArgs{
 		//HostPoolName:                  pulumi.String(hostPoolName),
 		HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
 		LoadBalancerType:              pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
 		CustomRdpProperty:             pulumi.String("enablerdsaadauth:i:1;targetisaadjoined:i:1;drivestoredirect:s:*;audiomode:i:0;videoplaybackmode:i:1;redirectclipboard:i:1;redirectprinters:i:1;devicestoredirect:s:*;redirectcomports:i:1;redirectsmartcards:i:1;usbdevicestoredirect:s:*;enablecredsspsupport:i:1;redirectwebauthn:i:1;use multimon:i:1"),
 		PreferredAppGroupType:         pulumi.String(desktopvirtualization.PreferredAppGroupTypeDesktop),
 		PersonalDesktopAssignmentType: pulumi.String(desktopvirtualization.PersonalDesktopAssignmentTypeAutomatic),
-		//MaxSessionLimit:               pulumi.Int(999999),
-		ValidationEnvironment: pulumi.Bool(false),
+		ValidationEnvironment:         pulumi.Bool(false),
 
 		ResourceGroupName: resourceGroupName,
-		StartVMOnConnect:  pulumi.Bool(false),
+		StartVMOnConnect:  pulumi.Bool(true),
 
 		RegistrationInfo: &desktopvirtualization.RegistrationInfoArgs{
 			ExpirationTime:             pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339)),
@@ -543,7 +543,13 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 					"secureBoot":false,
 					"vTPM":false
 				}`, avd.Spec.SourceImageId, avd.Spec.VmNamePrefix, avd.Spec.VmSize)),
-	}, pulumi.Parent(avdComponent))
+	}
+
+	if avd.Spec.AutoScale.Enabled && avd.Spec.AutoScale.MaxSessionLimit > 0 {
+		hostPoolArgs.MaxSessionLimit = pulumi.Int(avd.Spec.AutoScale.MaxSessionLimit) // default 999999
+	}
+
+	avdComponent.HostPool, err = desktopvirtualization.NewHostPool(ctx, hostPoolName, &hostPoolArgs, pulumi.Parent(avdComponent))
 	if err != nil {
 		return nil, err
 	}
@@ -646,6 +652,67 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		return nil, err
 	}
 
+	if avd.Spec.AutoScale.Enabled {
+
+		avdComponent.ScalingPlan, err = desktopvirtualization.NewScalingPlan(ctx, fmt.Sprintf("%s-scaling-plan", hostPoolName), &desktopvirtualization.ScalingPlanArgs{
+			ResourceGroupName: resourceGroupName,
+			HostPoolType:      pulumi.String("Pooled"), // Should match the type of the Host Pool
+			TimeZone:          pulumi.String("GTB Standard Time"),
+
+			Schedules: desktopvirtualization.ScalingScheduleArray{
+				&desktopvirtualization.ScalingScheduleArgs{
+					Name: pulumi.String("WeekdaySchedule"),
+					DaysOfWeek: pulumi.StringArray{
+						pulumi.String(desktopvirtualization.DayOfWeekMonday),
+						pulumi.String(desktopvirtualization.DayOfWeekTuesday),
+						pulumi.String(desktopvirtualization.DayOfWeekWednesday),
+						pulumi.String(desktopvirtualization.DayOfWeekThursday),
+						pulumi.String(desktopvirtualization.DayOfWeekFriday),
+					},
+					RampUpStartTime: &desktopvirtualization.TimeArgs{
+						Hour:   pulumi.Int(8),
+						Minute: pulumi.Int(0),
+					},
+					RampUpCapacityThresholdPct:   pulumi.Int(60),
+					RampUpLoadBalancingAlgorithm: pulumi.String(desktopvirtualization.LoadBalancerTypeBreadthFirst),
+					RampUpMinimumHostsPct:        pulumi.Int(20),
+					PeakStartTime: &desktopvirtualization.TimeArgs{
+						Hour:   pulumi.Int(9),
+						Minute: pulumi.Int(0),
+					},
+					PeakLoadBalancingAlgorithm: pulumi.String(desktopvirtualization.LoadBalancerTypeDepthFirst),
+					RampDownStartTime: &desktopvirtualization.TimeArgs{
+						Hour:   pulumi.Int(18),
+						Minute: pulumi.Int(0),
+					},
+					RampDownCapacityThresholdPct:   pulumi.Int(90),
+					RampDownLoadBalancingAlgorithm: pulumi.String(desktopvirtualization.LoadBalancerTypeDepthFirst),
+					RampDownMinimumHostsPct:        pulumi.Int(0), // default 10
+					RampDownNotificationMessage:    pulumi.String("You will be logged off in 30 min. Make sure to save your work."),
+					RampDownForceLogoffUsers:       pulumi.Bool(avd.Spec.AutoScale.RampDownForceLogoffUsers),
+					RampDownWaitTimeMinutes:        pulumi.Int(30),
+					RampDownStopHostsWhen:          pulumi.String(desktopvirtualization.StopHostsWhenZeroSessions),
+					OffPeakStartTime: &desktopvirtualization.TimeArgs{
+						Hour:   pulumi.Int(22),
+						Minute: pulumi.Int(0),
+					},
+					OffPeakLoadBalancingAlgorithm: pulumi.String(desktopvirtualization.LoadBalancerTypeDepthFirst),
+				},
+			},
+
+			HostPoolReferences: desktopvirtualization.ScalingHostPoolReferenceArray{
+				&desktopvirtualization.ScalingHostPoolReferenceArgs{
+					HostPoolArmPath:    avdComponent.HostPool.ID(),
+					ScalingPlanEnabled: pulumi.Bool(true),
+				},
+			},
+			// Additional configuration...
+		}, pulumi.Parent(avdComponent))
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	storageAccountName := strings.ToLower(hostPoolName)
 	storageAccountName = regexp.MustCompile(`[^a-zA-Z0-9]+`).ReplaceAllString(storageAccountName, "")
 	storageAccountName = storageAccountName[:int32(math.Min(float64(len(storageAccountName)), 16))] // extra 8 chars for UID, total max 24 chars
@@ -666,6 +733,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		ResourceGroupName: resourceGroupName,
 		ShareName:         pulumi.String("profiles"),
 		ShareQuota:        pulumi.Int(100),
+		SignedIdentifiers: storage.SignedIdentifierArray{},
 	}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 	if err != nil {
 		return nil, err

@@ -31,7 +31,7 @@
                 //"VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN"",
                 //"RUSI_ENABLED": "true"
                 //"PULUMI_SKIP_REFRESH": "true",
-            }
+            },
         },
         {
             "name": "Run platform controller",

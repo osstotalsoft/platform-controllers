@@ -134,7 +134,7 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithTarget(value *ProvisioningTarg
 // WithDependsOn adds the given value to the DependsOn field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the DependsOn field.
-func (b *AzureDatabaseSpecApplyConfiguration) WithDependsOn(values ...*DependsOnApplyConfiguration) *AzureDatabaseSpecApplyConfiguration {
+func (b *AzureDatabaseSpecApplyConfiguration) WithDependsOn(values ...*ProvisioningResourceIdendtifierApplyConfiguration) *AzureDatabaseSpecApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithDependsOn")
