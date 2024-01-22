@@ -40,6 +40,7 @@ type AzureVirtualDesktopSpecApplyConfiguration struct {
 	Applications                       []AzureVirtualDesktopApplicationApplyConfiguration   `json:"applications,omitempty"`
 	Users                              *AzureVirtualDesktopUsersSpecApplyConfiguration      `json:"users,omitempty"`
 	Groups                             *AzureVirtualDesktopGroupsSpecApplyConfiguration     `json:"groups,omitempty"`
+	AutoScale                          *AzureVirtualDesktopAutoScaleApplyConfiguration      `json:"autoScale,omitempty"`
 	Exports                            []AzureVirtualDesktopExportsSpecApplyConfiguration   `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -185,6 +186,14 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithGroups(value *AzureVirtu
 	return b
 }
 
+// WithAutoScale sets the AutoScale field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the AutoScale field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithAutoScale(value *AzureVirtualDesktopAutoScaleApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.AutoScale = value
+	return b
+}
+
 // WithExports adds the given value to the Exports field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Exports field.
@@ -239,7 +248,7 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithTarget(value *Provisioni
 // WithDependsOn adds the given value to the DependsOn field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the DependsOn field.
-func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDependsOn(values ...*DependsOnApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDependsOn(values ...*ProvisioningResourceIdendtifierApplyConfiguration) *AzureVirtualDesktopSpecApplyConfiguration {
 	for i := range values {
 		if values[i] == nil {
 			panic("nil value passed to WithDependsOn")

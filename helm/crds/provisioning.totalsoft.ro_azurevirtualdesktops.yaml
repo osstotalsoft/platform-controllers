@@ -52,6 +52,19 @@ spec:
                   - path
                   type: object
                 type: array
+              autoScale:
+                properties:
+                  enabled:
+                    description: Specifies if autoscaling is enabled or not
+                    type: boolean
+                  maxSessionLimit:
+                    description: Specifies the maximum number of sessions per host
+                    type: integer
+                  rampDownForceLogoffUsers:
+                    description: Should users be logged off forcefully from hosts
+                      in the ramp-down phase
+                    type: boolean
+                type: object
               dependsOn:
                 description: List of dependencies
                 items:
@@ -95,7 +108,6 @@ spec:
                           type: object
                       type: object
                     adminUserName:
-                      description: // +optional PublicAddress ValueExport `json:"publicAddress,omitempty"`
                       properties:
                         toConfigMap:
                           properties:

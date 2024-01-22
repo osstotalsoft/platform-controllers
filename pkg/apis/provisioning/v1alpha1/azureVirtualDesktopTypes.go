@@ -65,9 +65,23 @@ type AzureVirtualDesktopSpec struct {
 	Groups AzureVirtualDesktopGroupsSpec `json:"groups"`
 
 	// +optional
+	AutoScale AzureVirtualDesktopAutoScale `json:"autoScale,omitempty"`
+
+	// +optional
 	Exports []AzureVirtualDesktopExportsSpec `json:"exports,omitempty"`
 
 	ProvisioningMeta `json:",inline"`
+}
+
+type AzureVirtualDesktopAutoScale struct {
+	// Specifies if autoscaling is enabled or not
+	Enabled bool `json:"enabled,omitempty"`
+
+	// Specifies the maximum number of sessions per host
+	MaxSessionLimit int `json:"maxSessionLimit,omitempty"`
+
+	// Should users be logged off forcefully from hosts in the ramp-down phase
+	RampDownForceLogoffUsers bool `json:"rampDownForceLogoffUsers,omitempty"`
 }
 
 type AzureVirtualDesktopExportsSpec struct {
@@ -77,8 +91,6 @@ type AzureVirtualDesktopExportsSpec struct {
 	HostPoolName ValueExport `json:"hostPoolName,omitempty"`
 	// +optional
 	ComputerName ValueExport `json:"computerName,omitempty"`
-	// // +optional
-	// PublicAddress ValueExport `json:"publicAddress,omitempty"`
 	// +optional
 	AdminUserName ValueExport `json:"adminUserName,omitempty"`
 	// +optional
