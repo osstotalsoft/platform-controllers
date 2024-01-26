@@ -295,6 +295,49 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
+	t.Run("tenant specific configs", func(t *testing.T) {
+		// Arrange
+		platform := _newPlatform("qa", "charismaonline.qa")
+		tenant := _newTenant("tenant1", platform.Name, []string{})
+		tenant.Spec.Configs = map[string]string{
+			"config1": "value1",
+			"config2": "value2",
+		}
+
+		expectedTenantData := map[string]string{
+			"MultiTenancy__Tenants__tenant1__config1": "value1",
+			"MultiTenancy__Tenants__tenant1__config2": "value2",
+		}
+
+		c, _ := _runController([]runtime.Object{platform, tenant})
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		output, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		for key, value := range expectedTenantData {
+			if expectedValue, ok := output.Data[key]; ok {
+				if value != expectedValue {
+					t.Errorf("Expected value for key %v: %v, got: %v", key, expectedValue, value)
+				}
+			} else {
+				t.Errorf("Key %v not found in output configmap.", key)
+			}
+		}
+	})
 }
 
 func _newPlatform(ns, name string) *platformv1.Platform {

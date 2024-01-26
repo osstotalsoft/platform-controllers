@@ -32,6 +32,7 @@ type TenantSpecApplyConfiguration struct {
 	DomainRefs   []string               `json:"domainRefs,omitempty"`
 	AdminEmail   *string                `json:"adminEmail,omitempty"`
 	DeletePolicy *v1alpha1.DeletePolicy `json:"deletePolicy,omitempty"`
+	Configs      map[string]string      `json:"configs,omitempty"`
 }
 
 // TenantSpecApplyConfiguration constructs an declarative configuration of the TenantSpec type for use with
@@ -95,5 +96,19 @@ func (b *TenantSpecApplyConfiguration) WithAdminEmail(value string) *TenantSpecA
 // If called multiple times, the DeletePolicy field is set to the value of the last call.
 func (b *TenantSpecApplyConfiguration) WithDeletePolicy(value v1alpha1.DeletePolicy) *TenantSpecApplyConfiguration {
 	b.DeletePolicy = &value
+	return b
+}
+
+// WithConfigs puts the entries into the Configs field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the Configs field,
+// overwriting an existing map entries in Configs field with the same key.
+func (b *TenantSpecApplyConfiguration) WithConfigs(entries map[string]string) *TenantSpecApplyConfiguration {
+	if b.Configs == nil && len(entries) > 0 {
+		b.Configs = make(map[string]string, len(entries))
+	}
+	for k, v := range entries {
+		b.Configs[k] = v
+	}
 	return b
 }

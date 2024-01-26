@@ -47,6 +47,10 @@ type TenantSpec struct {
 	// +kubebuilder:validation:Enum=RetainStatefulResources;DeleteAll
 	// +kubebuilder:default:=RetainStatefulResources
 	DeletePolicy DeletePolicy `json:"deletePolicy"`
+
+	// Tenant specific configs.
+	// +optional
+	Configs map[string]string `json:"configs,omitempty"`
 }
 
 // TenantStatus is the status for a tenant.
