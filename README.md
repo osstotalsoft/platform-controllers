@@ -26,6 +26,9 @@ metadata:
   namespace: qa
 spec:
   code: tenant1
+  configs:
+    config1: value1
+    config2: value2
   id: cbb451f2-a7c0-430a-949c-54d576c77b8d
   platformRef: charismaonline.qa
 ```
