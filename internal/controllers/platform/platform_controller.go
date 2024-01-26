@@ -463,6 +463,11 @@ func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platf
 	cfgMapName := fmt.Sprintf("%s-tenants", platform.Name)
 	tenantData := map[string]string{}
 	for _, tenant := range tenants {
+		if tenant.Spec.Configs != nil {
+			for cfgKey, cfgValue := range tenant.Spec.Configs {
+				tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__%s", tenant.Name, cfgKey)] = cfgValue
+			}
+		}
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled)
 	}

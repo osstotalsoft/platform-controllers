@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.13.0
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: azurevirtualmachines.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
@@ -23,14 +23,19 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -45,7 +50,7 @@ spec:
                         this dependency represents.
                       type: string
                     name:
-                      description: The name of the dependency.
+                      description: ' The name of the dependency.'
                       type: string
                   required:
                   - kind
@@ -166,15 +171,19 @@ spec:
                 description: Target platform (custom resource name).
                 type: string
               rdpSourceAddressPrefix:
-                description: 'RDP inbound connection CIDR or source IP range or *
-                  to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’
-                  and ‘Internet’ can also be used. eg: 128.0.57.0/25'
+                description: |-
+                  RDP inbound connection CIDR or source IP range or * to match any IP. Tags such as ‘VirtualNetwork’, ‘AzureLoadBalancer’ and ‘Internet’ can also be used.
+                  eg: 128.0.57.0/25
                 type: string
               sourceImageId:
-                description: 'Source OS disk snapshot eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0'
+                description: |-
+                  Source OS disk snapshot
+                  eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/Provisioning_Test/providers/Microsoft.Compute/galleries/MyGallery/images/ch-client-base/versions/2.0.0
                 type: string
               subnetId:
-                description: 'Subnet of the VNet used by the virtual machine eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default'
+                description: |-
+                  Subnet of the VNet used by the virtual machine
+                  eg: /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
                 type: string
               target:
                 default:
@@ -190,8 +199,9 @@ spec:
                     - Platform
                     type: string
                   filter:
-                    description: Filter targets (applies for category "Tenant"). If
-                      ommited all targets are selected.
+                    description: |-
+                      Filter targets (applies for category "Tenant").
+                      If ommited all targets are selected.
                     properties:
                       kind:
                         default: Blacklist
@@ -215,9 +225,9 @@ spec:
               tenantOverrides:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
-                description: Overrides for tenants. Dictionary with tenant name as
-                  key, spec override as value. The spec override has the same structure
-                  as Spec
+                description: |-
+                  Overrides for tenants. Dictionary with tenant name as key, spec override as value.
+                  The spec override has the same structure as Spec
                 type: object
               vmName:
                 description: Virtual Machine name prefix. Will have platform and tenant

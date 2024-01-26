@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.13.0
+    controller-gen.kubebuilder.io/version: v0.14.0
   name: azuremanageddatabases.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
@@ -26,14 +26,19 @@ spec:
       openAPIV3Schema:
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -52,7 +57,7 @@ spec:
                         this dependency represents.
                       type: string
                     name:
-                      description: The name of the dependency.
+                      description: ' The name of the dependency.'
                       type: string
                   required:
                   - kind
@@ -92,8 +97,9 @@ spec:
                   type: object
                 type: array
               importDatabaseId:
-                description: 'Existing database to be used instead of creating a new
-                  one eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb'
+                description: |-
+                  Existing database to be used instead of creating a new one
+                  eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
                 type: string
               managedInstance:
                 description: Target managed instance spec.
@@ -150,8 +156,9 @@ spec:
                     - Platform
                     type: string
                   filter:
-                    description: Filter targets (applies for category "Tenant"). If
-                      ommited all targets are selected.
+                    description: |-
+                      Filter targets (applies for category "Tenant").
+                      If ommited all targets are selected.
                     properties:
                       kind:
                         default: Blacklist
@@ -175,9 +182,9 @@ spec:
               tenantOverrides:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
-                description: Overrides for tenants. Dictionary with tenant name as
-                  key, spec override as value. The spec override has the same structure
-                  as Spec
+                description: |-
+                  Overrides for tenants. Dictionary with tenant name as key, spec override as value.
+                  The spec override has the same structure as Spec
                 type: object
             required:
             - dbName
