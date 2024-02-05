@@ -444,7 +444,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-%s", appUser, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-%s", parsedAppUser, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  appsUserGroup.ID(),
 			MemberObjectId: pulumi.String(user.Id),
 		}, pulumi.Parent(appsUserGroup))
@@ -465,7 +465,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-group-%s", childAppsUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-group-%s", parsedChildAppsUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  appsUserGroup.ID(),
 			MemberObjectId: pulumi.String(childAppsUserGroup.Id),
 		}, pulumi.Parent(appsUserGroup))
@@ -498,7 +498,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", admin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", parsedAdmin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  adminUserGroup.ID(),
 			MemberObjectId: pulumi.String(user.Id),
 		}, pulumi.Parent(adminUserGroup))
@@ -521,7 +521,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", childAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", parsedChildAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  adminUserGroup.ID(),
 			MemberObjectId: pulumi.String(childAdminUserGroup.Id),
 		}, pulumi.Parent(adminUserGroup))
