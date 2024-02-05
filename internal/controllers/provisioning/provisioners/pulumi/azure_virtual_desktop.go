@@ -429,9 +429,16 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		return nil, err
 	}
 
+	tc := provisioning.GetTemplateContext(target)
+
 	for _, appUser := range avd.Spec.Users.ApplicationUsers {
+		parsedAppUser, err := template.ParseTemplate(appUser, tc)
+		if err != nil {
+			return nil, err
+		}
+
 		user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
-			UserPrincipalName: pulumi.StringRef(appUser),
+			UserPrincipalName: pulumi.StringRef(parsedAppUser),
 		}, nil)
 		if err != nil {
 			return nil, err
@@ -446,8 +453,13 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		}
 	}
 	for _, childAppsUserGroupName := range avd.Spec.Groups.ApplicationUsers {
+		parsedChildAppsUserGroupName, err := template.ParseTemplate(childAppsUserGroupName, tc)
+		if err != nil {
+			return nil, err
+		}
+
 		childAppsUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
-			DisplayName: pulumi.StringRef(childAppsUserGroupName),
+			DisplayName: pulumi.StringRef(parsedChildAppsUserGroupName),
 		}, nil)
 		if err != nil {
 			return nil, err
@@ -474,8 +486,13 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 	}
 
 	for _, admin := range avd.Spec.Users.Admins {
+		parsedAdmin, err := template.ParseTemplate(admin, tc)
+		if err != nil {
+			return nil, err
+		}
+
 		user, err := azuread.LookupUser(ctx, &azuread.LookupUserArgs{
-			UserPrincipalName: pulumi.StringRef(admin),
+			UserPrincipalName: pulumi.StringRef(parsedAdmin),
 		}, nil)
 		if err != nil {
 			return nil, err
@@ -491,8 +508,13 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 	}
 
 	for _, childAdminUserGroupName := range avd.Spec.Groups.Admins {
+		parsedChildAdminUserGroupName, err := template.ParseTemplate(childAdminUserGroupName, tc)
+		if err != nil {
+			return nil, err
+		}
+
 		childAdminUserGroup, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
-			DisplayName: pulumi.StringRef(childAdminUserGroupName),
+			DisplayName: pulumi.StringRef(parsedChildAdminUserGroupName),
 		}, nil)
 
 		if err != nil {
