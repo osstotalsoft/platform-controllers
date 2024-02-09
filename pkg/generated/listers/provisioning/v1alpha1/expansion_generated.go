@@ -50,6 +50,14 @@ type AzureVirtualMachineListerExpansion interface{}
 // AzureVirtualMachineNamespaceLister.
 type AzureVirtualMachineNamespaceListerExpansion interface{}
 
+// EntraUserListerExpansion allows custom methods to be added to
+// EntraUserLister.
+type EntraUserListerExpansion interface{}
+
+// EntraUserNamespaceListerExpansion allows custom methods to be added to
+// EntraUserNamespaceLister.
+type EntraUserNamespaceListerExpansion interface{}
+
 // HelmReleaseListerExpansion allows custom methods to be added to
 // HelmReleaseLister.
 type HelmReleaseListerExpansion interface{}

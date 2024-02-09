@@ -326,6 +326,48 @@ spec:
   workspaceFriendlyName: Charisma
 ```
 
+### EntraUser
+
+`EntraUser` is a Custom Resource Definition (CRD) that represents a user for Entra Id.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_entrausers.yaml)
+
+## Spec
+
+The `EntraUser` spec has the following fields:
+
+- `userPrincipalName`: The user principal name of the user. This is typically the user's email address or username.
+- `displayName`: The display name of the user.
+- `initialPassword`: The initial password for the user. If this is not provided, a random password will be generated.
+- `domainRef`: The reference to the domain that the user belongs to.
+- `platformRef`: The reference to the platform that the user belongs to.
+
+## Example
+
+Here's an example of an `EntraUser` resource:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: EntraUser
+metadata:
+  name: example-user
+  namespace: qa-lsng
+spec:
+  userPrincipalName: "user@tenant1-qa.example.com"
+  displayName: "Example User"
+  initialPassword: "password123"
+  domainRef: "entra-users"
+  platformRef: "qa"
+  exports:
+    - domain: entra-users
+      initialPassword:
+        toVault:
+          keyTemplate: InitialPassword
+      userPrincipalName:
+        toVault:
+          keyTemplate: UserPrincipalName
+```
+
 ## configuration.totalsoft.ro
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.
 

@@ -84,6 +84,7 @@ type ProvisioningResourceIdendtifier struct {
 type ProvisioningResourceKind string
 
 const (
+	ProvisioningResourceKindEntraUser            = ProvisioningResourceKind("EntraUser")
 	ProvisioningResourceKindAzureDatabase        = ProvisioningResourceKind("AzureDatabase")
 	ProvisioningResourceKindAzureManagedDatabase = ProvisioningResourceKind("AzureManagedDatabase")
 	ProvisioningResourceKindAzureVirtualDesktop  = ProvisioningResourceKind("AzureVirtualDesktop")

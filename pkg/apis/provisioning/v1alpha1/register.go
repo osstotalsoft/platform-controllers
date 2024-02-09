@@ -37,6 +37,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&AzureVirtualMachineList{},
 		&AzureVirtualDesktop{},
 		&AzureVirtualDesktopList{},
+		&EntraUser{},
+		&EntraUserList{},
 		&HelmRelease{},
 		&HelmReleaseList{},
 		&metav1.Status{},

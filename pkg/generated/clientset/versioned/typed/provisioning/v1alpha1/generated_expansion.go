@@ -26,4 +26,6 @@ type AzureVirtualDesktopExpansion interface{}
 
 type AzureVirtualMachineExpansion interface{}
 
+type EntraUserExpansion interface{}
+
 type HelmReleaseExpansion interface{}
