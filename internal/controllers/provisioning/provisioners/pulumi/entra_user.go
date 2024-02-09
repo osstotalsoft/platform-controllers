@@ -39,7 +39,7 @@ func deployEntraUser(target provisioning.ProvisioningTarget,
 		initialPassword = randomPassword.Result
 	}
 
-	user, err := azuread.NewUser(ctx, "newUser", &azuread.UserArgs{
+	user, err := azuread.NewUser(ctx, entraUser.Name, &azuread.UserArgs{
 		UserPrincipalName: pulumi.String(entraUser.Spec.UserPrincipalName),
 		DisplayName:       pulumi.String(entraUser.Spec.DisplayName),
 		Password:          initialPassword,
