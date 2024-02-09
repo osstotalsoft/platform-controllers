@@ -38,7 +38,7 @@ type EntraUserSpec struct {
 
 type EntraUserExportsSpec struct {
 
-	// The domain or bounded-context in which this database will be used.
+	// The domain or bounded-context in which this user will be used.
 	Domain string `json:"domain"`
 
 	// The initial password for the user
