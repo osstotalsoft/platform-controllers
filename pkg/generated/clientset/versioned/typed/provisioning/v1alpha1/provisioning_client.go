@@ -32,6 +32,7 @@ type ProvisioningV1alpha1Interface interface {
 	AzureManagedDatabasesGetter
 	AzureVirtualDesktopsGetter
 	AzureVirtualMachinesGetter
+	EntraUsersGetter
 	HelmReleasesGetter
 }
 
@@ -54,6 +55,10 @@ func (c *ProvisioningV1alpha1Client) AzureVirtualDesktops(namespace string) Azur
 
 func (c *ProvisioningV1alpha1Client) AzureVirtualMachines(namespace string) AzureVirtualMachineInterface {
 	return newAzureVirtualMachines(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) EntraUsers(namespace string) EntraUserInterface {
+	return newEntraUsers(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) HelmReleases(namespace string) HelmReleaseInterface {

@@ -40,8 +40,9 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyHelmRelease := len(infra.HelmReleases) > 0
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
+	anyEntraUser := len(infra.EntraUsers) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop
 
 	stackName := provisioning.Match(target,
@@ -222,6 +223,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 	}
 
 	switch kind {
+	case string(provisioningv1.ProvisioningResourceKindEntraUser):
+		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
 	case string(provisioningv1.ProvisioningResourceKindAzureDatabase):
 		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, ctx)
 	case string(provisioningv1.ProvisioningResourceKindAzureManagedDatabase):
@@ -282,6 +285,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 			}
 
 			rgName = &resGroupName
+		}
+
+		for _, user := range infra.EntraUsers {
+			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
 		}
 
 		for _, db := range infra.AzureDbs {

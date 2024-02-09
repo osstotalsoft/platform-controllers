@@ -32,6 +32,8 @@ type Interface interface {
 	AzureVirtualDesktops() AzureVirtualDesktopInformer
 	// AzureVirtualMachines returns a AzureVirtualMachineInformer.
 	AzureVirtualMachines() AzureVirtualMachineInformer
+	// EntraUsers returns a EntraUserInformer.
+	EntraUsers() EntraUserInformer
 	// HelmReleases returns a HelmReleaseInformer.
 	HelmReleases() HelmReleaseInformer
 }
@@ -65,6 +67,11 @@ func (v *version) AzureVirtualDesktops() AzureVirtualDesktopInformer {
 // AzureVirtualMachines returns a AzureVirtualMachineInformer.
 func (v *version) AzureVirtualMachines() AzureVirtualMachineInformer {
 	return &azureVirtualMachineInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// EntraUsers returns a EntraUserInformer.
+func (v *version) EntraUsers() EntraUserInformer {
+	return &entraUserInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // HelmReleases returns a HelmReleaseInformer.

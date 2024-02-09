@@ -20,6 +20,7 @@ type CreateInfrastructureFunc func(
 	infra *InfrastructureManifests) ProvisioningResult
 
 type InfrastructureManifests struct {
+	EntraUsers           []*provisioningv1.EntraUser
 	AzureDbs             []*provisioningv1.AzureDatabase
 	AzureManagedDbs      []*provisioningv1.AzureManagedDatabase
 	HelmReleases         []*provisioningv1.HelmRelease
@@ -29,6 +30,8 @@ type InfrastructureManifests struct {
 
 func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResourceIdendtifier) (BaseProvisioningResource, bool) {
 	switch id.Kind {
+	case provisioningv1.ProvisioningResourceKindEntraUser:
+		return FindByName[*provisioningv1.EntraUser](id.Name, infra.EntraUsers)
 	case provisioningv1.ProvisioningResourceKindAzureDatabase:
 		return FindByName[*provisioningv1.AzureDatabase](id.Name, infra.AzureDbs)
 	case provisioningv1.ProvisioningResourceKindAzureManagedDatabase:
@@ -59,7 +62,7 @@ type ProvisioningResult struct {
 }
 
 type ProvisioningResource interface {
-	*provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
+	*provisioningv1.EntraUser | *provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
 
 	GetProvisioningMeta() *provisioningv1.ProvisioningMeta
 	GetSpec() any

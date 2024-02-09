@@ -103,6 +103,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualMachineSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ConfigMapTemplate"):
 		return &applyconfigurationprovisioningv1alpha1.ConfigMapTemplateApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("EntraUser"):
+		return &applyconfigurationprovisioningv1alpha1.EntraUserApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("EntraUserExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.EntraUserExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("EntraUserSpec"):
+		return &applyconfigurationprovisioningv1alpha1.EntraUserSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmRelease"):
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseExportsSpec"):

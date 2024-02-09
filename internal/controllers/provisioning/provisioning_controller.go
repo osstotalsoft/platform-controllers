@@ -70,6 +70,7 @@ type ProvisioningController struct {
 	helmReleaseInformer         provisioningInformersv1.HelmReleaseInformer
 	azureVirtualMachineInformer provisioningInformersv1.AzureVirtualMachineInformer
 	azureVirtualDesktopInformer provisioningInformersv1.AzureVirtualDesktopInformer
+	entraUserInformer           provisioningInformersv1.EntraUserInformer
 
 	messagingPublisher messaging.MessagingPublisher
 }
@@ -100,6 +101,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		helmReleaseInformer:         factory.Provisioning().V1alpha1().HelmReleases(),
 		azureVirtualMachineInformer: factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 		azureVirtualDesktopInformer: factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
+		entraUserInformer:           factory.Provisioning().V1alpha1().EntraUsers(),
 
 		provisioner:        tenantProvisioner,
 		clientset:          clientSet,
@@ -119,6 +121,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain)
 
 	return c
 }
@@ -325,12 +328,23 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 
+	entraUsers, err := c.entraUserInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	entraUsers = selectItemsInTarget(target.GetPlatformName(), domain, entraUsers, target)
+	entraUsers, err = applyTargetOverrides(entraUsers, target)
+	if err != nil {
+		return err
+	}
+
 	result := c.provisioner(target, domain, &InfrastructureManifests{
 		AzureDbs:             azureDbs,
 		AzureManagedDbs:      azureManagedDbs,
 		HelmReleases:         helmReleases,
 		AzureVirtualMachines: azureVirtualMachines,
 		AzureVirtualDesktops: azureVirtualDesktops,
+		EntraUsers:           entraUsers,
 	})
 
 	if result.Error == nil && result.HasChanges {
