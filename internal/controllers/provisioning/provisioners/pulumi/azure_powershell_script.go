@@ -28,8 +28,6 @@ func deployAzurePowerShellScript(target provisioning.ProvisioningTarget,
 		return nil, err
 	}
 
-	os.Getenv("AZURE_MANAGED_IDENTITY_RG")
-
 	managedIdentity, err := managedidentity.LookupUserAssignedIdentity(ctx, &managedidentity.LookupUserAssignedIdentityArgs{
 		ResourceGroupName: os.Getenv("AZURE_MANAGED_IDENTITY_RG"),
 		ResourceName:      os.Getenv("AZURE_MANAGED_IDENTITY_NAME"),
