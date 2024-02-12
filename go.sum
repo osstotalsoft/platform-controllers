@@ -244,6 +244,8 @@ github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.4.0 h1:h6SVlNPqa8Spxya7G
 github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.4.0/go.mod h1:eD5kkSSQU2kJbW7telpS9gaM6hiRH4Q8u4lcOpx8jrc=
 github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2 v2.4.0 h1:pz8cmyWEFE4qfGGDBAGMQ35pWckM2OOSxgY1cK9e4JI=
 github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2 v2.4.0/go.mod h1:s7GSMVekCyCrWTEA3aOdVDtOVkIqTW0yrMnWlWG+4V8=
+github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.4.0 h1:94XmWZiARdqexr5Sm+PW+tnxQ0VT5lRIXxrWO/WcHJQ=
+github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.4.0/go.mod h1:JT+ptHaDSxTWwZYmnwKCewX8imIsBE5c49gryfOI5nY=
 github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.4.0 h1:KrMG6wvPQuBEqbECNotGBWEuhEEoArN9ndcdkKIzWIY=
 github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.4.0/go.mod h1:vszGWHBWdeTWzIIHR7ka04NGQh0GHyVK/yhAbtIEnA4=
 github.com/pulumi/pulumi-azure-native-sdk/resources/v2 v2.4.0 h1:xqKfg8BZSQxZFrTtj06Qjjro7yyOiep58+N6hszLSJE=

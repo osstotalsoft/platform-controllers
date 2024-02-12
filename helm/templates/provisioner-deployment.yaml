@@ -56,6 +56,16 @@ spec:
             configMapKeyRef:
               name: azure-config
               key: tenantId
+        - name: AZURE_MANAGED_IDENTITY_RG
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: managedIdentityRG
+        - name: AZURE_MANAGED_IDENTITY_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: managedIdentityName            
         - name: ARM_CLIENT_ID
           valueFrom:
             configMapKeyRef:

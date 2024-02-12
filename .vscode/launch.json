@@ -27,8 +27,10 @@
             ],
             "env": {
                 "AZURE_LOCATION": "West Europe",
-                "VAULT_ADDR": "http://localhost:62293/",
-                //"VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN"",
+                "VAULT_ADDR": "http://localhost:54969/",
+                //"VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN"",                
+                "AZURE_MANAGED_IDENTITY_RG": "global",
+                "AZURE_MANAGED_IDENTITY_NAME": "scriptidentity",
                 //"RUSI_ENABLED": "true"
                 //"PULUMI_SKIP_REFRESH": "true",
             },

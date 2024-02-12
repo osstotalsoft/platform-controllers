@@ -63,14 +63,15 @@ type ProvisioningController struct {
 
 	provisioner CreateInfrastructureFunc
 
-	platformInformer            platformInformersv1.PlatformInformer
-	tenantInformer              platformInformersv1.TenantInformer
-	azureDbInformer             provisioningInformersv1.AzureDatabaseInformer
-	azureManagedDbInformer      provisioningInformersv1.AzureManagedDatabaseInformer
-	helmReleaseInformer         provisioningInformersv1.HelmReleaseInformer
-	azureVirtualMachineInformer provisioningInformersv1.AzureVirtualMachineInformer
-	azureVirtualDesktopInformer provisioningInformersv1.AzureVirtualDesktopInformer
-	entraUserInformer           provisioningInformersv1.EntraUserInformer
+	platformInformer              platformInformersv1.PlatformInformer
+	tenantInformer                platformInformersv1.TenantInformer
+	azureDbInformer               provisioningInformersv1.AzureDatabaseInformer
+	azureManagedDbInformer        provisioningInformersv1.AzureManagedDatabaseInformer
+	azurePowerShellScriptInformer provisioningInformersv1.AzurePowerShellScriptInformer
+	helmReleaseInformer           provisioningInformersv1.HelmReleaseInformer
+	azureVirtualMachineInformer   provisioningInformersv1.AzureVirtualMachineInformer
+	azureVirtualDesktopInformer   provisioningInformersv1.AzureVirtualDesktopInformer
+	entraUserInformer             provisioningInformersv1.EntraUserInformer
 
 	messagingPublisher messaging.MessagingPublisher
 }
@@ -94,14 +95,15 @@ func NewProvisioningController(clientSet clientset.Interface,
 		recorder:  &record.FakeRecorder{},
 		factory:   factory,
 
-		platformInformer:            factory.Platform().V1alpha1().Platforms(),
-		tenantInformer:              factory.Platform().V1alpha1().Tenants(),
-		azureDbInformer:             factory.Provisioning().V1alpha1().AzureDatabases(),
-		azureManagedDbInformer:      factory.Provisioning().V1alpha1().AzureManagedDatabases(),
-		helmReleaseInformer:         factory.Provisioning().V1alpha1().HelmReleases(),
-		azureVirtualMachineInformer: factory.Provisioning().V1alpha1().AzureVirtualMachines(),
-		azureVirtualDesktopInformer: factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
-		entraUserInformer:           factory.Provisioning().V1alpha1().EntraUsers(),
+		platformInformer:              factory.Platform().V1alpha1().Platforms(),
+		tenantInformer:                factory.Platform().V1alpha1().Tenants(),
+		azureDbInformer:               factory.Provisioning().V1alpha1().AzureDatabases(),
+		azureManagedDbInformer:        factory.Provisioning().V1alpha1().AzureManagedDatabases(),
+		azurePowerShellScriptInformer: factory.Provisioning().V1alpha1().AzurePowerShellScripts(),
+		helmReleaseInformer:           factory.Provisioning().V1alpha1().HelmReleases(),
+		azureVirtualMachineInformer:   factory.Provisioning().V1alpha1().AzureVirtualMachines(),
+		azureVirtualDesktopInformer:   factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
+		entraUserInformer:             factory.Provisioning().V1alpha1().EntraUsers(),
 
 		provisioner:        tenantProvisioner,
 		clientset:          clientSet,
@@ -118,6 +120,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 	addResourceHandlers[*provisioningv1.AzureDatabase]("Azure database", c.azureDbInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.AzureManagedDatabase]("Azure managed database", c.azureManagedDbInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.AzurePowerShellScript]("Azure PowerShell script", c.azurePowerShellScriptInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
@@ -298,6 +301,16 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 
+	azurePowerShellScripts, err := c.azurePowerShellScriptInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	azurePowerShellScripts = selectItemsInTarget(target.GetPlatformName(), domain, azurePowerShellScripts, target)
+	azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target)
+	if err != nil {
+		return err
+	}
+
 	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
@@ -339,12 +352,13 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	}
 
 	result := c.provisioner(target, domain, &InfrastructureManifests{
-		AzureDbs:             azureDbs,
-		AzureManagedDbs:      azureManagedDbs,
-		HelmReleases:         helmReleases,
-		AzureVirtualMachines: azureVirtualMachines,
-		AzureVirtualDesktops: azureVirtualDesktops,
-		EntraUsers:           entraUsers,
+		AzureDbs:               azureDbs,
+		AzureManagedDbs:        azureManagedDbs,
+		AzurePowerShellScripts: azurePowerShellScripts,
+		HelmReleases:           helmReleases,
+		AzureVirtualMachines:   azureVirtualMachines,
+		AzureVirtualDesktops:   azureVirtualDesktops,
+		EntraUsers:             entraUsers,
 	})
 
 	if result.Error == nil && result.HasChanges {

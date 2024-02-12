@@ -4,23 +4,17 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: entrausers.provisioning.totalsoft.ro
+  name: azurepowershellscripts.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
   names:
-    kind: EntraUser
-    listKind: EntraUserList
-    plural: entrausers
-    singular: entrauser
+    kind: AzurePowerShellScript
+    listKind: AzurePowerShellScriptList
+    plural: azurepowershellscripts
+    singular: azurepowershellscript
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.displayName
-      name: Display name
-      type: string
-    - jsonPath: .spec.userPrincipalName
-      name: User principal name
-      type: string
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
@@ -66,10 +60,6 @@ spec:
                   - name
                   type: object
                 type: array
-              displayName:
-                description: DisplayName represents the display name of the user,
-                  e.g. "John Doe"
-                type: string
               domainRef:
                 description: Business Domain that this resource is provision for.
                 type: string
@@ -78,29 +68,12 @@ spec:
                 items:
                   properties:
                     domain:
-                      description: The domain or bounded-context in which this user
+                      description: The domain or bounded-context in which this script
                         will be used.
                       type: string
-                    initialPassword:
-                      description: The initial password for the user
-                      properties:
-                        toConfigMap:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                        toVault:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                      type: object
-                    userPrincipalName:
-                      description: The user principal name
+                    scriptOutputs:
+                      description: Represents the outputs of the Azure PowerShell
+                        script.
                       properties:
                         toConfigMap:
                           properties:
@@ -119,12 +92,21 @@ spec:
                       type: object
                   type: object
                 type: array
-              initialPassword:
-                description: InitialPassword represents the initial password for the
-                  user
+              forceUpdateTag:
+                description: Change value to force the script to execute even if it
+                  has not changed.
                 type: string
               platformRef:
                 description: Target platform (custom resource name).
+                type: string
+              scriptArguments:
+                description: |-
+                  Represents the arguments to be passed to the PowerShell script.
+                  eg: "-name JohnDoe"
+                type: string
+              scriptContent:
+                description: ScriptContent represents the content of an Azure PowerShell
+                  script.
                 type: string
               target:
                 default:
@@ -170,16 +152,11 @@ spec:
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
                 type: object
-              userPrincipalName:
-                description: UserPrincipalName represents the user principal name,
-                  e.g. "jdoe@domain.com"
-                type: string
             required:
-            - displayName
             - domainRef
             - platformRef
+            - scriptContent
             - target
-            - userPrincipalName
             type: object
         required:
         - spec

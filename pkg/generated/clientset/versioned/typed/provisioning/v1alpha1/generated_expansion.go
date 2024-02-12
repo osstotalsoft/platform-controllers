@@ -22,6 +22,8 @@ type AzureDatabaseExpansion interface{}
 
 type AzureManagedDatabaseExpansion interface{}
 
+type AzurePowerShellScriptExpansion interface{}
+
 type AzureVirtualDesktopExpansion interface{}
 
 type AzureVirtualMachineExpansion interface{}

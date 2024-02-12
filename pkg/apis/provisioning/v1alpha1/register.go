@@ -33,6 +33,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&AzureDatabaseList{},
 		&AzureManagedDatabase{},
 		&AzureManagedDatabaseList{},
+		&AzurePowerShellScript{},
+		&AzurePowerShellScriptList{},
 		&AzureVirtualMachine{},
 		&AzureVirtualMachineList{},
 		&AzureVirtualDesktop{},
