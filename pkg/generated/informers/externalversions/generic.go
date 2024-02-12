@@ -73,6 +73,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureDatabases().Informer()}, nil
 	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azuremanageddatabases"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureManagedDatabases().Informer()}, nil
+	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azurepowershellscripts"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzurePowerShellScripts().Informer()}, nil
 	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azurevirtualdesktops"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureVirtualDesktops().Informer()}, nil
 	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azurevirtualmachines"):

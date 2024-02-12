@@ -20,12 +20,13 @@ type CreateInfrastructureFunc func(
 	infra *InfrastructureManifests) ProvisioningResult
 
 type InfrastructureManifests struct {
-	EntraUsers           []*provisioningv1.EntraUser
-	AzureDbs             []*provisioningv1.AzureDatabase
-	AzureManagedDbs      []*provisioningv1.AzureManagedDatabase
-	HelmReleases         []*provisioningv1.HelmRelease
-	AzureVirtualMachines []*provisioningv1.AzureVirtualMachine
-	AzureVirtualDesktops []*provisioningv1.AzureVirtualDesktop
+	EntraUsers             []*provisioningv1.EntraUser
+	AzureDbs               []*provisioningv1.AzureDatabase
+	AzureManagedDbs        []*provisioningv1.AzureManagedDatabase
+	AzurePowerShellScripts []*provisioningv1.AzurePowerShellScript
+	HelmReleases           []*provisioningv1.HelmRelease
+	AzureVirtualMachines   []*provisioningv1.AzureVirtualMachine
+	AzureVirtualDesktops   []*provisioningv1.AzureVirtualDesktop
 }
 
 func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResourceIdendtifier) (BaseProvisioningResource, bool) {
@@ -36,6 +37,8 @@ func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResource
 		return FindByName[*provisioningv1.AzureDatabase](id.Name, infra.AzureDbs)
 	case provisioningv1.ProvisioningResourceKindAzureManagedDatabase:
 		return FindByName[*provisioningv1.AzureManagedDatabase](id.Name, infra.AzureManagedDbs)
+	case provisioningv1.ProvisioningResourceKindAzurePowerShellScript:
+		return FindByName[*provisioningv1.AzurePowerShellScript](id.Name, infra.AzurePowerShellScripts)
 	case provisioningv1.ProvisioningResourceKindHelmRelease:
 		return FindByName[*provisioningv1.HelmRelease](id.Name, infra.HelmReleases)
 	case provisioningv1.ProvisioningResourceKindAzureVirtualMachine:
@@ -62,7 +65,7 @@ type ProvisioningResult struct {
 }
 
 type ProvisioningResource interface {
-	*provisioningv1.EntraUser | *provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
+	*provisioningv1.EntraUser | *provisioningv1.AzureDatabase | *provisioningv1.AzureManagedDatabase | *provisioningv1.AzurePowerShellScript | *provisioningv1.HelmRelease | *provisioningv1.AzureVirtualMachine | *provisioningv1.AzureVirtualDesktop
 
 	GetProvisioningMeta() *provisioningv1.ProvisioningMeta
 	GetSpec() any

@@ -37,13 +37,14 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 
 	anyAzureDb := len(infra.AzureDbs) > 0
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
+	anyAzurePowerShellScript := len(infra.AzurePowerShellScripts) > 0
 	anyHelmRelease := len(infra.HelmReleases) > 0
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser
-	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript
+	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.Match(target,
 		func(tenant *platformv1.Tenant) string {
@@ -229,6 +230,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, ctx)
 	case string(provisioningv1.ProvisioningResourceKindAzureManagedDatabase):
 		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, ctx)
+	case string(provisioningv1.ProvisioningResourceKindAzurePowerShellScript):
+		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, ctx)
 	case string(provisioningv1.ProvisioningResourceKindHelmRelease):
 		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, ctx)
 	case string(provisioningv1.ProvisioningResourceKindAzureVirtualMachine):
@@ -302,6 +305,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 		}
 
 		for _, db := range infra.AzureManagedDbs {
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, db := range infra.AzurePowerShellScripts {
 			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
 			if err != nil {
 				return err

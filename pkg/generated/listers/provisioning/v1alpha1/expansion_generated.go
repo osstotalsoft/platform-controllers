@@ -34,6 +34,14 @@ type AzureManagedDatabaseListerExpansion interface{}
 // AzureManagedDatabaseNamespaceLister.
 type AzureManagedDatabaseNamespaceListerExpansion interface{}
 
+// AzurePowerShellScriptListerExpansion allows custom methods to be added to
+// AzurePowerShellScriptLister.
+type AzurePowerShellScriptListerExpansion interface{}
+
+// AzurePowerShellScriptNamespaceListerExpansion allows custom methods to be added to
+// AzurePowerShellScriptNamespaceLister.
+type AzurePowerShellScriptNamespaceListerExpansion interface{}
+
 // AzureVirtualDesktopListerExpansion allows custom methods to be added to
 // AzureVirtualDesktopLister.
 type AzureVirtualDesktopListerExpansion interface{}

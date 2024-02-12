@@ -28,6 +28,8 @@ type Interface interface {
 	AzureDatabases() AzureDatabaseInformer
 	// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
 	AzureManagedDatabases() AzureManagedDatabaseInformer
+	// AzurePowerShellScripts returns a AzurePowerShellScriptInformer.
+	AzurePowerShellScripts() AzurePowerShellScriptInformer
 	// AzureVirtualDesktops returns a AzureVirtualDesktopInformer.
 	AzureVirtualDesktops() AzureVirtualDesktopInformer
 	// AzureVirtualMachines returns a AzureVirtualMachineInformer.
@@ -57,6 +59,11 @@ func (v *version) AzureDatabases() AzureDatabaseInformer {
 // AzureManagedDatabases returns a AzureManagedDatabaseInformer.
 func (v *version) AzureManagedDatabases() AzureManagedDatabaseInformer {
 	return &azureManagedDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// AzurePowerShellScripts returns a AzurePowerShellScriptInformer.
+func (v *version) AzurePowerShellScripts() AzurePowerShellScriptInformer {
+	return &azurePowerShellScriptInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // AzureVirtualDesktops returns a AzureVirtualDesktopInformer.

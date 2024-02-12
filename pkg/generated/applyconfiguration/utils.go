@@ -79,6 +79,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureManagedDatabaseSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureManagedInstanceSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureManagedInstanceSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzurePowerShellScript"):
+		return &applyconfigurationprovisioningv1alpha1.AzurePowerShellScriptApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzurePowerShellScriptExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.AzurePowerShellScriptExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzurePowerShellScriptSpec"):
+		return &applyconfigurationprovisioningv1alpha1.AzurePowerShellScriptSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureStorageContainerSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureStorageContainerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualDesktop"):

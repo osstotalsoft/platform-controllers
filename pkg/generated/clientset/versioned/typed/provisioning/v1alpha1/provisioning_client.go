@@ -30,6 +30,7 @@ type ProvisioningV1alpha1Interface interface {
 	RESTClient() rest.Interface
 	AzureDatabasesGetter
 	AzureManagedDatabasesGetter
+	AzurePowerShellScriptsGetter
 	AzureVirtualDesktopsGetter
 	AzureVirtualMachinesGetter
 	EntraUsersGetter
@@ -47,6 +48,10 @@ func (c *ProvisioningV1alpha1Client) AzureDatabases(namespace string) AzureDatab
 
 func (c *ProvisioningV1alpha1Client) AzureManagedDatabases(namespace string) AzureManagedDatabaseInterface {
 	return newAzureManagedDatabases(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) AzurePowerShellScripts(namespace string) AzurePowerShellScriptInterface {
+	return newAzurePowerShellScripts(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) AzureVirtualDesktops(namespace string) AzureVirtualDesktopInterface {

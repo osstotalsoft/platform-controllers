@@ -36,6 +36,10 @@ func (c *FakeProvisioningV1alpha1) AzureManagedDatabases(namespace string) v1alp
 	return &FakeAzureManagedDatabases{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) AzurePowerShellScripts(namespace string) v1alpha1.AzurePowerShellScriptInterface {
+	return &FakeAzurePowerShellScripts{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) AzureVirtualDesktops(namespace string) v1alpha1.AzureVirtualDesktopInterface {
 	return &FakeAzureVirtualDesktops{c, namespace}
 }
