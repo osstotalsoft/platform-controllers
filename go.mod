@@ -13,6 +13,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.4.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.4.0
 	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2 v2.4.0
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.4.0
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.4.0
 	github.com/pulumi/pulumi-azure-native-sdk/resources/v2 v2.4.0
 	github.com/pulumi/pulumi-azure-native-sdk/sql/v2 v2.4.0

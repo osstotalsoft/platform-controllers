@@ -96,10 +96,6 @@ spec:
                 description: Change value to force the script to execute even if it
                   has not changed.
                 type: string
-              managedIdentity:
-                description: Represents the managed identity used to run the Azure
-                  PowerShell.
-                type: string
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
@@ -158,7 +154,6 @@ spec:
                 type: object
             required:
             - domainRef
-            - managedIdentity
             - platformRef
             - scriptContent
             - target

@@ -18,8 +18,7 @@ func TestDeployAzurePowerShellScript(t *testing.T) {
 				Name: "my-pwsh-script",
 			},
 			Spec: provisioningv1.AzurePowerShellScriptSpec{
-				ScriptContent:   "Write-Host 'Hello, World!'",
-				ManagedIdentity: "my-managed-identity",
+				ScriptContent: "Write-Host 'Hello, World!'",
 				ProvisioningMeta: provisioningv1.ProvisioningMeta{
 					DomainRef: "example-domain",
 				},

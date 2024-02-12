@@ -28,7 +28,6 @@ type AzurePowerShellScriptSpecApplyConfiguration struct {
 	ScriptContent                      *string                                              `json:"scriptContent,omitempty"`
 	ScriptArguments                    *string                                              `json:"scriptArguments,omitempty"`
 	ForceUpdateTag                     *string                                              `json:"forceUpdateTag,omitempty"`
-	ManagedIdentity                    *string                                              `json:"managedIdentity,omitempty"`
 	Exports                            []AzurePowerShellScriptExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -60,14 +59,6 @@ func (b *AzurePowerShellScriptSpecApplyConfiguration) WithScriptArguments(value 
 // If called multiple times, the ForceUpdateTag field is set to the value of the last call.
 func (b *AzurePowerShellScriptSpecApplyConfiguration) WithForceUpdateTag(value string) *AzurePowerShellScriptSpecApplyConfiguration {
 	b.ForceUpdateTag = &value
-	return b
-}
-
-// WithManagedIdentity sets the ManagedIdentity field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ManagedIdentity field is set to the value of the last call.
-func (b *AzurePowerShellScriptSpecApplyConfiguration) WithManagedIdentity(value string) *AzurePowerShellScriptSpecApplyConfiguration {
-	b.ManagedIdentity = &value
 	return b
 }
 

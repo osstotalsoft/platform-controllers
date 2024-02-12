@@ -31,9 +31,6 @@ type AzurePowerShellScriptSpec struct {
 	// Change value to force the script to execute even if it has not changed.
 	ForceUpdateTag string `json:"forceUpdateTag,omitempty"`
 
-	// Represents the managed identity used to run the Azure PowerShell.
-	ManagedIdentity string `json:"managedIdentity"`
-
 	// Export provisioning values spec.
 	// +optional
 	Exports          []AzurePowerShellScriptExportsSpec `json:"exports,omitempty"`

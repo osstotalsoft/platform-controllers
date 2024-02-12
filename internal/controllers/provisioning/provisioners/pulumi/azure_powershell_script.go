@@ -2,7 +2,9 @@ package pulumi
 
 import (
 	"encoding/json"
+	"os"
 
+	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
 	"github.com/pulumi/pulumi-azure-native-sdk/resources/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
@@ -26,6 +28,17 @@ func deployAzurePowerShellScript(target provisioning.ProvisioningTarget,
 		return nil, err
 	}
 
+	os.Getenv("AZURE_MANAGED_IDENTITY_RG")
+
+	managedIdentity, err := managedidentity.LookupUserAssignedIdentity(ctx, &managedidentity.LookupUserAssignedIdentityArgs{
+		ResourceGroupName: os.Getenv("AZURE_MANAGED_IDENTITY_RG"),
+		ResourceName:      os.Getenv("AZURE_MANAGED_IDENTITY_NAME"),
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
 	script, err := resources.NewAzurePowerShellScript(ctx, azurePowerShellScript.Name, &resources.AzurePowerShellScriptArgs{
 		Kind:              pulumi.String("AzurePowerShell"),
 		ForceUpdateTag:    pulumi.String(azurePowerShellScript.Spec.ForceUpdateTag), // Change to force redeploying the script if desired
@@ -37,7 +50,7 @@ func deployAzurePowerShellScript(target provisioning.ProvisioningTarget,
 		Identity: &resources.ManagedServiceIdentityArgs{
 			Type: pulumi.String(resources.ManagedServiceIdentityTypeUserAssigned),
 			UserAssignedIdentities: pulumi.StringArray{
-				pulumi.String(azurePowerShellScript.Spec.ManagedIdentity),
+				pulumi.String(managedIdentity.Id),
 			},
 		},
 		AzPowerShellVersion: pulumi.String("11.0"), // Specify the desired version of Az PowerShell module

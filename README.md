@@ -336,7 +336,6 @@ The `AzurePowershellScript` spec has the following fields:
 
 - `scriptContent`: The content of the PowerShell script to be executed. 
 - `scriptArguments`: The arguments to be passed to the PowerShell script. These should match the parameters defined in the scriptContent.
-- `managedIdentity`: The Azure Resource Manager (ARM) identifier of the managed identity used to run the script.
 - `domainRef`: The reference to the domain that the user belongs to.
 - `platformRef`: The reference to the platform that the user belongs to.
 - `forceUpdateTag`: Update this value to trigger the script even if the content or args are unchanged
@@ -353,9 +352,7 @@ spec:
   exports:
     - scriptOutputs:
         toConfigMap:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ScriptOutputs
-  managedIdentity: >-
-    /subscriptions/15b38e46-ef41-4f5b-bdba-7d9354568c2d/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/scriptidentity
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ScriptOutputs  
   platformRef: provisioning.test
   scriptContent: |-
     param([string] $name)
