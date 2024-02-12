@@ -326,6 +326,54 @@ spec:
   workspaceFriendlyName: Charisma
 ```
 
+### AzurePowershellScript
+`AzurePowershellScript` is a Custom Resource Definition (CRD) that represents an Azure PowerShell deployment script.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurepowershellscripts.yaml)
+
+#### Spec
+The `AzurePowershellScript` spec has the following fields:
+
+- `scriptContent`: The content of the PowerShell script to be executed. 
+- `scriptArguments`: The arguments to be passed to the PowerShell script. These should match the parameters defined in the scriptContent.
+- `managedIdentity`: The Azure Resource Manager (ARM) identifier of the managed identity used to run the script.
+- `domainRef`: The reference to the domain that the user belongs to.
+- `platformRef`: The reference to the platform that the user belongs to.
+- `forceUpdateTag`: Update this value to trigger the script even if the content or args are unchanged
+
+Example:
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzurePowerShellScript
+metadata:
+  name: createresourcegroup
+  namespace: provisioning-test
+spec:
+  domainRef: domain2
+  exports:
+    - scriptOutputs:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ScriptOutputs
+  managedIdentity: >-
+    /subscriptions/15b38e46-ef41-4f5b-bdba-7d9354568c2d/resourceGroups/global/providers/Microsoft.ManagedIdentity/userAssignedIdentities/scriptidentity
+  platformRef: provisioning.test
+  scriptContent: |-
+    param([string] $name)
+
+    $output = "RG name: {0}" -f $name 
+    Write-Output $output  
+
+    $DeploymentScriptOutputs = @{} 
+    $DeploymentScriptOutputs['text'] = $output
+
+    New-AzResourceGroup $name "West Europe"
+  scriptArguments: "-name testrg-{{ .Platform }}-{{ .Tenant.Code }}"
+  target:
+    category: Tenant
+```
+
+
+
 ### EntraUser
 
 `EntraUser` is a Custom Resource Definition (CRD) that represents a user for Entra Id.
