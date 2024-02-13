@@ -82,13 +82,3 @@ type ProvisioningResourceIdendtifier struct {
 }
 
 type ProvisioningResourceKind string
-
-const (
-	ProvisioningResourceKindEntraUser             = ProvisioningResourceKind("EntraUser")
-	ProvisioningResourceKindAzureDatabase         = ProvisioningResourceKind("AzureDatabase")
-	ProvisioningResourceKindAzureManagedDatabase  = ProvisioningResourceKind("AzureManagedDatabase")
-	ProvisioningResourceKindAzurePowerShellScript = ProvisioningResourceKind("AzurePowerShellScript")
-	ProvisioningResourceKindAzureVirtualDesktop   = ProvisioningResourceKind("AzureVirtualDesktop")
-	ProvisioningResourceKindAzureVirtualMachine   = ProvisioningResourceKind("AzureVirtualMachine")
-	ProvisioningResourceKindHelmRelease           = ProvisioningResourceKind("HelmRelease")
-)

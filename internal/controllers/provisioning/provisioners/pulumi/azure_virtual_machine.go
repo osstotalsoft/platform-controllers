@@ -23,7 +23,7 @@ func deployAzureVirtualMachine(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualMachine")
 
-	vmName := provisioning.Match(target,
+	vmName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s-%s", azureVM.Spec.VmName, tenant.Spec.PlatformRef, tenant.GetName())
 		},

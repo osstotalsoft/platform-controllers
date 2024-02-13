@@ -362,7 +362,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	})
 
 	if result.Error == nil && result.HasChanges {
-		result.Error = Match(target,
+		result.Error = MatchTarget(target,
 			func(tenant *platformv1.Tenant) error {
 				if c.tenantMigrator != nil && tenant.Spec.Enabled {
 					return c.tenantMigrator(tenant.GetNamespace(), tenant, domain)
@@ -388,7 +388,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 func (c *ProvisioningController) publishSuccessEvents(target ProvisioningTarget, domain string) {
 	c.recorder.Event(target, corev1.EventTypeNormal, fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain), fmt.Sprintf(DomainProvisionedSuccessfullyFormat, domain))
 
-	topic, ev := Match(target,
+	topic, ev := MatchTarget(target,
 		func(tenant *platformv1.Tenant) tuple.T2[string, any] {
 			var ev any = struct {
 				TenantId          string
@@ -430,7 +430,7 @@ func (c *ProvisioningController) publishSuccessEvents(target ProvisioningTarget,
 func (c *ProvisioningController) publishFailureEvents(target ProvisioningTarget, domain string, err error) {
 	c.recorder.Event(target, corev1.EventTypeWarning, fmt.Sprintf(DomainProvisionningFailedFormat, domain), err.Error())
 
-	topic, ev := Match(target,
+	topic, ev := MatchTarget(target,
 		func(tenant *platformv1.Tenant) tuple.T2[string, any] {
 			var ev any = struct {
 				TenantId          string

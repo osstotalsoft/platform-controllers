@@ -20,7 +20,7 @@ func deployAzureManagedDb(
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 
-	dbNameV1 := provisioning.Match(target,
+	dbNameV1 := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s_%s_%s", azureDb.Spec.DbName, tenant.Spec.PlatformRef, tenant.GetName())
 		},
