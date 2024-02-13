@@ -54,7 +54,7 @@ func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
-			path := provisioning.Match(target,
+			path := provisioning.MatchTarget(target,
 				func(tenant *platformv1.Tenant) string {
 					return strings.Join([]string{tenant.Spec.PlatformRef, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.GetName(), exportContext.objectName}, "/")
 				},
@@ -71,7 +71,7 @@ func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc
 
 		v = onlyConfigMapValues(values)
 		if len(v) > 0 {
-			name := provisioning.Match(target,
+			name := provisioning.MatchTarget(target,
 				func(tenant *platformv1.Tenant) string {
 					return strings.Join([]string{exportContext.domain, tenant.GetName(), exportContext.objectName}, "-")
 				},

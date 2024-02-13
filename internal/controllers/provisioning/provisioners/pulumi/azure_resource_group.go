@@ -11,7 +11,7 @@ import (
 
 func deployAzureRG(target provisioning.ProvisioningTarget, domain string) func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
 	return func(ctx *pulumi.Context) (pulumi.StringOutput, error) {
-		resourceGroupName := provisioning.Match(target,
+		resourceGroupName := provisioning.MatchTarget(target,
 			func(tenant *platformv1.Tenant) string {
 				return fmt.Sprintf("%s-%s-%s", tenant.Spec.PlatformRef, tenant.GetName(), domain)
 			},

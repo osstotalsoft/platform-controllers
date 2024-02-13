@@ -397,7 +397,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 
 	hostPoolName := avd.Spec.HostPoolName
 
-	globalQalifier := provisioning.Match(target,
+	globalQalifier := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
 		},

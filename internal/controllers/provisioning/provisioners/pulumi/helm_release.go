@@ -46,7 +46,7 @@ func deployHelmRelease(target provisioning.ProvisioningTarget,
 }
 
 func pulumiFluxHrArgs(target provisioning.ProvisioningTarget, hr *provisioningv1.HelmRelease) (*fluxcd.HelmReleaseArgs, error) {
-	helmReleaseName, fluxHelmReleaseName := provisioning.Match(target,
+	helmReleaseName, fluxHelmReleaseName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) tuple.T2[string, string] {
 			helmReleaseName := fmt.Sprintf("%s-%s", hr.Spec.Release.ReleaseName, tenant.GetName())
 			fluxHelmReleaseName := fmt.Sprintf("%s-%s", hr.Name, tenant.GetName())

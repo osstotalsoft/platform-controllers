@@ -46,7 +46,7 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
-	stackName := provisioning.Match(target,
+	stackName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", tenant.GetName(), domain)
 		},
@@ -212,7 +212,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 
 func deployResource(target provisioning.ProvisioningTarget,
 	rgName *pulumi.StringOutput,
-	res provisioning.BaseProvisioningResource,
+	res provisioning.ProvisioningResource,
 	dependencies []pulumi.Resource,
 	ctx *pulumi.Context) (pulumi.Resource, error) {
 
@@ -224,26 +224,26 @@ func deployResource(target provisioning.ProvisioningTarget,
 	}
 
 	switch kind {
-	case string(provisioningv1.ProvisioningResourceKindEntraUser):
+	case string(provisioning.ProvisioningResourceKindEntraUser):
 		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
-	case string(provisioningv1.ProvisioningResourceKindAzureDatabase):
+	case string(provisioning.ProvisioningResourceKindAzureDatabase):
 		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, ctx)
-	case string(provisioningv1.ProvisioningResourceKindAzureManagedDatabase):
+	case string(provisioning.ProvisioningResourceKindAzureManagedDatabase):
 		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, ctx)
-	case string(provisioningv1.ProvisioningResourceKindAzurePowerShellScript):
+	case string(provisioning.ProvisioningResourceKindAzurePowerShellScript):
 		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, ctx)
-	case string(provisioningv1.ProvisioningResourceKindHelmRelease):
+	case string(provisioning.ProvisioningResourceKindHelmRelease):
 		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, ctx)
-	case string(provisioningv1.ProvisioningResourceKindAzureVirtualMachine):
+	case string(provisioning.ProvisioningResourceKindAzureVirtualMachine):
 		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
-	case string(provisioningv1.ProvisioningResourceKindAzureVirtualDesktop):
+	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):
 		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
 	default:
 		return nil, fmt.Errorf("unknown resource kind: %s", kind)
 	}
 }
 
-func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulumi.StringOutput, res provisioning.BaseProvisioningResource, provisionedRes provisionedResourceMap, infra *provisioning.InfrastructureManifests, ctx *pulumi.Context) (pulumi.Resource, error) {
+func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulumi.StringOutput, res provisioning.ProvisioningResource, provisionedRes provisionedResourceMap, infra *provisioning.InfrastructureManifests, ctx *pulumi.Context) (pulumi.Resource, error) {
 
 	id := provisioningv1.ProvisioningResourceIdendtifier{Name: res.GetName(), Kind: provisioningv1.ProvisioningResourceKind(res.GetObjectKind().GroupVersionKind().Kind)}
 	if pulumiRes, found := provisionedRes[id]; found {
