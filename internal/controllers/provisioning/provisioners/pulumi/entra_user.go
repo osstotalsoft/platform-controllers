@@ -40,9 +40,10 @@ func deployEntraUser(target provisioning.ProvisioningTarget,
 	}
 
 	user, err := azuread.NewUser(ctx, entraUser.Name, &azuread.UserArgs{
-		UserPrincipalName: pulumi.String(entraUser.Spec.UserPrincipalName),
-		DisplayName:       pulumi.String(entraUser.Spec.DisplayName),
-		Password:          initialPassword,
+		UserPrincipalName:   pulumi.String(entraUser.Spec.UserPrincipalName),
+		DisplayName:         pulumi.String(entraUser.Spec.DisplayName),
+		Password:            initialPassword,
+		ForcePasswordChange: pulumi.Bool(true),
 	})
 	if err != nil {
 		return nil, err
