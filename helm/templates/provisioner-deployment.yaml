@@ -31,6 +31,9 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: AZURE_ENABLED
+          value: {{ .Values.global.azure.enabled | quote }}
+        {{- if .Values.global.azure.enabled }}
         - name: AZURE_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
@@ -65,7 +68,7 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: azure-config
-              key: managedIdentityName            
+              key: managedIdentityName
         - name: ARM_CLIENT_ID
           valueFrom:
             configMapKeyRef:
@@ -81,12 +84,13 @@ spec:
             configMapKeyRef:
               name: azure-config
               key: tenantId
+        {{- end }}
         - name: PULUMI_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
               name: provisioner-secrets
               key: pulumiAccessToken
-        {{- if .Values.global.vault.enabled }}              
+        {{- if .Values.global.vault.enabled }}
         - name: VAULT_ADDR
           value: "{{ .Values.global.vault.address }}"
         - name: VAULT_TOKEN

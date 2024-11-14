@@ -3,7 +3,9 @@ package provisioning
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +45,8 @@ const (
 
 	DomainProvisionedSuccessfullyFormat string = "%s domain provisioned successfully"
 	DomainProvisionningFailedFormat     string = "%s domain provisionning failed"
+
+	EnvAzureEnabled = "AZURE_ENABLED"
 )
 
 // ProvisioningController is the controller implementation for Tenant resources
@@ -74,6 +78,8 @@ type ProvisioningController struct {
 	entraUserInformer             provisioningInformersv1.EntraUserInformer
 
 	messagingPublisher messaging.MessagingPublisher
+
+	azureEnabled bool
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
@@ -89,6 +95,11 @@ func NewProvisioningController(clientSet clientset.Interface,
 	// logged for provisioning-controller types.
 	utilruntime.Must(clientsetScheme.AddToScheme(scheme.Scheme))
 	klog.V(4).Info("Creating event broadcaster")
+
+	azureEnabled, err := strconv.ParseBool(os.Getenv(EnvAzureEnabled))
+	if err != nil {
+		azureEnabled = true
+	}
 
 	c := &ProvisioningController{
 		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "provisioning"),
@@ -109,6 +120,8 @@ func NewProvisioningController(clientSet clientset.Interface,
 		clientset:          clientSet,
 		tenantMigrator:     tenantMigrator,
 		messagingPublisher: messagingPublisher,
+
+		azureEnabled: azureEnabled,
 	}
 
 	if eventBroadcaster != nil {
@@ -118,13 +131,16 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addTenantHandlers(c.tenantInformer, c.enqueueTenant)
 	addPlatformHandlers(c.platformInformer)
 
-	addResourceHandlers[*provisioningv1.AzureDatabase]("Azure database", c.azureDbInformer.Informer(), c.enqueueDomain)
-	addResourceHandlers[*provisioningv1.AzureManagedDatabase]("Azure managed database", c.azureManagedDbInformer.Informer(), c.enqueueDomain)
-	addResourceHandlers[*provisioningv1.AzurePowerShellScript]("Azure PowerShell script", c.azurePowerShellScriptInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
-	addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
-	addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
-	addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain)
+
+	if azureEnabled {
+		addResourceHandlers[*provisioningv1.AzureDatabase]("Azure database", c.azureDbInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.AzureManagedDatabase]("Azure managed database", c.azureManagedDbInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.AzurePowerShellScript]("Azure PowerShell script", c.azurePowerShellScriptInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain)
+	}
 
 	return c
 }
@@ -281,36 +297,6 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain string) error {
 
-	azureDbs, err := c.azureDbInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	azureDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureDbs, target)
-	azureDbs, err = applyTargetOverrides(azureDbs, target)
-	if err != nil {
-		return err
-	}
-
-	azureManagedDbs, err := c.azureManagedDbInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	azureManagedDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureManagedDbs, target)
-	azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target)
-	if err != nil {
-		return err
-	}
-
-	azurePowerShellScripts, err := c.azurePowerShellScriptInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	azurePowerShellScripts = selectItemsInTarget(target.GetPlatformName(), domain, azurePowerShellScripts, target)
-	azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target)
-	if err != nil {
-		return err
-	}
-
 	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
@@ -321,34 +307,73 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 
-	azureVirtualMachines, err := c.azureVirtualMachineInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	azureVirtualMachines = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualMachines, target)
-	azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target)
-	if err != nil {
-		return err
-	}
+	azureDbs := []*provisioningv1.AzureDatabase{}
+	azureManagedDbs := []*provisioningv1.AzureManagedDatabase{}
+	azurePowerShellScripts := []*provisioningv1.AzurePowerShellScript{}
+	azureVirtualMachines := []*provisioningv1.AzureVirtualMachine{}
+	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
+	entraUsers := []*provisioningv1.EntraUser{}
 
-	azureVirtualDesktops, err := c.azureVirtualDesktopInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	azureVirtualDesktops = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualDesktops, target)
-	azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target)
-	if err != nil {
-		return err
-	}
+	if c.azureEnabled {
+		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		azureDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureDbs, target)
+		azureDbs, err = applyTargetOverrides(azureDbs, target)
+		if err != nil {
+			return err
+		}
 
-	entraUsers, err := c.entraUserInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	entraUsers = selectItemsInTarget(target.GetPlatformName(), domain, entraUsers, target)
-	entraUsers, err = applyTargetOverrides(entraUsers, target)
-	if err != nil {
-		return err
+		azureManagedDbs, err = c.azureManagedDbInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		azureManagedDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureManagedDbs, target)
+		azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target)
+		if err != nil {
+			return err
+		}
+
+		azurePowerShellScripts, err = c.azurePowerShellScriptInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		azurePowerShellScripts = selectItemsInTarget(target.GetPlatformName(), domain, azurePowerShellScripts, target)
+		azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target)
+		if err != nil {
+			return err
+		}
+
+		azureVirtualMachines, err = c.azureVirtualMachineInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		azureVirtualMachines = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualMachines, target)
+		azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target)
+		if err != nil {
+			return err
+		}
+
+		azureVirtualDesktops, err = c.azureVirtualDesktopInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		azureVirtualDesktops = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualDesktops, target)
+		azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target)
+		if err != nil {
+			return err
+		}
+
+		entraUsers, err = c.entraUserInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		entraUsers = selectItemsInTarget(target.GetPlatformName(), domain, entraUsers, target)
+		entraUsers, err = applyTargetOverrides(entraUsers, target)
+		if err != nil {
+			return err
+		}
 	}
 
 	result := c.provisioner(target, domain, &InfrastructureManifests{
