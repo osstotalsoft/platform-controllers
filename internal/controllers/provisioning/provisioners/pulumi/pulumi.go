@@ -43,8 +43,9 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
+	anyMssqlDb := len(infra.MsSqlDbs) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
@@ -188,6 +189,11 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
+	err = w.InstallPlugin(ctx, "mssql", "v0.1.0")
+	if err != nil {
+		klog.Errorf("Failed to install kubernetes plugin: %v", err)
+		return auto.Stack{}, err
+	}
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
@@ -263,6 +269,9 @@ func deployResource(target provisioning.ProvisioningTarget,
 		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):
 		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
+	case string(provisioning.ProvisioningResourceKindMsSqlDatabase):
+		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, ctx)
+
 	default:
 		return nil, fmt.Errorf("unknown resource kind: %s", kind)
 	}
@@ -359,6 +368,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 
 		for _, avd := range infra.AzureVirtualDesktops {
 			_, err := deployResourceWithDeps(target, rgName, avd, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, db := range infra.MsSqlDbs {
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
 			if err != nil {
 				return err
 			}

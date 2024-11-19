@@ -73,3 +73,11 @@ type HelmReleaseListerExpansion interface{}
 // HelmReleaseNamespaceListerExpansion allows custom methods to be added to
 // HelmReleaseNamespaceLister.
 type HelmReleaseNamespaceListerExpansion interface{}
+
+// MsSqlDatabaseListerExpansion allows custom methods to be added to
+// MsSqlDatabaseLister.
+type MsSqlDatabaseListerExpansion interface{}
+
+// MsSqlDatabaseNamespaceListerExpansion allows custom methods to be added to
+// MsSqlDatabaseNamespaceLister.
+type MsSqlDatabaseNamespaceListerExpansion interface{}

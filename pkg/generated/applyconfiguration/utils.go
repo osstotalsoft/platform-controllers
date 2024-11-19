@@ -123,6 +123,18 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("InitScriptArgs"):
 		return &applyconfigurationprovisioningv1alpha1.InitScriptArgsApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabase"):
+		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabaseExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabaseRestoreSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseRestoreSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabaseSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlServerAuth"):
+		return &applyconfigurationprovisioningv1alpha1.MsSqlServerAuthApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlServerSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MsSqlServerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProvisioningMeta"):
 		return &applyconfigurationprovisioningv1alpha1.ProvisioningMetaApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProvisioningResourceIdendtifier"):

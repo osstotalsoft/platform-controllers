@@ -76,6 +76,7 @@ type ProvisioningController struct {
 	azureVirtualMachineInformer   provisioningInformersv1.AzureVirtualMachineInformer
 	azureVirtualDesktopInformer   provisioningInformersv1.AzureVirtualDesktopInformer
 	entraUserInformer             provisioningInformersv1.EntraUserInformer
+	mssqlDbInformer               provisioningInformersv1.MsSqlDatabaseInformer
 
 	messagingPublisher messaging.MessagingPublisher
 
@@ -115,6 +116,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureVirtualMachineInformer:   factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 		azureVirtualDesktopInformer:   factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 		entraUserInformer:             factory.Provisioning().V1alpha1().EntraUsers(),
+		mssqlDbInformer:               factory.Provisioning().V1alpha1().MsSqlDatabases(),
 
 		provisioner:        tenantProvisioner,
 		clientset:          clientSet,
@@ -140,6 +142,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
 		addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
 		addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.MsSqlDatabase]("MsSql database", c.mssqlDbInformer.Informer(), c.enqueueDomain)
 	}
 
 	return c
@@ -276,6 +279,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 					HelmReleases:         []*provisioningv1.HelmRelease{},
 					AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
 					AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
+					MsSqlDbs:             []*provisioningv1.MsSqlDatabase{},
 				},
 			)
 			if cleanupResult.Error != nil {
@@ -313,6 +317,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	azureVirtualMachines := []*provisioningv1.AzureVirtualMachine{}
 	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
 	entraUsers := []*provisioningv1.EntraUser{}
+	mssqlDbs := []*provisioningv1.MsSqlDatabase{}
 
 	if c.azureEnabled {
 		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
@@ -374,6 +379,16 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		if err != nil {
 			return err
 		}
+
+		mssqlDbs, err = c.mssqlDbInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		mssqlDbs = selectItemsInTarget(target.GetPlatformName(), domain, mssqlDbs, target)
+		mssqlDbs, err = applyTargetOverrides(mssqlDbs, target)
+		if err != nil {
+			return err
+		}
 	}
 
 	result := c.provisioner(target, domain, &InfrastructureManifests{
@@ -384,6 +399,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		AzureVirtualMachines:   azureVirtualMachines,
 		AzureVirtualDesktops:   azureVirtualDesktops,
 		EntraUsers:             entraUsers,
+		MsSqlDbs:               mssqlDbs,
 	})
 
 	if result.Error == nil && result.HasChanges {
