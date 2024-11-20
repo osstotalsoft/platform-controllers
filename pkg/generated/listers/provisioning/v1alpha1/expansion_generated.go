@@ -74,6 +74,14 @@ type HelmReleaseListerExpansion interface{}
 // HelmReleaseNamespaceLister.
 type HelmReleaseNamespaceListerExpansion interface{}
 
+// LocalScriptListerExpansion allows custom methods to be added to
+// LocalScriptLister.
+type LocalScriptListerExpansion interface{}
+
+// LocalScriptNamespaceListerExpansion allows custom methods to be added to
+// LocalScriptNamespaceLister.
+type LocalScriptNamespaceListerExpansion interface{}
+
 // MsSqlDatabaseListerExpansion allows custom methods to be added to
 // MsSqlDatabaseLister.
 type MsSqlDatabaseListerExpansion interface{}

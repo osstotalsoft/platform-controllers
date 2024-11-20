@@ -1,0 +1,182 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: localscripts.provisioning.totalsoft.ro
+spec:
+  group: provisioning.totalsoft.ro
+  names:
+    kind: LocalScript
+    listKind: LocalScriptList
+    plural: localscripts
+    singular: localscript
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.platformRef
+      name: Platform
+      type: string
+    - jsonPath: .spec.domainRef
+      name: Domain
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              createScriptContent:
+                description: ScriptContent that runs on resource creation and update.
+                type: string
+              deleteScriptContent:
+                description: ScriptContent that runs on resource deletion.
+                type: string
+              dependsOn:
+                description: List of dependencies
+                items:
+                  properties:
+                    kind:
+                      description: Kind is a string value representing the REST resource
+                        this dependency represents.
+                      type: string
+                    name:
+                      description: ' The name of the dependency.'
+                      type: string
+                  required:
+                  - kind
+                  - name
+                  type: object
+                type: array
+              domainRef:
+                description: Business Domain that this resource is provision for.
+                type: string
+              environment:
+                additionalProperties:
+                  type: string
+                description: Represents the environment variables to be passed to
+                  the script.
+                type: object
+              exports:
+                description: Export provisioning values spec.
+                items:
+                  properties:
+                    domain:
+                      description: The domain or bounded-context in which this script
+                        will be used.
+                      type: string
+                    scriptOutput:
+                      description: Represents the outputs of the Azure PowerShell
+                        script.
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                  type: object
+                type: array
+              forceUpdateTag:
+                description: Change value to force the script to execute even if it
+                  has not changed.
+                type: string
+              platformRef:
+                description: Target platform (custom resource name).
+                type: string
+              shell:
+                default: pwsh
+                description: 'The shell to use for the script. Possibile values: pwsh,
+                  bash'
+                enum:
+                - pwsh
+                - bash
+                type: string
+              target:
+                default:
+                  category: Tenant
+                description: The provisioning target.
+                properties:
+                  category:
+                    default: Tenant
+                    description: 'Provisioning target type. Possible values: Tenant,
+                      Platform'
+                    enum:
+                    - Tenant
+                    - Platform
+                    type: string
+                  filter:
+                    description: |-
+                      Filter targets (applies for category "Tenant").
+                      If ommited all targets are selected.
+                    properties:
+                      kind:
+                        default: Blacklist
+                        description: 'Includes or excludes the speciffied targets.
+                          Possibile values: Blacklist, Whitelist'
+                        enum:
+                        - Blacklist
+                        - Whitelist
+                        type: string
+                      values:
+                        description: A list of targets to include or exculde
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - kind
+                    type: object
+                required:
+                - category
+                type: object
+              tenantOverrides:
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: |-
+                  Overrides for tenants. Dictionary with tenant name as key, spec override as value.
+                  The spec override has the same structure as Spec
+                type: object
+              workingDir:
+                description: Working directory for the script.
+                type: string
+            required:
+            - createScriptContent
+            - deleteScriptContent
+            - domainRef
+            - platformRef
+            - shell
+            - target
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}

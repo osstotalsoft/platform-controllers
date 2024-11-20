@@ -45,6 +45,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&HelmReleaseList{},
 		&MsSqlDatabase{},
 		&MsSqlDatabaseList{},
+		&LocalScript{},
+		&LocalScriptList{},
 		&metav1.Status{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

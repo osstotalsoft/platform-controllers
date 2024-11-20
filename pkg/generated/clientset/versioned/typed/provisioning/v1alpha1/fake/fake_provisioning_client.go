@@ -56,6 +56,10 @@ func (c *FakeProvisioningV1alpha1) HelmReleases(namespace string) v1alpha1.HelmR
 	return &FakeHelmReleases{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) LocalScripts(namespace string) v1alpha1.LocalScriptInterface {
+	return &FakeLocalScripts{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) MsSqlDatabases(namespace string) v1alpha1.MsSqlDatabaseInterface {
 	return &FakeMsSqlDatabases{c, namespace}
 }

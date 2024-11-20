@@ -194,6 +194,12 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
+	err = w.InstallPlugin(ctx, "command", "v1.0.1")
+	if err != nil {
+		klog.Errorf("Failed to install kubernetes plugin: %v", err)
+		return auto.Stack{}, err
+	}
+
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
@@ -271,7 +277,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMsSqlDatabase):
 		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, ctx)
-
+	case string(provisioning.ProvisioningResourceKindLocalScript):
+		return deployLocalScript(target, res.(*provisioningv1.LocalScript), dependencies, ctx)
 	default:
 		return nil, fmt.Errorf("unknown resource kind: %s", kind)
 	}
@@ -375,6 +382,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 
 		for _, db := range infra.MsSqlDbs {
 			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, ls := range infra.LocalScripts {
+			_, err := deployResourceWithDeps(target, rgName, ls, provisionedRes, infra, ctx)
 			if err != nil {
 				return err
 			}

@@ -464,6 +464,62 @@ spec:
   target:
     category: Tenant
 ```
+### LocalScript
+
+`LocalScript` is a Custom Resource Definition (CRD) that represents a script that executes locally.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_localscripts.yaml)
+
+## Spec
+
+The `LocalScript` spec has the following fields:
+
+- `createScriptContent`: Script that runs on resource creation and update.
+- `deleteScriptContent`: Script that runs on resource deletion.
+- `shell`: The shell to use to run the script. Can be `bash` or `pwsh`.
+- `environment`: The environment variables to be passed to the script. It can contain placeholders like `{{ .Tenant.Code }}` or `{{ .Platform }}`.
+- `workingDir`: The working directory where the script will be executed.
+- `forceUpdateTag`: Update this value to trigger the script even if the content or environment are unchanged. Caution: it performs delete-replace and triggers the Delete script.
+- `domainRef`: The reference to the domain that the user belongs to.
+- `platformRef`: The reference to the platform that the user belongs to.
+- `target`: The target of the script. Can be `Tenant` or `Platform`.
+- `exports`: The exports of the script.
+- `dependsOn`: The dependencies of the script.
+
+## Example
+
+Here's an example of a `LocalScript` resource:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: LocalScript
+metadata:
+  name: prepare-data
+  namespace: provisioning-test
+spec:
+  createScriptContent: |
+    Get-Date
+    Get-Location
+    Write-Host "Env1: " $env:env1
+    Write-Host "Tenant:" $env:tenant
+  deleteScriptContent: Write-Host "Deleted"
+  shell: pwsh
+  forceUpdateTag: '3'
+  domainRef: domain1
+  workingDir: c:/temp
+  environment:
+    env1: env1Val2
+    tenant: '{{ .Tenant.Code }}'
+  exports:
+    - domain: domain1
+      scriptOutput:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ScriptOutput
+  platformRef: provisioning.test
+  target:
+    category: Tenant
+```
+
 
 
 ## configuration.totalsoft.ro

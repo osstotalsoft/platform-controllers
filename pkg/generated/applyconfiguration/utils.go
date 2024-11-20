@@ -123,6 +123,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("InitScriptArgs"):
 		return &applyconfigurationprovisioningv1alpha1.InitScriptArgsApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("LocalScript"):
+		return &applyconfigurationprovisioningv1alpha1.LocalScriptApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("LocalScriptExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.LocalScriptExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("LocalScriptSpec"):
+		return &applyconfigurationprovisioningv1alpha1.LocalScriptSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabase"):
 		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabaseExportsSpec"):

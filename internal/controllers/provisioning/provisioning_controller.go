@@ -77,6 +77,7 @@ type ProvisioningController struct {
 	azureVirtualDesktopInformer   provisioningInformersv1.AzureVirtualDesktopInformer
 	entraUserInformer             provisioningInformersv1.EntraUserInformer
 	mssqlDbInformer               provisioningInformersv1.MsSqlDatabaseInformer
+	localScriptInformer           provisioningInformersv1.LocalScriptInformer
 
 	messagingPublisher messaging.MessagingPublisher
 
@@ -117,6 +118,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureVirtualDesktopInformer:   factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 		entraUserInformer:             factory.Provisioning().V1alpha1().EntraUsers(),
 		mssqlDbInformer:               factory.Provisioning().V1alpha1().MsSqlDatabases(),
+		localScriptInformer:           factory.Provisioning().V1alpha1().LocalScripts(),
 
 		provisioner:        tenantProvisioner,
 		clientset:          clientSet,
@@ -143,6 +145,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
 		addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain)
 		addResourceHandlers[*provisioningv1.MsSqlDatabase]("MsSql database", c.mssqlDbInformer.Informer(), c.enqueueDomain)
+		addResourceHandlers[*provisioningv1.LocalScript]("Local script", c.localScriptInformer.Informer(), c.enqueueDomain)
 	}
 
 	return c
@@ -280,6 +283,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 					AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
 					AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
 					MsSqlDbs:             []*provisioningv1.MsSqlDatabase{},
+					LocalScripts:         []*provisioningv1.LocalScript{},
 				},
 			)
 			if cleanupResult.Error != nil {
@@ -318,6 +322,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
 	entraUsers := []*provisioningv1.EntraUser{}
 	mssqlDbs := []*provisioningv1.MsSqlDatabase{}
+	localScripts := []*provisioningv1.LocalScript{}
 
 	if c.azureEnabled {
 		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
@@ -389,6 +394,16 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		if err != nil {
 			return err
 		}
+
+		localScripts, err = c.localScriptInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		localScripts = selectItemsInTarget(target.GetPlatformName(), domain, localScripts, target)
+		localScripts, err = applyTargetOverrides(localScripts, target)
+		if err != nil {
+			return err
+		}
 	}
 
 	result := c.provisioner(target, domain, &InfrastructureManifests{
@@ -400,6 +415,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		AzureVirtualDesktops:   azureVirtualDesktops,
 		EntraUsers:             entraUsers,
 		MsSqlDbs:               mssqlDbs,
+		LocalScripts:           localScripts,
 	})
 
 	if result.Error == nil && result.HasChanges {

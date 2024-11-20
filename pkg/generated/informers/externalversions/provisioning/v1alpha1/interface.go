@@ -38,6 +38,8 @@ type Interface interface {
 	EntraUsers() EntraUserInformer
 	// HelmReleases returns a HelmReleaseInformer.
 	HelmReleases() HelmReleaseInformer
+	// LocalScripts returns a LocalScriptInformer.
+	LocalScripts() LocalScriptInformer
 	// MsSqlDatabases returns a MsSqlDatabaseInformer.
 	MsSqlDatabases() MsSqlDatabaseInformer
 }
@@ -86,6 +88,11 @@ func (v *version) EntraUsers() EntraUserInformer {
 // HelmReleases returns a HelmReleaseInformer.
 func (v *version) HelmReleases() HelmReleaseInformer {
 	return &helmReleaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// LocalScripts returns a LocalScriptInformer.
+func (v *version) LocalScripts() LocalScriptInformer {
+	return &localScriptInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // MsSqlDatabases returns a MsSqlDatabaseInformer.
