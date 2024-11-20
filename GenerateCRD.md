@@ -1,6 +1,6 @@
 ## Prerequisites
 
-1. Install go v1.20 from [here](https://golang.org/doc/install)
+1. Install go v1.21 from [here](https://golang.org/doc/install)
 
 2. Install make 
 ```bash
