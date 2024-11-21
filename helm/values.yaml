@@ -9,3 +9,6 @@ global:
     address: http://vault.vault:8200
   rusi:
     enabled: true
+  azure:
+    enabled: true
+

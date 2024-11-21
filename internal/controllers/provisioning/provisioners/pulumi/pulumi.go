@@ -25,6 +25,7 @@ import (
 
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
+	EnvAzureEnabled      = "AZURE_ENABLED"
 )
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
@@ -153,16 +154,24 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	klog.V(4).Info("Installing plugins")
 	w := s.Workspace()
 
-	// for inline source programs, we must manage plugins ourselves
-	err = w.InstallPlugin(ctx, "azure-native", "v2.4.0")
+	azureEnabled, err := strconv.ParseBool(os.Getenv(EnvAzureEnabled))
 	if err != nil {
-		klog.Errorf("Failed to install azure-native plugin: %v", err)
+		klog.Errorf("Failed to parse %s: %v", EnvAzureEnabled, err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "azuread", "v5.38.0")
-	if err != nil {
-		klog.Errorf("Failed to install azure-ad plugin: %v", err)
-		return auto.Stack{}, err
+
+	// for inline source programs, we must manage plugins ourselves
+	if azureEnabled {
+		err = w.InstallPlugin(ctx, "azure-native", "v2.4.0")
+		if err != nil {
+			klog.Errorf("Failed to install azure-native plugin: %v", err)
+			return auto.Stack{}, err
+		}
+		err = w.InstallPlugin(ctx, "azuread", "v5.38.0")
+		if err != nil {
+			klog.Errorf("Failed to install azure-ad plugin: %v", err)
+			return auto.Stack{}, err
+		}
 	}
 	err = w.InstallPlugin(ctx, "random", "v4.13.2")
 	if err != nil {
@@ -182,17 +191,33 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
-	_ = s.SetAllConfig(ctx, map[string]auto.ConfigValue{
-		"azure-native:location":       {Value: os.Getenv("AZURE_LOCATION")},
-		"azure-native:clientId":       {Value: os.Getenv("AZURE_CLIENT_ID")},
-		"azure-native:subscriptionId": {Value: os.Getenv("AZURE_SUBSCRIPTION_ID")},
-		"azure-native:tenantId":       {Value: os.Getenv("AZURE_TENANT_ID")},
-		"azure-native:clientSecret":   {Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true},
-		"azuread:clientId":            {Value: os.Getenv("ARM_CLIENT_ID")},
-		"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
-		"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true}})
+	configValues := map[string]auto.ConfigValue{}
+	if azureEnabled {
+		azureConfigValues := map[string]auto.ConfigValue{
+			"azure-native:location":       {Value: os.Getenv("AZURE_LOCATION")},
+			"azure-native:clientId":       {Value: os.Getenv("AZURE_CLIENT_ID")},
+			"azure-native:subscriptionId": {Value: os.Getenv("AZURE_SUBSCRIPTION_ID")},
+			"azure-native:tenantId":       {Value: os.Getenv("AZURE_TENANT_ID")},
+			"azure-native:clientSecret":   {Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true},
+			"azuread:clientId":            {Value: os.Getenv("ARM_CLIENT_ID")},
+			"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
+			"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true},
+		}
 
-	klog.V(4).Info("Successfully set config")
+		for key, value := range azureConfigValues {
+			configValues[key] = value
+		}
+	}
+
+	if len(configValues) > 0 {
+		err := s.SetAllConfig(ctx, configValues)
+		if err != nil {
+			klog.Errorf("Failed to set config: %v", err)
+			return auto.Stack{}, err
+		} else {
+			klog.V(4).Info("Successfully set config")
+		}
+	}
 
 	if skipRefresh, err := strconv.ParseBool(os.Getenv(EnvPulumiSkipRefresh)); err == nil && skipRefresh {
 		klog.V(4).Info("Skipping refresh")
