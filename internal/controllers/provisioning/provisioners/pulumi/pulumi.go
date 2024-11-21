@@ -199,7 +199,6 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
-
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
