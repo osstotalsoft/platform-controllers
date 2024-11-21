@@ -25,7 +25,7 @@ type MsSqlDatabaseSpec struct {
 	// Restore from backup. Leave empty for a new empty database.
 	RestoreFrom MsSqlDatabaseRestoreSpec `json:"restoreFrom"`
 	// Existing database to be used instead of creating a new one
-	// eg: TBD
+	// eg: "2"
 	// +optional
 	ImportDatabaseId string `json:"importDatabaseId,omitempty"`
 	// +optional
