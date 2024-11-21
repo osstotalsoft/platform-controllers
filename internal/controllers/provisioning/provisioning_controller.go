@@ -134,6 +134,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addPlatformHandlers(c.platformInformer)
 
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.MsSqlDatabase]("MsSql database", c.mssqlDbInformer.Informer(), c.enqueueDomain)
 
 	if azureEnabled {
 		addResourceHandlers[*provisioningv1.AzureDatabase]("Azure database", c.azureDbInformer.Informer(), c.enqueueDomain)
@@ -142,7 +143,6 @@ func NewProvisioningController(clientSet clientset.Interface,
 		addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain)
 		addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain)
 		addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain)
-		addResourceHandlers[*provisioningv1.MsSqlDatabase]("MsSql database", c.mssqlDbInformer.Informer(), c.enqueueDomain)
 	}
 
 	return c
@@ -311,13 +311,22 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 
+	mssqlDbs, err := c.mssqlDbInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	mssqlDbs = selectItemsInTarget(target.GetPlatformName(), domain, mssqlDbs, target)
+	mssqlDbs, err = applyTargetOverrides(mssqlDbs, target)
+	if err != nil {
+		return err
+	}
+
 	azureDbs := []*provisioningv1.AzureDatabase{}
 	azureManagedDbs := []*provisioningv1.AzureManagedDatabase{}
 	azurePowerShellScripts := []*provisioningv1.AzurePowerShellScript{}
 	azureVirtualMachines := []*provisioningv1.AzureVirtualMachine{}
 	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
 	entraUsers := []*provisioningv1.EntraUser{}
-	mssqlDbs := []*provisioningv1.MsSqlDatabase{}
 
 	if c.azureEnabled {
 		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
@@ -380,15 +389,6 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 
-		mssqlDbs, err = c.mssqlDbInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		mssqlDbs = selectItemsInTarget(target.GetPlatformName(), domain, mssqlDbs, target)
-		mssqlDbs, err = applyTargetOverrides(mssqlDbs, target)
-		if err != nil {
-			return err
-		}
 	}
 
 	result := c.provisioner(target, domain, &InfrastructureManifests{
