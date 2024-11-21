@@ -38,6 +38,8 @@ type Interface interface {
 	EntraUsers() EntraUserInformer
 	// HelmReleases returns a HelmReleaseInformer.
 	HelmReleases() HelmReleaseInformer
+	// MsSqlDatabases returns a MsSqlDatabaseInformer.
+	MsSqlDatabases() MsSqlDatabaseInformer
 }
 
 type version struct {
@@ -84,4 +86,9 @@ func (v *version) EntraUsers() EntraUserInformer {
 // HelmReleases returns a HelmReleaseInformer.
 func (v *version) HelmReleases() HelmReleaseInformer {
 	return &helmReleaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// MsSqlDatabases returns a MsSqlDatabaseInformer.
+func (v *version) MsSqlDatabases() MsSqlDatabaseInformer {
+	return &msSqlDatabaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

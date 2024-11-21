@@ -35,6 +35,7 @@ type ProvisioningV1alpha1Interface interface {
 	AzureVirtualMachinesGetter
 	EntraUsersGetter
 	HelmReleasesGetter
+	MsSqlDatabasesGetter
 }
 
 // ProvisioningV1alpha1Client is used to interact with features provided by the provisioning.totalsoft.ro group.
@@ -68,6 +69,10 @@ func (c *ProvisioningV1alpha1Client) EntraUsers(namespace string) EntraUserInter
 
 func (c *ProvisioningV1alpha1Client) HelmReleases(namespace string) HelmReleaseInterface {
 	return newHelmReleases(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) MsSqlDatabases(namespace string) MsSqlDatabaseInterface {
+	return newMsSqlDatabases(c, namespace)
 }
 
 // NewForConfig creates a new ProvisioningV1alpha1Client for the given config.

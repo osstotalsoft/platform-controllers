@@ -31,3 +31,5 @@ type AzureVirtualMachineExpansion interface{}
 type EntraUserExpansion interface{}
 
 type HelmReleaseExpansion interface{}
+
+type MsSqlDatabaseExpansion interface{}

@@ -413,6 +413,59 @@ spec:
           keyTemplate: UserPrincipalName
 ```
 
+### MsSqlDatabase
+
+`MsSqlDatabase` is a Custom Resource Definition (CRD) that represents a SQL database.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_mssqldatabases.yaml)
+
+## Spec
+
+The `MsSqlDatabase` spec has the following fields:
+
+- `dbName`: Database name prefix. The actual database name will have platform and tenant suffix.
+- `sqlServer`: Specification of the SQL Server where the new database will be created.
+  * `hostName`: The host name of the SQL Server.
+  * `port`: The port of the SQL Server.
+  * `sqlAuth`: The SQL authentication credentials.
+    - `username`: The username.
+    - `password`: The password.
+- `restoreFrom`: Specification for restoring the database from a backup. Leave empty for a new empty database.
+  * `backupFilePath`: The path to the backup file.
+- `domainRef`: The reference to the domain that the user belongs to. 
+- `platformRef`: The reference to the platform that the user belongs to.
+
+## Example
+
+Here's an example of an `MsSqlDatabase` resource:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: MsSqlDatabase
+  name: test-db
+  namespace: provisioning-test
+spec:
+  dbName: test
+  domainRef: domain1
+  exports:
+    - dbName:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Test_Database__Database
+      domain: domain1
+  platformRef: provisioning.test
+  restoreFrom:
+    backupFilePath: C:\tmp\test-db\mydb.bak
+  sqlServer:
+    hostName: myhost
+    port: 1433
+    sqlAuth:
+      password: mypassword
+      username: sa
+  target:
+    category: Tenant
+```
+
+
 ## configuration.totalsoft.ro
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.
 
