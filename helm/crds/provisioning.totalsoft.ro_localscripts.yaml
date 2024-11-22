@@ -4,22 +4,22 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: mssqldatabases.provisioning.totalsoft.ro
+  name: localscripts.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
   names:
-    kind: MsSqlDatabase
-    listKind: MsSqlDatabaseList
-    plural: mssqldatabases
-    singular: mssqldatabase
+    kind: LocalScript
+    listKind: LocalScriptList
+    plural: localscripts
+    singular: localscript
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
-    - jsonPath: .spec.domains
-      name: Domains
+    - jsonPath: .spec.domainRef
+      name: Domain
       type: string
     name: v1alpha1
     schema:
@@ -44,8 +44,11 @@ spec:
             type: object
           spec:
             properties:
-              dbName:
-                description: Database name prefix. Will have platform and tenant suffix.
+              createScriptContent:
+                description: ScriptContent that runs on resource creation and update.
+                type: string
+              deleteScriptContent:
+                description: ScriptContent that runs on resource deletion.
                 type: string
               dependsOn:
                 description: List of dependencies
@@ -66,10 +69,23 @@ spec:
               domainRef:
                 description: Business Domain that this resource is provision for.
                 type: string
+              environment:
+                additionalProperties:
+                  type: string
+                description: Represents the environment variables to be passed to
+                  the script.
+                type: object
               exports:
+                description: Export provisioning values spec.
                 items:
                   properties:
-                    dbName:
+                    domain:
+                      description: The domain or bounded-context in which this script
+                        will be used.
+                      type: string
+                    scriptOutput:
+                      description: Represents the outputs of the Azure PowerShell
+                        script.
                       properties:
                         toConfigMap:
                           properties:
@@ -86,60 +102,23 @@ spec:
                           - keyTemplate
                           type: object
                       type: object
-                    domain:
-                      description: The domain or bounded-context in which this database
-                        will be used.
-                      type: string
-                  required:
-                  - domain
                   type: object
                 type: array
-              importDatabaseId:
-                description: |-
-                  Existing database to be used instead of creating a new one
-                  eg: "2"
+              forceUpdateTag:
+                description: Change value to force the script to execute even if it
+                  has not changed.
                 type: string
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
-              restoreFrom:
-                description: Restore from backup. Leave empty for a new empty database.
-                properties:
-                  backupFilePath:
-                    description: The backup file to restore from. Should be located
-                      on the SQL server machine.
-                    type: string
-                required:
-                - backupFilePath
-                type: object
-              sqlServer:
-                description: Sql Server spec. New database will be created on this
-                  server
-                properties:
-                  hostName:
-                    description: Sql Server host name.
-                    type: string
-                  port:
-                    description: Sql server endpoint port
-                    type: integer
-                  sqlAuth:
-                    description: Sql server authentication
-                    properties:
-                      password:
-                        description: Sql server password
-                        type: string
-                      username:
-                        description: Sql server username
-                        type: string
-                    required:
-                    - password
-                    - username
-                    type: object
-                required:
-                - hostName
-                - port
-                - sqlAuth
-                type: object
+              shell:
+                default: pwsh
+                description: 'The shell to use for the script. Possibile values: pwsh,
+                  bash'
+                enum:
+                - pwsh
+                - bash
+                type: string
               target:
                 default:
                   category: Tenant
@@ -184,12 +163,15 @@ spec:
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
                 type: object
+              workingDir:
+                description: Working directory for the script.
+                type: string
             required:
-            - dbName
+            - createScriptContent
+            - deleteScriptContent
             - domainRef
             - platformRef
-            - restoreFrom
-            - sqlServer
+            - shell
             - target
             type: object
         required:

@@ -32,4 +32,6 @@ type EntraUserExpansion interface{}
 
 type HelmReleaseExpansion interface{}
 
+type LocalScriptExpansion interface{}
+
 type MsSqlDatabaseExpansion interface{}

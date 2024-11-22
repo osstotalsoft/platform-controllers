@@ -16,6 +16,7 @@ const (
 	ProvisioningResourceKindAzureVirtualMachine   = provisioningv1.ProvisioningResourceKind("AzureVirtualMachine")
 	ProvisioningResourceKindHelmRelease           = provisioningv1.ProvisioningResourceKind("HelmRelease")
 	ProvisioningResourceKindMsSqlDatabase         = provisioningv1.ProvisioningResourceKind("MsSqlDatabase")
+	ProvisioningResourceKindLocalScript           = provisioningv1.ProvisioningResourceKind("LocalScript")
 )
 
 type InfrastructureManifests struct {
@@ -27,6 +28,7 @@ type InfrastructureManifests struct {
 	AzureVirtualMachines   []*provisioningv1.AzureVirtualMachine
 	AzureVirtualDesktops   []*provisioningv1.AzureVirtualDesktop
 	MsSqlDbs               []*provisioningv1.MsSqlDatabase
+	LocalScripts           []*provisioningv1.LocalScript
 }
 
 type ProvisioningResource interface {
@@ -55,6 +57,8 @@ func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResource
 		return findByName(id.Name, infra.AzureVirtualDesktops)
 	case ProvisioningResourceKindMsSqlDatabase:
 		return findByName(id.Name, infra.MsSqlDbs)
+	case ProvisioningResourceKindLocalScript:
+		return findByName(id.Name, infra.LocalScripts)
 	default:
 		return nil, false
 	}
