@@ -315,7 +315,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 
-	mssqlDbs, err = c.mssqlDbInformer.Lister().List(labels.Everything())
+	mssqlDbs, err := c.mssqlDbInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
@@ -325,7 +325,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 
-	localScripts, err = c.localScriptInformer.Lister().List(labels.Everything())
+	localScripts, err := c.localScriptInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
