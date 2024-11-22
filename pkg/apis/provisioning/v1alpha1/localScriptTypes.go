@@ -21,7 +21,7 @@ type LocalScriptShell string
 
 const (
 	LocalScriptShellPwsh = LocalScriptShell("pwsh")
-	LocalScriptShellSh   = LocalScriptShell("bash")
+	LocalScriptShellBash = LocalScriptShell("bash")
 )
 
 type LocalScriptSpec struct {

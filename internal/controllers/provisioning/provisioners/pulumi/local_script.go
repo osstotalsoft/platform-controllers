@@ -38,8 +38,8 @@ func deployLocalScript(target provisioning.ProvisioningTarget,
 	switch localScript.Spec.Shell {
 	case provisioningv1.LocalScriptShellPwsh:
 		args.Interpreter = pulumi.ToStringArray([]string{"pwsh", "-c"})
-	case provisioningv1.LocalScriptShellSh:
-		args.Interpreter = pulumi.ToStringArray([]string{"sh", "-c"})
+	case provisioningv1.LocalScriptShellBash:
+		args.Interpreter = pulumi.ToStringArray([]string{"bash", "-c"})
 	}
 
 	script, err := local.NewCommand(ctx, localScript.Name, args,

@@ -97,7 +97,7 @@ spec:
               importDatabaseId:
                 description: |-
                   Existing database to be used instead of creating a new one
-                  eg: TBD
+                  eg: "2"
                 type: string
               platformRef:
                 description: Target platform (custom resource name).
