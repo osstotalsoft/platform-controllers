@@ -16,3 +16,4 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder --chown=nonroot /root/.pulumi/ /home/nonroot/.pulumi/
 COPY --chown=nonroot /$PKG_FILES /
 ENV PATH="/home/nonroot/.pulumi/bin:${PATH}"
+USER nonroot
