@@ -11,4 +11,11 @@ global:
     enabled: true
   azure:
     enabled: true
+  backend:
+    type: cloud # cloud | custom
+    customBackedUrl: s3://my-bucket?region=ro&endpoint=http://my-minio-server:9000&disableSSL=true&s3ForcePathStyle=true
+  s3:
+    enabled: false
+    profile: minio
+
 
