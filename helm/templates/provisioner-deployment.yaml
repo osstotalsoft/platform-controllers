@@ -22,6 +22,12 @@ spec:
         app.kubernetes.io/version: {{ .Values.global.tag }}
         app.kubernetes.io/managed-by: "helm"
     spec:
+      {{- if .Values.global.s3.enabled }}
+      volumes:
+        - name: provisioner-secrets
+          secret:
+            secretName: provisioner-secrets
+      {{- end }}
       containers:
       - name: provisioning-controller
         image: "{{ .Values.global.registry }}/platform-controllers:{{ .Values.global.tag }}"
@@ -85,11 +91,21 @@ spec:
               name: azure-config
               key: tenantId
         {{- end }}
+        {{- if eq .Values.global.backend.type "cloud" }}
         - name: PULUMI_ACCESS_TOKEN
           valueFrom:
             secretKeyRef:
               name: provisioner-secrets
               key: pulumiAccessToken
+        {{- else if eq .Values.global.backend.type "custom" }}
+        - name: PULUMI_BACKEND_URL
+          value: {{ .Values.global.backend.customBackedUrl | quote }}
+        - name: PULUMI_CONFIG_PASSPHRASE
+          valueFrom:
+            secretKeyRef:
+              name: provisioner-secrets
+              key: pulumiConfigPassphrase
+        {{- end }}
         {{- if .Values.global.vault.enabled }}
         - name: VAULT_ADDR
           value: "{{ .Values.global.vault.address }}"
@@ -99,8 +115,19 @@ spec:
               name:  provisioner-secrets
               key: vaultAccessToken
         {{- end }}
+        {{- if .Values.global.s3.enabled }}
+        - name: AWS_PROFILE
+          value: "{{ .Values.global.s3.profile }}"
+        {{- end }}
         - name: RUSI_ENABLED
-          value: "{{ .Values.global.rusi.enabled }}"            
+          value: "{{ .Values.global.rusi.enabled }}"
+        {{- if .Values.global.s3.enabled }}
+        volumeMounts:
+          - mountPath: "/home/nonroot/.aws/credentials"
+            name: provisioner-secrets
+            subPath: s3Credentials
+            readOnly: true
+        {{- end }}
         command:
         - "/tenant-provisioner"
         args:

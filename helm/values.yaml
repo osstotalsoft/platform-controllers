@@ -11,4 +11,11 @@ global:
     enabled: true
   azure:
     enabled: true
+  backend:
+    type: cloud # cloud | custom
+    customBackedUrl: http://minio.minio:9000
+  s3:
+    enabled: false
+    profile: minio
+
 
