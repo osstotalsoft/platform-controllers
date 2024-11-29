@@ -21,44 +21,44 @@ import (
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
-var ErrNonRetryAble = errors.New("non retry-able handled error")
+// var ErrNonRetryAble = errors.New("non retry-able handled error")
 
-type configurationHandler struct {
+type kubeSecretsHandler struct {
 	kubeClientset kubernetes.Interface
 
-	configMapsLister coreListers.ConfigMapLister
+	secretsLister coreListers.SecretLister
 
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
 	recorder record.EventRecorder
 }
 
-func newConfigurationHandler(
+func newKubeSecretsHandler(
 	kubeClientset kubernetes.Interface,
-	configMapsLister coreListers.ConfigMapLister,
+	secretsLister coreListers.SecretLister,
 	recorder record.EventRecorder,
-) *configurationHandler {
-	handler := &configurationHandler{
-		kubeClientset:    kubeClientset,
-		configMapsLister: configMapsLister,
-		recorder:         recorder,
+) *kubeSecretsHandler {
+	handler := &kubeSecretsHandler{
+		kubeClientset: kubeClientset,
+		secretsLister: secretsLister,
+		recorder:      recorder,
 	}
 	return handler
 }
 
-func (c *configurationHandler) Cleanup(namespace, domain string) error {
-	outputConfigMapName := getOutputConfigmapName(domain)
-	err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Delete(context.TODO(), outputConfigMapName, metav1.DeleteOptions{})
+func (c *kubeSecretsHandler) Cleanup(namespace, domain string) error {
+	outputSecretName := getOutputSecretName(domain)
+	err := c.kubeClientset.CoreV1().Secrets(namespace).Delete(context.TODO(), outputSecretName, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
 	}
 	return nil
 }
 
-func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
-	outputConfigMapName := getOutputConfigmapName(configDomain.Name)
+func (h *kubeSecretsHandler) Sync(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
+	outputSecretName := getOutputSecretName(configDomain.Name)
 
-	configMaps, err := h.getConfigMapsFor(platformObj, configDomain.Namespace, configDomain.Name)
+	secrets, err := h.getSecretsFor(platformObj, configDomain.Namespace, configDomain.Name)
 	if err != nil {
 		if errors.Is(err, ErrNonRetryAble) {
 			return nil
@@ -66,13 +66,13 @@ func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 		return err
 	}
 
-	aggregatedConfigMap := h.aggregateConfigMaps(configDomain, configMaps, outputConfigMapName)
+	aggregatedSecret := h.aggregateSecrets(configDomain, secrets, outputSecretName)
 
 	// Get the output config map for this namespace::domain
-	outputConfigMap, err := h.configMapsLister.ConfigMaps(configDomain.Namespace).Get(outputConfigMapName)
+	outputSecret, err := h.secretsLister.Secrets(configDomain.Namespace).Get(outputSecretName)
 	// If the resource doesn't exist, we'll create it
 	if k8serrors.IsNotFound(err) {
-		outputConfigMap, err = h.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Create(context.TODO(), aggregatedConfigMap, metav1.CreateOptions{})
+		outputSecret, err = h.kubeClientset.CoreV1().Secrets(configDomain.Namespace).Create(context.TODO(), aggregatedSecret, metav1.CreateOptions{})
 	}
 
 	// If an error occurs during Get/Create, we'll requeue the item so we can
@@ -83,21 +83,21 @@ func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 		return err
 	}
 
-	// If the ConfigMap is not controlled by this ConfigMapAggregate resource, we should log
+	// If the Secret is not controlled by this SecretAggregate resource, we should log
 	// a warning to the event recorder and return error msg.
-	if !metav1.IsControlledBy(outputConfigMap, configDomain) {
-		msg := fmt.Sprintf(MessageResourceExists, outputConfigMap.Name)
+	if !metav1.IsControlledBy(outputSecret, configDomain) {
+		msg := fmt.Sprintf(MessageResourceExists, outputSecret.Name)
 		h.recorder.Event(configDomain, corev1.EventTypeWarning, ErrResourceExists, msg)
 		return nil
 	}
 
-	// If the existing ConfigMap data differs from the aggregation result we
-	// should update the ConfigMap resource.
-	if !reflect.DeepEqual(aggregatedConfigMap.Data, outputConfigMap.Data) {
-		klog.V(4).Infof("Configuration values changed")
-		outputConfigMap = outputConfigMap.DeepCopy()
-		outputConfigMap.Data = aggregatedConfigMap.Data
-		_, err = h.kubeClientset.CoreV1().ConfigMaps(configDomain.Namespace).Update(context.TODO(), outputConfigMap, metav1.UpdateOptions{})
+	// If the existing Secret data differs from the aggregation result we
+	// should update the Secret resource.
+	if !reflect.DeepEqual(aggregatedSecret.Data, outputSecret.Data) {
+		klog.V(4).Infof("Secret values changed")
+		outputSecret = outputSecret.DeepCopy()
+		outputSecret.Data = aggregatedSecret.Data
+		_, err = h.kubeClientset.CoreV1().Secrets(configDomain.Namespace).Update(context.TODO(), outputSecret, metav1.UpdateOptions{})
 		if err != nil {
 			h.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
 			return err
@@ -107,7 +107,7 @@ func (h *configurationHandler) Sync(platformObj *platformv1.Platform, configDoma
 	return nil
 }
 
-func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, namespace, domain string) ([]*corev1.ConfigMap, error) {
+func (h *kubeSecretsHandler) getSecretsFor(platform *platformv1.Platform, namespace, domain string) ([]*corev1.Secret, error) {
 	domainAndPlatformLabelSelector, err :=
 		labels.ValidatedSelectorFromSet(map[string]string{
 			controllers.DomainLabelName:   domain,
@@ -141,46 +141,46 @@ func (h *configurationHandler) getConfigMapsFor(platform *platformv1.Platform, n
 		return nil, ErrNonRetryAble
 	}
 
-	platformConfigMaps, err := h.configMapsLister.ConfigMaps(platform.Spec.TargetNamespace).List(globalDomainAndPlatformLabelSelector)
+	platformSecrets, err := h.secretsLister.Secrets(platform.Spec.TargetNamespace).List(globalDomainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	globalDomainConfigMaps, err := h.configMapsLister.ConfigMaps(namespace).List(globalDomainAndPlatformLabelSelector)
+	globalDomainSecrets, err := h.secretsLister.Secrets(namespace).List(globalDomainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	currentNsConfigMaps, err := h.configMapsLister.ConfigMaps(namespace).List(domainAndPlatformLabelSelector)
+	currentNsSecrets, err := h.secretsLister.Secrets(namespace).List(domainAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	nsConfigMaps, err := h.configMapsLister.List(domainNsAndPlatformLabelSelector)
+	nsSecrets, err := h.secretsLister.List(domainNsAndPlatformLabelSelector)
 	if err != nil {
 		return nil, err
 	}
 
-	currentNsConfigMaps = append(append(append(platformConfigMaps, globalDomainConfigMaps...), currentNsConfigMaps...), nsConfigMaps...)
-	return currentNsConfigMaps, nil
+	currentNsSecrets = append(append(append(platformSecrets, globalDomainSecrets...), currentNsSecrets...), nsSecrets...)
+	return currentNsSecrets, nil
 }
 
-func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1.ConfigurationDomain, configMaps []*corev1.ConfigMap, outputName string) *corev1.ConfigMap {
-	mergedData := map[string]string{}
-	for _, configMap := range configMaps {
-		if configMap.Name == outputName {
+func (h *kubeSecretsHandler) aggregateSecrets(configurationDomain *v1alpha1.ConfigurationDomain, secrets []*corev1.Secret, outputName string) *corev1.Secret {
+	mergedData := map[string][]byte{}
+	for _, secret := range secrets {
+		if secret.Name == outputName {
 			continue
 		}
 
-		for k, v := range configMap.Data {
-			if existingValue, ok := mergedData[k]; ok && existingValue != v {
-				klog.V(4).Infof("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, configMap.Name, v)
+		for k, v := range secret.Data {
+			if existingValue, ok := mergedData[k]; ok {
+				klog.V(4).Infof("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, secret.Name, v)
 			}
 			mergedData[k] = v
 		}
 	}
 
-	return &corev1.ConfigMap{
+	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: outputName,
 			Labels: map[string]string{
@@ -196,12 +196,12 @@ func (h *configurationHandler) aggregateConfigMaps(configurationDomain *v1alpha1
 	}
 }
 
-func getOutputConfigmapName(domain string) string {
+func getOutputSecretName(domain string) string {
 	return fmt.Sprintf("%s-aggregate", domain)
 }
 
-func isOutputConfigMap(configMap *corev1.ConfigMap) bool {
-	owner := metav1.GetControllerOf(configMap)
+func isOutputSecret(secret *corev1.Secret) bool {
+	owner := metav1.GetControllerOf(secret)
 	return (owner != nil &&
 		owner.Kind == "ConfigurationDomain" &&
 		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")

@@ -21,8 +21,9 @@ package v1alpha1
 // ValueExportApplyConfiguration represents an declarative configuration of the ValueExport type for use
 // with apply.
 type ValueExportApplyConfiguration struct {
-	ToConfigMap *ConfigMapTemplateApplyConfiguration   `json:"toConfigMap,omitempty"`
-	ToVault     *VaultSecretTemplateApplyConfiguration `json:"toVault,omitempty"`
+	ToConfigMap  *ConfigMapTemplateApplyConfiguration   `json:"toConfigMap,omitempty"`
+	ToVault      *VaultSecretTemplateApplyConfiguration `json:"toVault,omitempty"`
+	ToKubeSecret *KubeSecretTemplateApplyConfiguration  `json:"toKubeSecret,omitempty"`
 }
 
 // ValueExportApplyConfiguration constructs an declarative configuration of the ValueExport type for use with
@@ -44,5 +45,13 @@ func (b *ValueExportApplyConfiguration) WithToConfigMap(value *ConfigMapTemplate
 // If called multiple times, the ToVault field is set to the value of the last call.
 func (b *ValueExportApplyConfiguration) WithToVault(value *VaultSecretTemplateApplyConfiguration) *ValueExportApplyConfiguration {
 	b.ToVault = value
+	return b
+}
+
+// WithToKubeSecret sets the ToKubeSecret field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ToKubeSecret field is set to the value of the last call.
+func (b *ValueExportApplyConfiguration) WithToKubeSecret(value *KubeSecretTemplateApplyConfiguration) *ValueExportApplyConfiguration {
+	b.ToKubeSecret = value
 	return b
 }

@@ -67,6 +67,7 @@ func main() {
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Configuration().V1alpha1().ConfigurationDomains(),
 		kubeInformerFactory.Core().V1().ConfigMaps(),
+		kubeInformerFactory.Core().V1().Secrets(),
 		csiInformerFactory.Secretsstore().V1().SecretProviderClasses(),
 		eventBroadcaster,
 		messaging.DefaultMessagingPublisher())

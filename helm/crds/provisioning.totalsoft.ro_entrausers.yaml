@@ -91,6 +91,13 @@ spec:
                           required:
                           - keyTemplate
                           type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toVault:
                           properties:
                             keyTemplate:
@@ -103,6 +110,13 @@ spec:
                       description: The user principal name
                       properties:
                         toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
                           properties:
                             keyTemplate:
                               type: string

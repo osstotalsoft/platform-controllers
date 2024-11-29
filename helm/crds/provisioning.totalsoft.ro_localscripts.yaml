@@ -94,6 +94,13 @@ spec:
                           required:
                           - keyTemplate
                           type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toVault:
                           properties:
                             keyTemplate:

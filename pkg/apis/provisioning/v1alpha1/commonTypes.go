@@ -7,9 +7,15 @@ type ValueExport struct {
 	ToConfigMap ConfigMapTemplate `json:"toConfigMap,omitempty"`
 	// +optional
 	ToVault VaultSecretTemplate `json:"toVault,omitempty"`
+	// +optional
+	ToKubeSecret KubeSecretTemplate `json:"toKubeSecret,omitempty"`
 }
 
 type ConfigMapTemplate struct {
+	KeyTemplate string `json:"keyTemplate"`
+}
+
+type KubeSecretTemplate struct {
 	KeyTemplate string `json:"keyTemplate"`
 }
 
