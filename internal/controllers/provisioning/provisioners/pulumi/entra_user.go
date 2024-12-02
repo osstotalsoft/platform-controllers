@@ -16,7 +16,7 @@ func deployEntraUser(target provisioning.ProvisioningTarget,
 	ctx *pulumi.Context) (*azuread.User, error) {
 
 	valueExporter := handleValueExport(target)
-	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureDatabase")
+	gvk := provisioningv1.SchemeGroupVersion.WithKind("EntraUser")
 
 	initialPassword := pulumi.String(entraUser.Spec.InitialPassword).ToStringOutput()
 	if entraUser.Spec.InitialPassword == "" {
@@ -44,7 +44,7 @@ func deployEntraUser(target provisioning.ProvisioningTarget,
 		DisplayName:         pulumi.String(entraUser.Spec.DisplayName),
 		Password:            initialPassword,
 		ForcePasswordChange: pulumi.Bool(true),
-	})
+	}, pulumi.DependsOn(dependencies))
 	if err != nil {
 		return nil, err
 	}

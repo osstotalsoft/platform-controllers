@@ -72,11 +72,14 @@ type ConfigurationDomainController struct {
 	csiClientset         csiClientset.Interface
 	platformClientset    clientset.Interface
 	configMapInformer    coreInformers.ConfigMapInformer
+	kubeSecretInformer   coreInformers.SecretInformer
 	spcInformer          csiInformers.SecretProviderClassInformer
 	configDomainInformer informers.ConfigurationDomainInformer
 
 	configMapsLister    coreListers.ConfigMapLister
 	configMapsSynced    cache.InformerSynced
+	kubeSecretsLister   coreListers.SecretLister
+	kubeSecretsSynced   cache.InformerSynced
 	spcLister           csiListers.SecretProviderClassLister
 	spcSynced           cache.InformerSynced
 	configDomainsLister listers.ConfigurationDomainLister
@@ -96,7 +99,8 @@ type ConfigurationDomainController struct {
 	workqueue workqueue.RateLimitingInterface
 
 	configurationHandler *configurationHandler
-	secretsHandler       *secretsHandler
+	kubeSecretsHandler   *kubeSecretsHandler
+	vaultSecretsHandler  *secretsHandler
 	messagingPublisher   messaging.MessagingPublisher
 }
 
@@ -108,6 +112,7 @@ func NewConfigurationDomainController(
 	platformInformer platformInformers.PlatformInformer,
 	configDomainInformer informers.ConfigurationDomainInformer,
 	configMapInformer coreInformers.ConfigMapInformer,
+	kubeSecretInformer coreInformers.SecretInformer,
 	spcInformer csiInformers.SecretProviderClassInformer,
 
 	eventBroadcaster record.EventBroadcaster,
@@ -129,6 +134,10 @@ func NewConfigurationDomainController(
 		configMapsLister:  configMapInformer.Lister(),
 		configMapsSynced:  configMapInformer.Informer().HasSynced,
 
+		kubeSecretInformer: kubeSecretInformer,
+		kubeSecretsLister:  kubeSecretInformer.Lister(),
+		kubeSecretsSynced:  kubeSecretInformer.Informer().HasSynced,
+
 		spcInformer: spcInformer,
 		spcLister:   spcInformer.Lister(),
 		spcSynced:   spcInformer.Informer().HasSynced,
@@ -144,14 +153,16 @@ func NewConfigurationDomainController(
 	}
 
 	controller.configurationHandler = newConfigurationHandler(kubeClientset, configMapInformer.Lister(), controller.recorder)
-	controller.secretsHandler = newSecretsHandler(csiClientset, spcInformer.Lister(), controller.recorder)
+	controller.kubeSecretsHandler = newKubeSecretsHandler(kubeClientset, kubeSecretInformer.Lister(), controller.recorder)
+	controller.vaultSecretsHandler = newVaultSecretsHandler(csiClientset, spcInformer.Lister(), controller.recorder)
 
 	klog.Info("Setting up event handlers")
 
 	// Set up an event handler for when ConfigAggregate resources change
 	addPlatformHandlers(platformInformer)
 	addConfigurationDomainHandlers(configDomainInformer, controller.enqueueConfigurationDomain)
-	addConfigMapHandlers(configMapInformer, controller.handleConfigMap)
+	addConfigMapHandlers(configMapInformer, controller.handleKubeResource)
+	addKubeSecretsHandlers(kubeSecretInformer, controller.handleKubeResource)
 	addSPCHandlers(spcInformer, controller.enqueueConfigurationDomain)
 
 	return controller
@@ -170,7 +181,7 @@ func (c *ConfigurationDomainController) Run(workers int, stopCh <-chan struct{})
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.platformsSynced, c.configDomainsSynced, c.configMapsSynced, c.spcSynced); !ok {
+	if ok := cache.WaitForCacheSync(stopCh, c.platformsSynced, c.configDomainsSynced, c.configMapsSynced, c.kubeSecretsSynced, c.spcSynced); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -286,15 +297,20 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 		}
 	}
 
-	cleanupSpc := platformNotOk || !configDomain.Spec.AggregateSecrets
-	if cleanupSpc {
-		err = c.secretsHandler.Cleanup(namespace, domain)
+	cleanupSecrets := platformNotOk || !configDomain.Spec.AggregateSecrets
+	if cleanupSecrets {
+		err = c.vaultSecretsHandler.Cleanup(namespace, domain)
+		if err != nil {
+			return err
+		}
+
+		err = c.kubeSecretsHandler.Cleanup(namespace, domain)
 		if err != nil {
 			return err
 		}
 	}
 
-	if cleanupConfigMap && cleanupSpc {
+	if cleanupConfigMap && cleanupSecrets {
 		return nil
 	}
 
@@ -311,8 +327,14 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 		}
 	}
 
-	if !cleanupSpc {
-		err = c.secretsHandler.Sync(platformObj, configDomain)
+	if !cleanupSecrets {
+		err = c.vaultSecretsHandler.Sync(platformObj, configDomain)
+		if err != nil {
+			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
+			return err
+		}
+
+		err = c.kubeSecretsHandler.Sync(platformObj, configDomain)
 		if err != nil {
 			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
 			return err
@@ -386,7 +408,7 @@ func (c *ConfigurationDomainController) updateStatus(configurationDomain *v1alph
 	}
 }
 
-func (c *ConfigurationDomainController) handleConfigMap(platform, namespace, domain string) {
+func (c *ConfigurationDomainController) handleKubeResource(platform, namespace, domain string) {
 	platformObj, err := c.platformsLister.Get(platform)
 	if err != nil {
 		return
@@ -463,7 +485,7 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*corev1.ConfigMap)
 
-			if platform, domainNs, domain, ok := getConfigMapPlatformNsAndDomain(comp); ok {
+			if platform, domainNs, domain, ok := controllers.GetPlatformNsAndDomain(comp); ok {
 				if isOutputConfigMap(comp) {
 					return
 				}
@@ -480,8 +502,8 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			// 	return
 			// }
 
-			oldPlatform, oldDomainNs, oldDomain, oldOk := getConfigMapPlatformNsAndDomain(oldComp)
-			newPlatform, newDomainNs, newDomain, newOk := getConfigMapPlatformNsAndDomain(newComp)
+			oldPlatform, oldDomainNs, oldDomain, oldOk := controllers.GetPlatformNsAndDomain(oldComp)
+			newPlatform, newDomainNs, newDomain, newOk := controllers.GetPlatformNsAndDomain(newComp)
 			targetChanged := oldPlatform != newPlatform || oldDomain != newDomain
 
 			if !oldOk && !newOk {
@@ -505,9 +527,65 @@ func addConfigMapHandlers(informer coreInformers.ConfigMapInformer, handler func
 			// 	return
 			// }
 
-			if platform, domainNs, domain, ok := getConfigMapPlatformNsAndDomain(comp); ok {
+			if platform, domainNs, domain, ok := controllers.GetPlatformNsAndDomain(comp); ok {
 
 				klog.V(4).InfoS("Config map deleted", "name", comp.Name, "namespace", domainNs, "platform", platform, "domain", domain)
+				handler(platform, domainNs, domain)
+			}
+		},
+	})
+}
+
+func addKubeSecretsHandlers(informer coreInformers.SecretInformer, handler func(platform, namespace, domain string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*corev1.Secret)
+
+			if platform, domainNs, domain, ok := controllers.GetPlatformNsAndDomain(&comp.ObjectMeta); ok {
+				if isOutputSecret(comp) {
+					return
+				}
+
+				klog.V(4).InfoS("Config map added", "name", comp.Name, "namespace", domainNs, "platform", platform, "domain", domain)
+				handler(platform, domainNs, domain)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldComp := oldObj.(*corev1.Secret)
+			newComp := newObj.(*corev1.Secret)
+
+			// if isControlledByConfigAggregate(newComp) {
+			// 	return
+			// }
+
+			oldPlatform, oldDomainNs, oldDomain, oldOk := controllers.GetPlatformNsAndDomain(oldComp)
+			newPlatform, newDomainNs, newDomain, newOk := controllers.GetPlatformNsAndDomain(newComp)
+			targetChanged := oldPlatform != newPlatform || oldDomain != newDomain
+
+			if !oldOk && !newOk {
+				return
+			}
+
+			if oldOk && targetChanged {
+				klog.V(4).InfoS("Secret updated", "name", newComp.Name, "namespace", oldDomainNs, "platform", oldPlatform, "domain", oldDomain)
+				handler(oldPlatform, oldDomainNs, oldDomain)
+			}
+			dataChanged := !reflect.DeepEqual(oldComp.Data, newComp.Data) || !reflect.DeepEqual(oldComp.Labels, newComp.Labels)
+			if newOk && dataChanged {
+				klog.V(4).InfoS("Secret updated", "name", newComp.Name, "namespace", newDomainNs, "platform", newPlatform, "domain", newDomain)
+				handler(newPlatform, newDomainNs, newDomain)
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*corev1.Secret)
+
+			// if isControlledByConfigAggregate(newComp) {
+			// 	return
+			// }
+
+			if platform, domainNs, domain, ok := controllers.GetPlatformNsAndDomain(comp); ok {
+
+				klog.V(4).InfoS("Secret deleted", "name", comp.Name, "namespace", domainNs, "platform", platform, "domain", domain)
 				handler(platform, domainNs, domain)
 			}
 		},

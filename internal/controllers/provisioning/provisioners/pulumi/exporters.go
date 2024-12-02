@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	ConfigMapDomainLabel   = "platform.totalsoft.ro/domain"
-	ConfigMapPlatformLabel = "platform.totalsoft.ro/platform"
+	DomainLabel   = "platform.totalsoft.ro/domain"
+	PlatformLabel = "platform.totalsoft.ro/platform"
 )
 
 type ValueExporterFunc func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error
@@ -81,6 +81,23 @@ func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc
 			)
 
 			err := exportToConfigMap(exportContext, name, templateContext, target.GetPlatformName(), v, opts...)
+			if err != nil {
+				return err
+			}
+		}
+
+		v = onlyKubeSecretValues(values)
+		if len(v) > 0 {
+			name := provisioning.MatchTarget(target,
+				func(tenant *platformv1.Tenant) string {
+					return strings.Join([]string{exportContext.domain, tenant.GetName(), exportContext.objectName}, "-")
+				},
+				func(*platformv1.Platform) string {
+					return strings.Join([]string{exportContext.domain, exportContext.objectName}, "-")
+				},
+			)
+
+			err := exportToKubeSecret(exportContext, name, templateContext, target.GetPlatformName(), v, opts...)
 			if err != nil {
 				return err
 			}
@@ -153,13 +170,54 @@ func exportToConfigMap(exportContext ExportContext, configMapName string,
 			Name:      pulumi.String(configMapName),
 			Namespace: pulumi.String(exportContext.ownerMeta.Namespace),
 			Labels: pulumi.ToStringMap(map[string]string{
-				ConfigMapDomainLabel:   exportContext.domain,
-				ConfigMapPlatformLabel: platform,
+				DomainLabel:   exportContext.domain,
+				PlatformLabel: platform,
 			}),
 			OwnerReferences: mapOwnersToReferences(exportContext.ownerMeta, exportContext.ownerKind),
 		},
 		Immutable: pulumi.Bool(true),
 		Data:      data,
+	}, opts...)
+	return err
+}
+
+func exportToKubeSecret(exportContext ExportContext, kubeSecretName string,
+	templateContext interface{}, platform string, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
+
+	var parsedKeys = map[string]string{}
+	for k, v := range values {
+		secretKey, err := template.ParseTemplate(v.valueExport.ToKubeSecret.KeyTemplate, templateContext)
+		if err != nil {
+			return err
+		}
+		parsedKeys[k] = secretKey
+	}
+
+	var pulumiValues = pulumi.StringMap{}
+	for k, v := range values {
+		pulumiValues[k] = v.value
+	}
+
+	data := pulumiValues.ToStringMapOutput().ApplyT(func(vs map[string]string) map[string]string {
+		var m = map[string]string{}
+		for k, v := range vs {
+			m[parsedKeys[k]] = v
+		}
+		return m
+	}).(pulumi.StringMapOutput)
+
+	_, err := pulumiKube.NewSecret(exportContext.pulumiContext, kubeSecretName, &pulumiKube.SecretArgs{
+		Metadata: pulumiKubeMetav1.ObjectMetaArgs{
+			Name:      pulumi.String(kubeSecretName),
+			Namespace: pulumi.String(exportContext.ownerMeta.Namespace),
+			Labels: pulumi.ToStringMap(map[string]string{
+				DomainLabel:   exportContext.domain,
+				PlatformLabel: platform,
+			}),
+			OwnerReferences: mapOwnersToReferences(exportContext.ownerMeta, exportContext.ownerKind),
+		},
+		Immutable:  pulumi.Bool(true),
+		StringData: data,
 	}, opts...)
 	return err
 }
@@ -178,6 +236,16 @@ func onlyConfigMapValues(values map[string]exportTemplateWithValue) map[string]e
 	var output = map[string]exportTemplateWithValue{}
 	for k, v := range values {
 		if v.valueExport.ToConfigMap != (provisioningv1.ConfigMapTemplate{}) {
+			output[k] = v
+		}
+	}
+	return output
+}
+
+func onlyKubeSecretValues(values map[string]exportTemplateWithValue) map[string]exportTemplateWithValue {
+	var output = map[string]exportTemplateWithValue{}
+	for k, v := range values {
+		if v.valueExport.ToKubeSecret != (provisioningv1.KubeSecretTemplate{}) {
 			output[k] = v
 		}
 	}

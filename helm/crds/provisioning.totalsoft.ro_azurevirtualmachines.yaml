@@ -75,6 +75,13 @@ spec:
                           required:
                           - keyTemplate
                           type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toVault:
                           properties:
                             keyTemplate:
@@ -92,6 +99,13 @@ spec:
                           required:
                           - keyTemplate
                           type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toVault:
                           properties:
                             keyTemplate:
@@ -103,6 +117,13 @@ spec:
                     computerName:
                       properties:
                         toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
                           properties:
                             keyTemplate:
                               type: string
@@ -130,6 +151,13 @@ spec:
                           required:
                           - keyTemplate
                           type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toVault:
                           properties:
                             keyTemplate:
@@ -141,6 +169,13 @@ spec:
                     vmName:
                       properties:
                         toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
                           properties:
                             keyTemplate:
                               type: string
