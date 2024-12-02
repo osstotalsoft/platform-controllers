@@ -121,6 +121,12 @@ spec:
         {{- end }}
         - name: RUSI_ENABLED
           value: "{{ .Values.global.rusi.enabled }}"
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name:  provisioner-secrets
+              key: githubAccessToken
+              optional: true
         {{- if .Values.global.s3.enabled }}
         volumeMounts:
           - mountPath: "/home/nonroot/.aws/credentials"
