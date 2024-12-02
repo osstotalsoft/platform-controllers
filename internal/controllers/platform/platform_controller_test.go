@@ -57,8 +57,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		if msg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 
@@ -99,8 +99,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		if msg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 
@@ -159,8 +159,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		if msg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 
@@ -220,8 +220,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		qaMsg := <-msgChan
-		if qaMsg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", qaMsg.Topic)
+		if qaMsg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", qaMsg.Topic)
 		}
 
 		uatConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("uat").Get(context.TODO(), "charismaonline.uat-tenants", metav1.GetOptions{})
@@ -238,8 +238,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		uatMsg := <-msgChan
-		if uatMsg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", uatMsg.Topic)
+		if uatMsg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", uatMsg.Topic)
 		}
 	})
 
@@ -291,8 +291,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		if msg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 	t.Run("tenant specific configs", func(t *testing.T) {
