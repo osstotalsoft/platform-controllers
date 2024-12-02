@@ -1,23 +1,45 @@
 # platform-controllers
+
 Kubernetes first, multi-tenant infrastructure provisioning services
 
 ## platform.totalsoft.ro
+
 Custom platform resources
+
 ### Platform
+
 Definition can be found [here](./helm/crds/platform.totalsoft.ro_platforms.yaml)
 Example:
+
 ```yaml
 apiVersion: platform.totalsoft.ro/v1alpha1
 kind: Platform
 metadata:
   name: charismaonline.qa
 spec:
-  code: qa
+  targetNamespace: qa
+```
+
+### Domain
+
+Definition can be found [here](./helm/crds/platform.totalsoft.ro_domains.yaml)
+Example:
+
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: Domain
+metadata:
+  name: d3
+  namespace: qa
+spec:
+  platformRef: charismaonline.qa
 ```
 
 ### Tenant
+
 Definition can be found [here](./helm/crds/platform.totalsoft.ro_tenants.yaml)
 Example:
+
 ```yaml
 apiVersion: platform.totalsoft.ro/v1alpha1
 kind: Tenant
@@ -25,36 +47,39 @@ metadata:
   name: tenant1
   namespace: qa
 spec:
-  code: tenant1
-  configs:
-    config1: value1
-    config2: value2
+  adminEmail: admin@totalsoft.ro
+  deletePolicy: DeleteAll
+  description: tenant1
+  domainRefs: []
+  enabled: true
   id: cbb451f2-a7c0-430a-949c-54d576c77b8d
   platformRef: charismaonline.qa
 ```
 
 ## provisioning.totalsoft.ro
+
 monitors infrastructure manifests and provisions the desired infrastructure for every platform / tenant.
 
-
-
 ### Env
+
 | Variable       | example value         | details                                            |
-|----------------|-----------------------|----------------------------------------------------|
+| -------------- | --------------------- | -------------------------------------------------- |
 | AZURE_LOCATION | West Europe           | default location used to deploy resources in azure |
 | VAULT_ADDR     | http://localhost:8200 | address to vault server                            |
 | VAULT_TOKEN    | {token}               | vault token                                        |
 
-
 ### Target
+
 The infrastructure manifests can specify wheather the infrastructure can be provisioned for each tenant in a platform, or for the entire platform
 
 #### Tenant target (default)
+
 The provisioning target can be set to `Tenant`, allowing provioning of 'per tenant' infrastructure resources.
 
-> *Note* You can skip provisioning for a list of tenants you can specify a `Blacklist` filter. To allow provisioning for a subset of the tenants, you can specify a `Whitelist` filter.
+> _Note_ You can skip provisioning for a list of tenants you can specify a `Blacklist` filter. To allow provisioning for a subset of the tenants, you can specify a `Whitelist` filter.
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureDatabase
@@ -70,14 +95,16 @@ spec:
 ```
 
 #### Platform target
+
 The `Platform` target allows provisioning shared resources for the entire platform.
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureDatabase
 metadata:
-  name: mercury-db  
+  name: mercury-db
 spec:
  ...
   target:
@@ -85,14 +112,16 @@ spec:
 ```
 
 ### Dependencies
+
 An infrastructure manifests can specify wheather the provisioned resources depend on the resources provisioned by another manifest.
 If a dependency is specified, the provisioning of the dependent resource is delayed until the dependency is provisioned.
 
-> *Note* Dependencies can be specified between resources provisioned for the same platform, tenant and domain.
+> _Note_ Dependencies can be specified between resources provisioned for the same platform, tenant and domain.
 
 The dependency list is specified in the "dependsOn" present on every provisoning manifest. A dependency is identified by kind and name.
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
@@ -115,9 +144,11 @@ spec:
 ```
 
 ### AzureDatabase
+
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuredatabases.yaml)
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureDatabase
@@ -135,16 +166,16 @@ spec:
     elasticPoolName: dbpool
     resourceGroupName: SQL_RG
     serverName: r7ddbsrv
-
 ```
 
-> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
-
+> _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 ### AzureManagedDatabase
+
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuremanageddatabases.yaml)
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureManagedDatabase
@@ -166,13 +197,15 @@ spec:
       sasToken: my-saas-token
   platformRef: charismaonline.qa
 ```
-> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
+> _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 ### HelmRelease
+
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_helmreleases.yaml)
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: HelmRelease
@@ -206,13 +239,15 @@ spec:
           csi:
             secretProviderClass: origination-aggregate
 ```
-> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
+> _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 ### AzureVirtualMachine
+
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurevirtualmachines.yaml)
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureVirtualMachine
@@ -235,7 +270,7 @@ spec:
       computerName:
         toConfigMap:
           keyTemplate: >-
-            MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_ComputerName      
+            MultiTenancy__Tenants__{{ .Tenant.Code }}__CharismaClient_ComputerName
       publicAddress:
         toConfigMap:
           keyTemplate: >-
@@ -252,15 +287,16 @@ spec:
     /subscriptions/05a50a12-6628-4627-bd30-19932dac39f8/resourceGroups/charismaonline.qa/providers/Microsoft.Network/virtualNetworks/charismaonline-vnet/subnets/default
   vmName: charisma-client
   vmSize: Standard_B1s
-
 ```
-> *Note* You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
+> _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 ### AzureVirtualDesktop
+
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurevirtualdesktops.yaml)
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzureVirtualDesktop
@@ -327,20 +363,23 @@ spec:
 ```
 
 ### AzurePowershellScript
+
 `AzurePowershellScript` is a Custom Resource Definition (CRD) that represents an Azure PowerShell deployment script.
 
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azurepowershellscripts.yaml)
 
 #### Spec
+
 The `AzurePowershellScript` spec has the following fields:
 
-- `scriptContent`: The content of the PowerShell script to be executed. 
+- `scriptContent`: The content of the PowerShell script to be executed.
 - `scriptArguments`: The arguments to be passed to the PowerShell script. These should match the parameters defined in the scriptContent.
 - `domainRef`: The reference to the domain that the user belongs to.
 - `platformRef`: The reference to the platform that the user belongs to.
 - `forceUpdateTag`: Update this value to trigger the script even if the content or args are unchanged
 
 Example:
+
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: AzurePowerShellScript
@@ -352,7 +391,7 @@ spec:
   exports:
     - scriptOutputs:
         toConfigMap:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ScriptOutputs  
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ScriptOutputs
   platformRef: provisioning.test
   scriptContent: |-
     param([string] $name)
@@ -368,8 +407,6 @@ spec:
   target:
     category: Tenant
 ```
-
-
 
 ### EntraUser
 
@@ -425,14 +462,14 @@ The `MsSqlDatabase` spec has the following fields:
 
 - `dbName`: Database name prefix. The actual database name will have platform and tenant suffix.
 - `sqlServer`: Specification of the SQL Server where the new database will be created.
-  * `hostName`: The host name of the SQL Server.
-  * `port`: The port of the SQL Server.
-  * `sqlAuth`: The SQL authentication credentials.
+  - `hostName`: The host name of the SQL Server.
+  - `port`: The port of the SQL Server.
+  - `sqlAuth`: The SQL authentication credentials.
     - `username`: The username.
     - `password`: The password.
 - `restoreFrom`: Specification for restoring the database from a backup. Leave empty for a new empty database.
-  * `backupFilePath`: The path to the backup file.
-- `domainRef`: The reference to the domain that the user belongs to. 
+  - `backupFilePath`: The path to the backup file.
+- `domainRef`: The reference to the domain that the user belongs to.
 - `platformRef`: The reference to the platform that the user belongs to.
 
 ## Example
@@ -464,6 +501,7 @@ spec:
   target:
     category: Tenant
 ```
+
 ### LocalScript
 
 `LocalScript` is a Custom Resource Definition (CRD) that represents a script that executes locally.
@@ -504,12 +542,12 @@ spec:
     Write-Host "Tenant:" $env:tenant
   deleteScriptContent: Write-Host "Deleted"
   shell: pwsh
-  forceUpdateTag: '3'
+  forceUpdateTag: "3"
   domainRef: domain1
   workingDir: c:/temp
   environment:
     env1: env1Val2
-    tenant: '{{ .Tenant.Code }}'
+    tenant: "{{ .Tenant.Code }}"
   exports:
     - domain: domain1
       scriptOutput:
@@ -520,12 +558,12 @@ spec:
     category: Tenant
 ```
 
-
-
 ## configuration.totalsoft.ro
+
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.
 
 ### ConfigurationDomain
+
 Definition can be found [here](./helm/crds/configuration.totalsoft.ro_configurationdomains.yaml)
 
 If `aggregateConfigMaps` is set, it will aggregate all config maps from it's namespace and platform's target namespace, for the specified domain and generates an output config map in the same namespace.
@@ -533,6 +571,7 @@ If `aggregateConfigMaps` is set, it will aggregate all config maps from it's nam
 If `aggregateSecrets` is set, it will aggregate all secrets stored in vault for the specified platform namespace and domain and generates an output CSI SecretProviderClass namespace.
 
 Example:
+
 ```yaml
 apiVersion: configuration.totalsoft.ro/v1alpha1
 kind: ConfigurationDomain
@@ -545,16 +584,16 @@ spec:
   platformRef: charismaonline.qa
 ```
 
-> *Note 1* The monitored config maps can be either in the same namespace as the ConfigurationDomain or in the platform's target namespace, they are identified by `platform.totalsoft.ro/domain`and `platform.totalsoft.ro/platform` labels.
+> _Note 1_ The monitored config maps can be either in the same namespace as the ConfigurationDomain or in the platform's target namespace, they are identified by `platform.totalsoft.ro/domain`and `platform.totalsoft.ro/platform` labels.
 
-> *Note 2* There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
+> _Note 2_ There is support for global platform config maps, in this case the `platform.totalsoft.ro/domain` label has the value "global". These global config maps are always monitored and aggregated with the current domain config maps.
 
-> *Note 3* The monitored vault secrets are organized by platform (secret engine), namespace (subfolder) and domain (subfolder). The keys of the secrets should be the environment variable names, and if they are not unique for the domain they will be overwritten.
+> _Note 3_ The monitored vault secrets are organized by platform (secret engine), namespace (subfolder) and domain (subfolder). The keys of the secrets should be the environment variable names, and if they are not unique for the domain they will be overwritten.
 
-> *Note 4* There is support for global platform secrets (subfolder) and global namespace secrets (subfolder), in this case the domain folder should be named "global". These global secrets are always monitored and aggregated with the current domain secrets. 
-
+> _Note 4_ There is support for global platform secrets (subfolder) and global namespace secrets (subfolder), in this case the domain folder should be named "global". These global secrets are always monitored and aggregated with the current domain secrets.
 
 > For example, for the above manifest, the controller will aggregate secrets from the following paths:
--  /charismaonline.qa/qa/global
--  /charismaonline.qa/qa-lsng/global
--  /charismaonline.qa/qa-lsng/origination/
+
+- /charismaonline.qa/qa/global
+- /charismaonline.qa/qa-lsng/global
+- /charismaonline.qa/qa-lsng/origination/

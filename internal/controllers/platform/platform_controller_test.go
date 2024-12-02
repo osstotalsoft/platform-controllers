@@ -56,9 +56,37 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
 
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:        false,
+			TenantCreatedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
 		}
 	})
 
@@ -98,9 +126,37 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
 
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:        false,
+			TenantCreatedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
 		}
 	})
 
@@ -159,8 +215,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		if msg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 
@@ -220,8 +276,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		qaMsg := <-msgChan
-		if qaMsg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", qaMsg.Topic)
+		if qaMsg.Topic != SyncedSuccessfullyTopic {
+			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", qaMsg.Topic)
 		}
 
 		uatConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("uat").Get(context.TODO(), "charismaonline.uat-tenants", metav1.GetOptions{})
@@ -237,9 +293,37 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", uatConfigMap.Data)
 		}
 
-		uatMsg := <-msgChan
-		if uatMsg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", uatMsg.Topic)
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:        false,
+			TenantUpdatedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
 		}
 	})
 
@@ -290,9 +374,37 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", configMap.Data)
 		}
 
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:        false,
+			TenantDeletedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
 		}
 	})
 	t.Run("tenant specific configs", func(t *testing.T) {
