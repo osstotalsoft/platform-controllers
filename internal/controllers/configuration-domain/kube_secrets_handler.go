@@ -68,7 +68,7 @@ func (h *kubeSecretsHandler) Sync(platformObj *platformv1.Platform, configDomain
 
 	aggregatedSecret := h.aggregateSecrets(configDomain, secrets, outputSecretName)
 
-	// Get the output config map for this namespace::domain
+	// Get the output secret for this namespace::domain
 	outputSecret, err := h.secretsLister.Secrets(configDomain.Namespace).Get(outputSecretName)
 	// If the resource doesn't exist, we'll create it
 	if k8serrors.IsNotFound(err) {
@@ -174,7 +174,7 @@ func (h *kubeSecretsHandler) aggregateSecrets(configurationDomain *v1alpha1.Conf
 
 		for k, v := range secret.Data {
 			if existingValue, ok := mergedData[k]; ok {
-				klog.V(4).Infof("Key %s already exists with value %s. It will be replaced by config map %s with value %s", k, existingValue, secret.Name, v)
+				klog.V(4).Infof("Key %s already exists with value %s. It will be replaced in secret %s with value %s", k, existingValue, secret.Name, v)
 			}
 			mergedData[k] = v
 		}
