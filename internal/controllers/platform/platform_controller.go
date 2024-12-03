@@ -39,8 +39,6 @@ const (
 	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
 	// representation of actual state.
 	ReadyCondition = "Ready"
-
-	syncedSuccessfullyTopic string = "PlatformControllers.PlatformController.SyncedSuccessfully"
 )
 
 type PlatformController struct {
@@ -115,6 +113,16 @@ func NewPlatformController(
 			tenant := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant added", "name", tenant.Name, "namespace", tenant.Namespace)
 			controller.enqueuePlatformByTenant(tenant)
+
+			controller.recorder.Event(tenant, corev1.EventTypeNormal, "Tenant created successfully", "Tenant created successfully")
+			event := TenantCreated{
+				TenantId:   tenant.Spec.Id,
+				TenantName: tenant.Name,
+			}
+			err := controller.messagingPublisher(context.TODO(), TenantCreatedSuccessfullyTopic, event, tenant.Spec.PlatformRef)
+			if err != nil {
+				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.TenantCreatedSuccessfully event")
+			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldT := oldObj.(*platformv1.Tenant)
@@ -127,12 +135,37 @@ func NewPlatformController(
 				if platformChanged := oldT.Spec.PlatformRef != newT.Spec.PlatformRef; platformChanged {
 					controller.enqueuePlatformByTenant(oldT)
 				}
+
+				controller.recorder.Event(newT, corev1.EventTypeNormal, "Tenant updated successfully", "Tenant updated successfully")
+				event := TenantUpdated{
+					TenantId:     newT.Spec.Id,
+					TenantName:   newT.Name,
+					PlatformRef:  newT.Spec.PlatformRef,
+					Enabled:      newT.Spec.Enabled,
+					DomainRefs:   newT.Spec.DomainRefs,
+					AdminEmail:   newT.Spec.AdminEmail,
+					DeletePolicy: newT.Spec.DeletePolicy,
+					Configs:      newT.Spec.Configs,
+				}
+				err := controller.messagingPublisher(context.TODO(), TenantUpdatedSuccessfullyTopic, event, newT.Spec.PlatformRef)
+				if err != nil {
+					klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.TenantUpdatedSuccessfully event")
+				}
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			tenant := obj.(*platformv1.Tenant)
 			klog.V(4).InfoS("tenant deleted", "name", tenant.Name, "namespace", tenant.Namespace)
 			controller.enqueuePlatformByTenant(tenant)
+
+			controller.recorder.Event(tenant, corev1.EventTypeNormal, "Tenant deleted successfully", "Tenant deleted successfully")
+			event := TenantDeleted{
+				TenantId: tenant.Spec.Id,
+			}
+			err := controller.messagingPublisher(context.TODO(), TenantDeletedSuccessfullyTopic, event, tenant.Spec.PlatformRef)
+			if err != nil {
+				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.TenantDeletedSuccessfully event")
+			}
 		},
 	})
 
@@ -360,7 +393,7 @@ func (c *PlatformController) syncHandler(key string) error {
 	}{
 		Platform: platform.Name,
 	}
-	err = c.messagingPublisher(context.TODO(), syncedSuccessfullyTopic, ev, platform.Name)
+	err = c.messagingPublisher(context.TODO(), SyncedSuccessfullyTopic, ev, platform.Name)
 	if err != nil {
 		klog.ErrorS(err, "message publisher error")
 	}
