@@ -31,8 +31,12 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: VAULT_ENABLED
+          value: {{ .Values.global.vault.enabled | quote }}
+        {{- if .Values.global.vault.enabled }}
         - name: VAULT_ADDR
           value: "{{ .Values.global.vault.address }}"
+        {{- end }}
         - name: RUSI_ENABLED
           value: "{{ .Values.global.rusi.enabled }}"
         command:

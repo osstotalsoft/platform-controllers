@@ -2,6 +2,9 @@ package pulumi
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
+	"strconv"
 	"strings"
 
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
@@ -18,8 +21,9 @@ import (
 )
 
 const (
-	DomainLabel   = "platform.totalsoft.ro/domain"
-	PlatformLabel = "platform.totalsoft.ro/platform"
+	DomainLabel     = "platform.totalsoft.ro/domain"
+	PlatformLabel   = "platform.totalsoft.ro/platform"
+	EnvVaultEnabled = "VAULT_ENABLED"
 )
 
 type ValueExporterFunc func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error
@@ -51,9 +55,18 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc {
 	templateContext := provisioning.GetTemplateContext(target)
 
+	vaultEnabled, err := strconv.ParseBool(os.Getenv(EnvVaultEnabled))
+	if err != nil {
+		vaultEnabled = true
+	}
+
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
+			if !vaultEnabled {
+				return fmt.Errorf("vault is not enabled, but there are values to be exported to the vault")
+			}
+
 			path := provisioning.MatchTarget(target,
 				func(tenant *platformv1.Tenant) string {
 					return strings.Join([]string{tenant.Spec.PlatformRef, exportContext.ownerMeta.Namespace, exportContext.domain, tenant.GetName(), exportContext.objectName}, "/")

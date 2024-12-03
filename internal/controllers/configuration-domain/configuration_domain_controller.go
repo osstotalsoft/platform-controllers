@@ -3,7 +3,9 @@ package configuration
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,6 +65,8 @@ const (
 	ReadyCondition = "Ready"
 
 	syncedSuccessfullyTopic = "PlatformControllers.ConfigurationDomainController.SyncedSuccessfully"
+
+	EnvVaultEnabled = "VAULT_ENABLED"
 )
 
 var requeueInterval time.Duration = 2 * time.Minute
@@ -102,6 +106,8 @@ type ConfigurationDomainController struct {
 	kubeSecretsHandler   *kubeSecretsHandler
 	vaultSecretsHandler  *secretsHandler
 	messagingPublisher   messaging.MessagingPublisher
+
+	vaultEnabled bool
 }
 
 func NewConfigurationDomainController(
@@ -118,6 +124,12 @@ func NewConfigurationDomainController(
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher,
 ) *ConfigurationDomainController {
+
+	vaultEnabled, err := strconv.ParseBool(os.Getenv(EnvVaultEnabled))
+	if err != nil {
+		vaultEnabled = true
+	}
+
 	controller := &ConfigurationDomainController{
 		platformClientset: platformClientset,
 		kubeClientset:     kubeClientset,
@@ -138,13 +150,17 @@ func NewConfigurationDomainController(
 		kubeSecretsLister:  kubeSecretInformer.Lister(),
 		kubeSecretsSynced:  kubeSecretInformer.Informer().HasSynced,
 
-		spcInformer: spcInformer,
-		spcLister:   spcInformer.Lister(),
-		spcSynced:   spcInformer.Informer().HasSynced,
-
 		recorder:           &record.FakeRecorder{},
 		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configuration-domain"),
 		messagingPublisher: messagingPublisher,
+
+		vaultEnabled: vaultEnabled,
+	}
+
+	if vaultEnabled {
+		controller.spcInformer = spcInformer
+		controller.spcLister = spcInformer.Lister()
+		controller.spcSynced = spcInformer.Informer().HasSynced
 	}
 
 	utilruntime.Must(clientsetScheme.AddToScheme(scheme.Scheme))
@@ -154,7 +170,10 @@ func NewConfigurationDomainController(
 
 	controller.configurationHandler = newConfigurationHandler(kubeClientset, configMapInformer.Lister(), controller.recorder)
 	controller.kubeSecretsHandler = newKubeSecretsHandler(kubeClientset, kubeSecretInformer.Lister(), controller.recorder)
-	controller.vaultSecretsHandler = newVaultSecretsHandler(csiClientset, spcInformer.Lister(), controller.recorder)
+
+	if vaultEnabled {
+		controller.vaultSecretsHandler = newVaultSecretsHandler(csiClientset, spcInformer.Lister(), controller.recorder)
+	}
 
 	klog.Info("Setting up event handlers")
 
@@ -162,8 +181,10 @@ func NewConfigurationDomainController(
 	addPlatformHandlers(platformInformer)
 	addConfigurationDomainHandlers(configDomainInformer, controller.enqueueConfigurationDomain)
 	addConfigMapHandlers(configMapInformer, controller.handleKubeResource)
-	addKubeSecretsHandlers(kubeSecretInformer, controller.handleKubeResource)
-	addSPCHandlers(spcInformer, controller.enqueueConfigurationDomain)
+	if vaultEnabled {
+		addKubeSecretsHandlers(kubeSecretInformer, controller.handleKubeResource)
+		addSPCHandlers(spcInformer, controller.enqueueConfigurationDomain)
+	}
 
 	return controller
 }
@@ -181,7 +202,12 @@ func (c *ConfigurationDomainController) Run(workers int, stopCh <-chan struct{})
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.platformsSynced, c.configDomainsSynced, c.configMapsSynced, c.kubeSecretsSynced, c.spcSynced); !ok {
+
+	cacheSyncs := []cache.InformerSynced{c.platformsSynced, c.configDomainsSynced, c.configMapsSynced, c.kubeSecretsSynced}
+	if c.vaultEnabled {
+		cacheSyncs = append(cacheSyncs, c.spcSynced)
+	}
+	if ok := cache.WaitForCacheSync(stopCh, cacheSyncs...); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 
@@ -299,9 +325,12 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 
 	cleanupSecrets := platformNotOk || !configDomain.Spec.AggregateSecrets
 	if cleanupSecrets {
-		err = c.vaultSecretsHandler.Cleanup(namespace, domain)
-		if err != nil {
-			return err
+
+		if c.vaultEnabled {
+			err = c.vaultSecretsHandler.Cleanup(namespace, domain)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = c.kubeSecretsHandler.Cleanup(namespace, domain)
@@ -328,10 +357,13 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	}
 
 	if !cleanupSecrets {
-		err = c.vaultSecretsHandler.Sync(platformObj, configDomain)
-		if err != nil {
-			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
-			return err
+
+		if c.vaultEnabled {
+			err = c.vaultSecretsHandler.Sync(platformObj, configDomain)
+			if err != nil {
+				c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
+				return err
+			}
 		}
 
 		err = c.kubeSecretsHandler.Sync(platformObj, configDomain)
