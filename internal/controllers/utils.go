@@ -22,10 +22,10 @@ func GetPlatformNsAndDomain(obj metav1.Object) (platform, namespace, domain stri
 		return platform, obj.GetNamespace(), domain, false
 	}
 
-	domain, namespace, found := strings.Cut(domain, ".")
-	if !found {
-		return platform, obj.GetNamespace(), domain, false
+	domain, namespace, _ = strings.Cut(domain, ".")
+	if namespace == "" {
+		return platform, obj.GetNamespace(), domain, true
+	} else {
+		return platform, namespace, domain, true
 	}
-
-	return platform, namespace, domain, true
 }

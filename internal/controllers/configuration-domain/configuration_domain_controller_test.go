@@ -75,6 +75,76 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
+	t.Run("update aggregate when config map changes", func(t *testing.T) {
+		// Arrange
+		platform, namespace, domain := "dev", "team1", "domain1"
+		configMaps := []runtime.Object{
+			newConfigMap("configMap1", domain, namespace, platform, map[string]string{"k1": "v1"}),
+			newConfigMap("configMap2", domain, namespace, platform, map[string]string{"k2": "v2"}),
+		}
+		configurationDomains := []runtime.Object{
+			newConfigurationDomain(domain, namespace, platform, true, false),
+		}
+		platforms := []runtime.Object{
+			newPlatform(platform, platform),
+		}
+		spcs := []runtime.Object{}
+		kubeSecrets := []runtime.Object{}
+		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+			return
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		// update configMap1
+		configMap1, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), "configMap1", metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		configMap1.Data = map[string]string{"k1": "new_value"}
+		// save the updated configMap1
+		_, err = c.kubeClientset.CoreV1().ConfigMaps(namespace).Update(context.TODO(), configMap1, metav1.UpdateOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// wait for the controller to process the update
+		time.Sleep(1 * time.Second)
+
+		// Assert
+		outputConfigmap := getOutputConfigmapName(domain)
+		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
+		if err != nil {
+			t.Error(err)
+			return
+		}
+
+		expectedOutput := map[string]string{"k1": "new_value", "k2": "v2"}
+		if !reflect.DeepEqual(output.Data, expectedOutput) {
+			t.Error("expected output config ", expectedOutput, ", got", output.Data)
+		}
+
+		msg := <-msgChan
+		if msg.Topic != syncedSuccessfullyTopic {
+			t.Error("expected message published to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
+		}
+	})
 
 	t.Run("aggregate two kube secrets", func(t *testing.T) {
 		// Arrange
