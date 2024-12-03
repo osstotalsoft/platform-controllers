@@ -75,6 +75,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
+
 	t.Run("update aggregate when config map changes", func(t *testing.T) {
 		// Arrange
 		platform, namespace, domain := "dev", "team1", "domain1"
@@ -645,7 +646,11 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("processing failed")
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		time.Sleep(1 * time.Second)
 
 		// Assert
 		if c.workqueue.Len() != 0 {
