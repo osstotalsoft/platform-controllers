@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
 	"github.com/pulumi/pulumi-azure-native-sdk/compute/v2"
 	"github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2"
@@ -297,13 +298,16 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 		})
 	}
 
+	// Append a forceUpdateTag line to ensure the script is always executed
+	initScript := args.Spec.InitScript + fmt.Sprintf("\n# Force update tag: %s\n", uuid.New().String())
+
 	_, err = compute.NewVirtualMachineRunCommandByVirtualMachine(ctx, fmt.Sprintf("%s-init-cmd", name), &compute.VirtualMachineRunCommandByVirtualMachineArgs{
 		ResourceGroupName: args.ResourceGroupName,
 		VmName:            avdVM.VirtualMachine.Name,
 		AsyncExecution:    pulumi.Bool(false),
 		RunCommandName:    pulumi.String("InitVM"),
 		Source: compute.VirtualMachineRunCommandScriptSourceArgs{
-			Script: pulumi.String(args.Spec.InitScript),
+			Script: pulumi.String(initScript),
 		},
 		Parameters:                      params,
 		TimeoutInSeconds:                pulumi.Int(60),
