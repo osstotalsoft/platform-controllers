@@ -299,7 +299,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 	}
 
 	// Append a forceUpdateTag line to ensure the script is always executed
-	initScript := args.Spec.InitScript + fmt.Sprintf("\n# Force update tag: %s | Out-Null", uuid.New().String())
+	initScript := args.Spec.InitScript + fmt.Sprintf("\n# Force update tag: %s\n", uuid.New().String())
 
 	_, err = compute.NewVirtualMachineRunCommandByVirtualMachine(ctx, fmt.Sprintf("%s-init-cmd", name), &compute.VirtualMachineRunCommandByVirtualMachineArgs{
 		ResourceGroupName: args.ResourceGroupName,
