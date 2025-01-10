@@ -9,6 +9,9 @@ const (
 	TenantCreatedSuccessfullyTopic string = "PlatformControllers.PlatformController.TenantCreatedSuccessfully"
 	TenantUpdatedSuccessfullyTopic string = "PlatformControllers.PlatformController.TenantUpdatedSuccessfully"
 	TenantDeletedSuccessfullyTopic string = "PlatformControllers.PlatformController.TenantDeletedSuccessfully"
+	DomainCreatedSuccessfullyTopic string = "PlatformControllers.PlatformController.DomainCreatedSuccessfully"
+	DomainUpdatedSuccessfullyTopic string = "PlatformControllers.PlatformController.DomainUpdatedSuccessfully"
+	DomainDeletedSuccessfullyTopic string = "PlatformControllers.PlatformController.DomainDeletedSuccessfully"
 )
 
 type TenantCreated struct {
@@ -27,4 +30,22 @@ type TenantUpdated struct {
 }
 type TenantDeleted struct {
 	TenantId string
+}
+
+type DomainCreated struct {
+	DomainName  string
+	Namespace   string
+	PlatformRef string
+}
+
+type DomainUpdated struct {
+	DomainName          string
+	Namespace           string
+	PlatformRef         string
+	ExportActiveDomains bool
+}
+
+type DomainDeleted struct {
+	DomainName string
+	Namespace  string
 }

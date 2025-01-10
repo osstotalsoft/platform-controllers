@@ -175,6 +175,17 @@ func NewPlatformController(
 			domain := obj.(*platformv1.Domain)
 			klog.V(4).InfoS("domain added", "name", domain.Name, "namespace", domain.Namespace)
 			controller.enqueuePlatformByDomain(domain)
+
+			controller.recorder.Event(domain, corev1.EventTypeNormal, "Domain created successfully", "Domain created successfully")
+			event := DomainCreated{
+				DomainName:  domain.Name,
+				Namespace:   domain.Namespace,
+				PlatformRef: domain.Spec.PlatformRef,
+			}
+			err := controller.messagingPublisher(context.TODO(), DomainCreatedSuccessfullyTopic, event, domain.Spec.PlatformRef)
+			if err != nil {
+				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.DomainCreatedSuccessfully event")
+			}
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldD := oldObj.(*platformv1.Domain)
@@ -187,12 +198,34 @@ func NewPlatformController(
 				if platformChanged := oldD.Spec.PlatformRef != newD.Spec.PlatformRef; platformChanged {
 					controller.enqueuePlatformByDomain(oldD)
 				}
+
+				controller.recorder.Event(newD, corev1.EventTypeNormal, "Domain updated successfully", "Domain updated successfully")
+				event := DomainUpdated{
+					DomainName:          newD.Name,
+					Namespace:           newD.Namespace,
+					PlatformRef:         newD.Spec.PlatformRef,
+					ExportActiveDomains: newD.Spec.ExportActiveDomains,
+				}
+				err := controller.messagingPublisher(context.TODO(), DomainUpdatedSuccessfullyTopic, event, newD.Spec.PlatformRef)
+				if err != nil {
+					klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.DomainUpdatedSuccessfully event")
+				}
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			domain := obj.(*platformv1.Domain)
 			klog.V(4).InfoS("domain deleted", "name", domain.Name, "namespace", domain.Namespace)
 			controller.enqueuePlatformByDomain(domain)
+
+			controller.recorder.Event(domain, corev1.EventTypeNormal, "Domain deleted successfully", "Domain deleted successfully")
+			event := DomainDeleted{
+				DomainName: domain.Name,
+				Namespace:  domain.Namespace,
+			}
+			err := controller.messagingPublisher(context.TODO(), DomainDeletedSuccessfullyTopic, event, domain.Spec.PlatformRef)
+			if err != nil {
+				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.DomainDeletedSuccessfully event")
+			}
 		},
 	})
 
