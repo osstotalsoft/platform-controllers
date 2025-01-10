@@ -248,7 +248,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 		t1 = t1.DeepCopy()
 		t1.Spec.PlatformRef = "charismaonline.uat"
-		t1, _ = c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Update(context.TODO(), t1, metav1.UpdateOptions{})
+		c.platformClientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Update(context.TODO(), t1, metav1.UpdateOptions{})
 		//c.tenantInformer.Informer().GetIndexer().Update(t1) //fix stale cache
 		time.Sleep(10 * time.Millisecond) //additional fix stale cache
 		if result := c.processNextWorkItem(); !result {
@@ -657,6 +657,213 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("service created", func(t *testing.T) {
+		// Arrange
+		platform := _newPlatform("qa", "charismaonline.qa")
+		service := _newService("qa", "service1", platform.Name)
+
+		c, msgChan := _runController([]runtime.Object{platform, service})
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:         false,
+			ServiceCreatedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
+		}
+	})
+
+	t.Run("service platformRef updated", func(t *testing.T) {
+		// Arrange
+		platformQa := _newPlatform("qa", "charismaonline.qa")
+		platformUat := _newPlatform("uat", "charismaonline.uat")
+		service := _newService("qa", "service1", platformQa.Name)
+
+		c, msgChan := _runController([]runtime.Object{platformQa, platformUat, service})
+		if c.workqueue.Len() != 2 {
+			t.Error("queue should have 2 items, but it has", c.workqueue.Len())
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		<-msgChan
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		<-msgChan
+
+		s, err := c.platformClientset.PlatformV1alpha1().Services("qa").Get(context.TODO(), "service1", metav1.GetOptions{})
+		if err != nil {
+			t.Error("domain not found")
+		}
+		s = s.DeepCopy()
+		s.Spec.PlatformRef = "charismaonline.uat"
+		c.platformClientset.PlatformV1alpha1().Services("qa").Update(context.TODO(), s, metav1.UpdateOptions{})
+		time.Sleep(10 * time.Millisecond) //additional fix stale cache
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		sUpdated, err := c.platformClientset.PlatformV1alpha1().Services("qa").Get(context.TODO(), "service1", metav1.GetOptions{})
+		if err != nil {
+			t.Error("service not found")
+		}
+
+		if sUpdated.Spec.PlatformRef != "charismaonline.uat" {
+			t.Error("expected platformRef to be charismaonline.uat, got", sUpdated.Spec.PlatformRef)
+		}
+
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:         false,
+			ServiceUpdatedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
+		}
+	})
+
+	t.Run("service deleted", func(t *testing.T) {
+		// Arrange
+		platform := _newPlatform("qa", "charismaonline.qa")
+		service := _newService("qa", "service1", platform.Name)
+
+		c, msgChan := _runController([]runtime.Object{platform, service})
+		if c.workqueue.Len() != 1 {
+			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
+		}
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		err := c.platformClientset.PlatformV1alpha1().Services("qa").Delete(context.TODO(), "service1", metav1.DeleteOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		time.Sleep(10 * time.Millisecond) //fix stale cache
+
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+
+		// Assert
+		if c.workqueue.Len() != 0 {
+			item, _ := c.workqueue.Get()
+			t.Error("queue should be empty, but contains ", item)
+		}
+
+		// Collect messages with a timeout
+		var receivedMsgs []messaging.RcvMsg
+		timeout := time.After(1 * time.Second)
+		done := false
+		for !done {
+			select {
+			case msg := <-msgChan:
+				receivedMsgs = append(receivedMsgs, msg)
+			case <-timeout:
+				done = true
+			}
+		}
+
+		// Expect messages to be published to the following topics
+		expectedTopics := map[string]bool{
+			SyncedSuccessfullyTopic:         false,
+			ServiceDeletedSuccessfullyTopic: false,
+		}
+
+		// Mark topics as received
+		for _, msg := range receivedMsgs {
+			if _, exists := expectedTopics[msg.Topic]; exists {
+				expectedTopics[msg.Topic] = true
+			}
+		}
+
+		// Validate all expected topics were found
+		for topic, found := range expectedTopics {
+			if !found {
+				t.Errorf("expected message with topic %s was not received", topic)
+			}
+		}
+	})
 }
 
 func _newPlatform(ns, name string) *platformv1.Platform {
@@ -701,6 +908,21 @@ func _newDomain(ns, name, platform string) *platformv1.Domain {
 	}
 }
 
+func _newService(ns, name, platform string /* requiredDomainRefs []string, optionalDomainRefs []string */) *platformv1.Service {
+	return &platformv1.Service{
+		TypeMeta: metav1.TypeMeta{APIVersion: platformv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: ns,
+		},
+		Spec: platformv1.ServiceSpec{
+			PlatformRef: platform,
+			/* RequiredDomainRefs: requiredDomainRefs,
+			OptionalDomainRefs: optionalDomainRefs, */
+		},
+	}
+}
+
 func _runController(objects []runtime.Object) (*PlatformController, chan messaging.RcvMsg) {
 	kubeClient := kubeFakeClientSet.NewSimpleClientset()
 	platformClient := fakeClientset.NewSimpleClientset(objects...)
@@ -716,6 +938,7 @@ func _runController(objects []runtime.Object) (*PlatformController, chan messagi
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Platform().V1alpha1().Tenants(),
 		platformInformerFactory.Platform().V1alpha1().Domains(),
+		platformInformerFactory.Platform().V1alpha1().Services(),
 		nil, msgPublisher)
 	kubeInformerFactory.Start(nil)
 	platformInformerFactory.Start(nil)

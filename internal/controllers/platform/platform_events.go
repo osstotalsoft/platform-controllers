@@ -5,13 +5,16 @@ import (
 )
 
 const (
-	SyncedSuccessfullyTopic        string = "PlatformControllers.PlatformController.SyncedSuccessfully"
-	TenantCreatedSuccessfullyTopic string = "PlatformControllers.PlatformController.TenantCreatedSuccessfully"
-	TenantUpdatedSuccessfullyTopic string = "PlatformControllers.PlatformController.TenantUpdatedSuccessfully"
-	TenantDeletedSuccessfullyTopic string = "PlatformControllers.PlatformController.TenantDeletedSuccessfully"
-	DomainCreatedSuccessfullyTopic string = "PlatformControllers.PlatformController.DomainCreatedSuccessfully"
-	DomainUpdatedSuccessfullyTopic string = "PlatformControllers.PlatformController.DomainUpdatedSuccessfully"
-	DomainDeletedSuccessfullyTopic string = "PlatformControllers.PlatformController.DomainDeletedSuccessfully"
+	SyncedSuccessfullyTopic         string = "PlatformControllers.PlatformController.SyncedSuccessfully"
+	TenantCreatedSuccessfullyTopic  string = "PlatformControllers.PlatformController.TenantCreatedSuccessfully"
+	TenantUpdatedSuccessfullyTopic  string = "PlatformControllers.PlatformController.TenantUpdatedSuccessfully"
+	TenantDeletedSuccessfullyTopic  string = "PlatformControllers.PlatformController.TenantDeletedSuccessfully"
+	DomainCreatedSuccessfullyTopic  string = "PlatformControllers.PlatformController.DomainCreatedSuccessfully"
+	DomainUpdatedSuccessfullyTopic  string = "PlatformControllers.PlatformController.DomainUpdatedSuccessfully"
+	DomainDeletedSuccessfullyTopic  string = "PlatformControllers.PlatformController.DomainDeletedSuccessfully"
+	ServiceCreatedSuccessfullyTopic string = "PlatformControllers.PlatformController.ServiceCreatedSuccessfully"
+	ServiceUpdatedSuccessfullyTopic string = "PlatformControllers.PlatformController.ServiceUpdatedSuccessfully"
+	ServiceDeletedSuccessfullyTopic string = "PlatformControllers.PlatformController.ServiceDeletedSuccessfully"
 )
 
 type TenantCreated struct {
@@ -48,4 +51,23 @@ type DomainUpdated struct {
 type DomainDeleted struct {
 	DomainName string
 	Namespace  string
+}
+
+type ServiceCreated struct {
+	ServiceName string
+	Namespace   string
+	PlatformRef string
+}
+
+type ServiceUpdated struct {
+	ServiceName        string
+	Namespace          string
+	PlatformRef        string
+	RequiredDomainRefs []string
+	OptionalDomainRefs []string
+}
+
+type ServiceDeleted struct {
+	ServiceName string
+	Namespace   string
 }

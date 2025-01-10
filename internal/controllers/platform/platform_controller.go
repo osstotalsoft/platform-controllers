@@ -55,6 +55,9 @@ type PlatformController struct {
 	domainInformer    informers.DomainInformer
 	domainsLister     listers.DomainLister
 	domainsSynced     cache.InformerSynced
+	serviceInformer   informers.ServiceInformer
+	servicesLister    listers.ServiceLister
+	servicesSynced    cache.InformerSynced
 
 	// recorder is an event recorder for recording Event resources to the
 	// Kubernetes API.
@@ -77,6 +80,7 @@ func NewPlatformController(
 	platformInformer informers.PlatformInformer,
 	tenantInformer informers.TenantInformer,
 	domainInformer informers.DomainInformer,
+	serviceInformer informers.ServiceInformer,
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher,
 ) *PlatformController {
@@ -94,6 +98,9 @@ func NewPlatformController(
 		domainInformer:    domainInformer,
 		domainsLister:     domainInformer.Lister(),
 		domainsSynced:     domainInformer.Informer().HasSynced,
+		serviceInformer:   serviceInformer,
+		servicesLister:    serviceInformer.Lister(),
+		servicesSynced:    serviceInformer.Informer().HasSynced,
 
 		recorder:           &record.FakeRecorder{},
 		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "platform"),
@@ -225,6 +232,67 @@ func NewPlatformController(
 			err := controller.messagingPublisher(context.TODO(), DomainDeletedSuccessfullyTopic, event, domain.Spec.PlatformRef)
 			if err != nil {
 				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.DomainDeletedSuccessfully event")
+			}
+		},
+	})
+
+	// Set up an event handler for when Service resources change
+	serviceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			service := obj.(*platformv1.Service)
+			klog.V(4).InfoS("service added", "name", service.Name, "namespace", service.Namespace)
+			controller.enqueuePlatformByService(service)
+
+			controller.recorder.Event(service, corev1.EventTypeNormal, "Service created successfully", "Service created successfully")
+			event := ServiceCreated{
+				ServiceName: service.Name,
+				Namespace:   service.Namespace,
+				PlatformRef: service.Spec.PlatformRef,
+			}
+			err := controller.messagingPublisher(context.TODO(), ServiceCreatedSuccessfullyTopic, event, service.Spec.PlatformRef)
+			if err != nil {
+				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.ServiceCreatedSuccessfully event")
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldS := oldObj.(*platformv1.Service)
+			newS := newObj.(*platformv1.Service)
+			specChanged := !reflect.DeepEqual(oldS.Spec, newS.Spec)
+			if specChanged {
+				klog.V(4).InfoS("service updated", "name", newS.Name, "namespace", newS.Namespace)
+				controller.enqueuePlatformByService(newS)
+
+				if platformChanged := oldS.Spec.PlatformRef != newS.Spec.PlatformRef; platformChanged {
+					controller.enqueuePlatformByService(oldS)
+				}
+
+				controller.recorder.Event(newS, corev1.EventTypeNormal, "Service updated successfully", "Service updated successfully")
+				event := ServiceUpdated{
+					ServiceName:        newS.Name,
+					Namespace:          newS.Namespace,
+					PlatformRef:        newS.Spec.PlatformRef,
+					RequiredDomainRefs: newS.Spec.RequiredDomainRefs,
+					OptionalDomainRefs: newS.Spec.OptionalDomainRefs,
+				}
+				err := controller.messagingPublisher(context.TODO(), ServiceUpdatedSuccessfullyTopic, event, newS.Spec.PlatformRef)
+				if err != nil {
+					klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.ServiceUpdatedSuccessfully event")
+				}
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			service := obj.(*platformv1.Service)
+			klog.V(4).InfoS("service deleted", "name", service.Name, "namespace", service.Namespace)
+			controller.enqueuePlatformByService(service)
+
+			controller.recorder.Event(service, corev1.EventTypeNormal, "Service deleted successfully", "Service deleted successfully")
+			event := ServiceDeleted{
+				ServiceName: service.Name,
+				Namespace:   service.Namespace,
+			}
+			err := controller.messagingPublisher(context.TODO(), ServiceDeletedSuccessfullyTopic, event, service.Spec.PlatformRef)
+			if err != nil {
+				klog.ErrorS(err, "Failed to publish PlatformControllers.PlatformController.ServiceDeletedSuccessfully event")
 			}
 		},
 	})
@@ -518,6 +586,11 @@ func (c *PlatformController) enqueuePlatformByTenant(tenant *platformv1.Tenant) 
 
 func (c *PlatformController) enqueuePlatformByDomain(domain *platformv1.Domain) {
 	platformRef := domain.Spec.PlatformRef
+	c.workqueue.Add(platformRef)
+}
+
+func (c *PlatformController) enqueuePlatformByService(service *platformv1.Service) {
+	platformRef := service.Spec.PlatformRef
 	c.workqueue.Add(platformRef)
 }
 
