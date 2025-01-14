@@ -60,6 +60,7 @@ func main() {
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Platform().V1alpha1().Tenants(),
 		platformInformerFactory.Platform().V1alpha1().Domains(),
+		platformInformerFactory.Platform().V1alpha1().Services(),
 		eventBroadcaster,
 		messaging.DefaultMessagingPublisher())
 
