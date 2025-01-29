@@ -42,6 +42,11 @@ type DomainCreated struct {
 }
 
 type DomainUpdated struct {
+	oldValue Domain
+	newValue Domain
+}
+
+type Domain struct {
 	DomainName          string
 	Namespace           string
 	PlatformRef         string
