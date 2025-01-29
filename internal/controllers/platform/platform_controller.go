@@ -147,6 +147,7 @@ func NewPlatformController(
 				event := TenantUpdated{
 					TenantId:     newT.Spec.Id,
 					TenantName:   newT.Name,
+					Description:  newT.Spec.Description,
 					PlatformRef:  newT.Spec.PlatformRef,
 					Enabled:      newT.Spec.Enabled,
 					DomainRefs:   newT.Spec.DomainRefs,

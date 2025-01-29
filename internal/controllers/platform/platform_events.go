@@ -24,6 +24,7 @@ type TenantCreated struct {
 type TenantUpdated struct {
 	TenantId     string
 	TenantName   string
+	Description  string
 	PlatformRef  string
 	Enabled      bool
 	DomainRefs   []string
