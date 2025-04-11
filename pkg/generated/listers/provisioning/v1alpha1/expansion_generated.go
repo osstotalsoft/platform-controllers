@@ -82,6 +82,14 @@ type LocalScriptListerExpansion interface{}
 // LocalScriptNamespaceLister.
 type LocalScriptNamespaceListerExpansion interface{}
 
+// MinioBucketListerExpansion allows custom methods to be added to
+// MinioBucketLister.
+type MinioBucketListerExpansion interface{}
+
+// MinioBucketNamespaceListerExpansion allows custom methods to be added to
+// MinioBucketNamespaceLister.
+type MinioBucketNamespaceListerExpansion interface{}
+
 // MsSqlDatabaseListerExpansion allows custom methods to be added to
 // MsSqlDatabaseLister.
 type MsSqlDatabaseListerExpansion interface{}

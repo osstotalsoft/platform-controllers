@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+SCRIPT_ROOT=$(dirname "${BASH_SOURCE[0]}")/..
 CODE_GENERATOR_DIR=~/go/pkg/mod/k8s.io/code-generator@v0.28.2
 source "${CODE_GENERATOR_DIR}/kube_codegen.sh"
 

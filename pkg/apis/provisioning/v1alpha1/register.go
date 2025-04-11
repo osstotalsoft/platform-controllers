@@ -47,6 +47,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&MsSqlDatabaseList{},
 		&LocalScript{},
 		&LocalScriptList{},
+		&MinioBucket{},
+		&MinioBucketList{},
 		&metav1.Status{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

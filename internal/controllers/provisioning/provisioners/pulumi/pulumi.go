@@ -43,9 +43,10 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
+	anyMinioBucket := len(infra.MinioBuckets) > 0
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
@@ -199,10 +200,26 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install command plugin: %v", err)
 		return auto.Stack{}, err
 	}
+	err = w.InstallPlugin(ctx, "minio", "v0.16.3")
+	if err != nil {
+		klog.Errorf("Failed to install minio plugin: %v", err)
+		return auto.Stack{}, err
+	}
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
 	configValues := map[string]auto.ConfigValue{}
+
+	if os.Getenv("MINIO_ENDPOINT") != "" {
+		configValues["minio:minioServer"] = auto.ConfigValue{Value: os.Getenv("MINIO_ENDPOINT")}
+	}
+	if os.Getenv("MINIO_ACCESS_KEY") != "" {
+		configValues["minio:minio_user"] = auto.ConfigValue{Value: os.Getenv("MINIO_ACCESS_KEY")}
+	}
+	if os.Getenv("MINIO_SECRET_KEY") != "" {
+		configValues["minio:minio_password"] = auto.ConfigValue{Value: os.Getenv("MINIO_SECRET_KEY"), Secret: true}
+	}
+
 	if azureEnabled {
 		azureConfigValues := map[string]auto.ConfigValue{
 			"azure-native:location":       {Value: os.Getenv("AZURE_LOCATION")},
@@ -214,7 +231,6 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 			"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
 			"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true},
 		}
-
 		for key, value := range azureConfigValues {
 			configValues[key] = value
 		}
@@ -260,6 +276,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 	}
 
 	switch kind {
+	case string(provisioning.ProvisioningResourceKindMinioBucket):
+		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):
 		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureDatabase):
@@ -331,6 +349,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 		}
 
 		for _, user := range infra.EntraUsers {
+			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, user := range infra.MinioBuckets {
 			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
 			if err != nil {
 				return err

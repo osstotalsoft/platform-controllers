@@ -60,6 +60,10 @@ func (c *FakeProvisioningV1alpha1) LocalScripts(namespace string) v1alpha1.Local
 	return &FakeLocalScripts{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) MinioBuckets(namespace string) v1alpha1.MinioBucketInterface {
+	return &FakeMinioBuckets{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) MsSqlDatabases(namespace string) v1alpha1.MsSqlDatabaseInterface {
 	return &FakeMsSqlDatabases{c, namespace}
 }
