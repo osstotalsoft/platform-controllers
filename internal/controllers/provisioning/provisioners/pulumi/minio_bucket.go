@@ -17,14 +17,14 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MinioBucket")
 
-	userName := provisioning.MatchTarget(target,
+	userName := fmt.Sprintf("%s-%s", provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
 		},
 		func(platform *platformv1.Platform) string {
 			return fmt.Sprintf("%s", platform.GetName())
 		},
-	)
+	), minioBucket.Spec.DomainRef)
 
 	user, err := minio.NewIamUser(ctx, userName, &minio.IamUserArgs{
 		ForceDestroy: pulumi.BoolPtr(true),
@@ -56,11 +56,20 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		return nil, err
 	}
 
+	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
+	ignoreChanges := []string{}
+	if pulumiRetainOnDelete {
+		ignoreChanges = []string{"bucket"}
+	}
+
 	bucket, err := minio.NewS3Bucket(ctx, minioBucket.Name, &minio.S3BucketArgs{
 		Acl:          nil,
 		Bucket:       pulumi.String(minioBucket.Spec.BucketName),
-		ForceDestroy: pulumi.Bool(true),
-	}, pulumi.DependsOn(dependencies))
+		ForceDestroy: pulumi.Bool(!pulumiRetainOnDelete),
+	},
+		pulumi.RetainOnDelete(pulumiRetainOnDelete),
+		pulumi.IgnoreChanges(ignoreChanges),
+		pulumi.DependsOn(dependencies))
 	if err != nil {
 		return nil, err
 	}
