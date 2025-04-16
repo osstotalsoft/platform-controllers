@@ -9,6 +9,7 @@ import (
 
 const (
 	ProvisioningResourceKindEntraUser             = provisioningv1.ProvisioningResourceKind("EntraUser")
+	ProvisioningResourceKindMinioBucket           = provisioningv1.ProvisioningResourceKind("MinioBucket")
 	ProvisioningResourceKindAzureDatabase         = provisioningv1.ProvisioningResourceKind("AzureDatabase")
 	ProvisioningResourceKindAzureManagedDatabase  = provisioningv1.ProvisioningResourceKind("AzureManagedDatabase")
 	ProvisioningResourceKindAzurePowerShellScript = provisioningv1.ProvisioningResourceKind("AzurePowerShellScript")
@@ -21,6 +22,7 @@ const (
 
 type InfrastructureManifests struct {
 	EntraUsers             []*provisioningv1.EntraUser
+	MinioBuckets           []*provisioningv1.MinioBucket
 	AzureDbs               []*provisioningv1.AzureDatabase
 	AzureManagedDbs        []*provisioningv1.AzureManagedDatabase
 	AzurePowerShellScripts []*provisioningv1.AzurePowerShellScript
@@ -41,6 +43,8 @@ type ProvisioningResource interface {
 
 func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResourceIdendtifier) (ProvisioningResource, bool) {
 	switch id.Kind {
+	case ProvisioningResourceKindMinioBucket:
+		return findByName(id.Name, infra.MinioBuckets)
 	case ProvisioningResourceKindEntraUser:
 		return findByName(id.Name, infra.EntraUsers)
 	case ProvisioningResourceKindAzureDatabase:

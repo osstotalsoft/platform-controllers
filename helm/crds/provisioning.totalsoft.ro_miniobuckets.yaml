@@ -4,17 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.3
-  name: azurepowershellscripts.provisioning.totalsoft.ro
+  name: miniobuckets.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
   names:
-    kind: AzurePowerShellScript
-    listKind: AzurePowerShellScriptList
-    plural: azurepowershellscripts
-    singular: azurepowershellscript
+    kind: MinioBucket
+    listKind: MinioBucketList
+    plural: miniobuckets
+    singular: miniobucket
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.bucketName
+      name: Bucket name
+      type: string
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
@@ -44,6 +47,10 @@ spec:
             type: object
           spec:
             properties:
+              bucketName:
+                description: UserPrincipalName represents the user principal name,
+                  e.g. "jdoe@domain.com"
+                type: string
               dependsOn:
                 description: List of dependencies
                 items:
@@ -67,13 +74,59 @@ spec:
                 description: Export provisioning values spec.
                 items:
                   properties:
+                    accessKey:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    bucketName:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
                     domain:
-                      description: The domain or bounded-context in which this script
+                      description: The domain or bounded-context in which this user
                         will be used.
                       type: string
-                    scriptOutputs:
-                      description: Represents the outputs of the Azure PowerShell
-                        script.
+                    secretKey:
                       properties:
                         toConfigMap:
                           properties:
@@ -99,21 +152,8 @@ spec:
                       type: object
                   type: object
                 type: array
-              forceUpdateTag:
-                description: Change value to force the script to execute even if it
-                  has not changed.
-                type: string
               platformRef:
                 description: Target platform (custom resource name).
-                type: string
-              scriptArguments:
-                description: |-
-                  Represents the arguments to be passed to the PowerShell script.
-                  eg: "-name JohnDoe"
-                type: string
-              scriptContent:
-                description: ScriptContent represents the content of an Azure PowerShell
-                  script.
                 type: string
               target:
                 default:
@@ -160,9 +200,9 @@ spec:
                   The spec override has the same structure as Spec
                 type: object
             required:
+            - bucketName
             - domainRef
             - platformRef
-            - scriptContent
             - target
             type: object
         required:

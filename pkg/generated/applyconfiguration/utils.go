@@ -131,6 +131,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.LocalScriptExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("LocalScriptSpec"):
 		return &applyconfigurationprovisioningv1alpha1.LocalScriptSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioBucket"):
+		return &applyconfigurationprovisioningv1alpha1.MinioBucketApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioBucketExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MinioBucketExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioBucketSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MinioBucketSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabase"):
 		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabaseExportsSpec"):

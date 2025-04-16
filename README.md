@@ -450,6 +450,43 @@ spec:
           keyTemplate: UserPrincipalName
 ```
 
+### MinioBucket
+
+`MinioBucket` is a Custom Resource Definition (CRD) that represents a bucket in Minio.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_miniobuckets.yaml)
+
+## Spec
+
+The `MinioBucket` spec has the following fields:
+
+- `bucketName`: The name of the bucket.
+- `domainRef`: The reference to the domain that the user belongs to.
+- `platformRef`: The reference to the platform that the user belongs to.
+
+## Example
+
+Here's an example of an `MinioBucket` resource:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: MinioBucket
+metadata:
+  name: core-storage
+spec:
+  bucketName: "core-storage"
+  domainRef: "core"
+  platformRef: "qa"
+  exports:
+    - domain: core
+      accessKey:
+        toVault:
+          keyTemplate: AccessKey
+      secretKey:
+        toVault:
+          keyTemplate: SecretKey
+```
+
 ### MsSqlDatabase
 
 `MsSqlDatabase` is a Custom Resource Definition (CRD) that represents a SQL database.

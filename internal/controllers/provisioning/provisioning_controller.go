@@ -76,6 +76,7 @@ type ProvisioningController struct {
 	azureVirtualMachineInformer   provisioningInformersv1.AzureVirtualMachineInformer
 	azureVirtualDesktopInformer   provisioningInformersv1.AzureVirtualDesktopInformer
 	entraUserInformer             provisioningInformersv1.EntraUserInformer
+	minioBucketInformer           provisioningInformersv1.MinioBucketInformer
 	mssqlDbInformer               provisioningInformersv1.MsSqlDatabaseInformer
 	localScriptInformer           provisioningInformersv1.LocalScriptInformer
 
@@ -117,6 +118,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureVirtualMachineInformer:   factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 		azureVirtualDesktopInformer:   factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 		entraUserInformer:             factory.Provisioning().V1alpha1().EntraUsers(),
+		minioBucketInformer:           factory.Provisioning().V1alpha1().MinioBuckets(),
 		mssqlDbInformer:               factory.Provisioning().V1alpha1().MsSqlDatabases(),
 		localScriptInformer:           factory.Provisioning().V1alpha1().LocalScripts(),
 
@@ -138,6 +140,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.MsSqlDatabase]("MsSql database", c.mssqlDbInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.LocalScript]("Local script", c.localScriptInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.MinioBucket]("Minio bucket", c.minioBucketInformer.Informer(), c.enqueueDomain)
 
 	if azureEnabled {
 		addResourceHandlers[*provisioningv1.AzureDatabase]("Azure database", c.azureDbInformer.Informer(), c.enqueueDomain)
@@ -404,6 +407,16 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		}
 	}
 
+	minioBuckets, err := c.minioBucketInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	minioBuckets = selectItemsInTarget(target.GetPlatformName(), domain, minioBuckets, target)
+	minioBuckets, err = applyTargetOverrides(minioBuckets, target)
+	if err != nil {
+		return err
+	}
+
 	result := c.provisioner(target, domain, &InfrastructureManifests{
 		AzureDbs:               azureDbs,
 		AzureManagedDbs:        azureManagedDbs,
@@ -412,6 +425,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		AzureVirtualMachines:   azureVirtualMachines,
 		AzureVirtualDesktops:   azureVirtualDesktops,
 		EntraUsers:             entraUsers,
+		MinioBuckets:           minioBuckets,
 		MsSqlDbs:               mssqlDbs,
 		LocalScripts:           localScripts,
 	})

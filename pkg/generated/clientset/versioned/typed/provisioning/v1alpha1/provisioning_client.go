@@ -36,6 +36,7 @@ type ProvisioningV1alpha1Interface interface {
 	EntraUsersGetter
 	HelmReleasesGetter
 	LocalScriptsGetter
+	MinioBucketsGetter
 	MsSqlDatabasesGetter
 }
 
@@ -74,6 +75,10 @@ func (c *ProvisioningV1alpha1Client) HelmReleases(namespace string) HelmReleaseI
 
 func (c *ProvisioningV1alpha1Client) LocalScripts(namespace string) LocalScriptInterface {
 	return newLocalScripts(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) MinioBuckets(namespace string) MinioBucketInterface {
+	return newMinioBuckets(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) MsSqlDatabases(namespace string) MsSqlDatabaseInterface {

@@ -40,6 +40,8 @@ type Interface interface {
 	HelmReleases() HelmReleaseInformer
 	// LocalScripts returns a LocalScriptInformer.
 	LocalScripts() LocalScriptInformer
+	// MinioBuckets returns a MinioBucketInformer.
+	MinioBuckets() MinioBucketInformer
 	// MsSqlDatabases returns a MsSqlDatabaseInformer.
 	MsSqlDatabases() MsSqlDatabaseInformer
 }
@@ -93,6 +95,11 @@ func (v *version) HelmReleases() HelmReleaseInformer {
 // LocalScripts returns a LocalScriptInformer.
 func (v *version) LocalScripts() LocalScriptInformer {
 	return &localScriptInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// MinioBuckets returns a MinioBucketInformer.
+func (v *version) MinioBuckets() MinioBucketInformer {
+	return &minioBucketInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // MsSqlDatabases returns a MsSqlDatabaseInformer.

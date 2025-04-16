@@ -34,4 +34,6 @@ type HelmReleaseExpansion interface{}
 
 type LocalScriptExpansion interface{}
 
+type MinioBucketExpansion interface{}
+
 type MsSqlDatabaseExpansion interface{}
