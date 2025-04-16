@@ -44,8 +44,9 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
+	anyLocalScript := len(infra.LocalScripts) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
