@@ -45,8 +45,9 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyEntraUser := len(infra.EntraUsers) > 0
 	anyMinioBucket := len(infra.MinioBuckets) > 0
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
+	anyLocalScript := len(infra.LocalScripts) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
