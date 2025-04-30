@@ -129,6 +129,22 @@ spec:
               name:  provisioner-secrets
               key: githubAccessToken
               optional: true
+        {{- if .Values.global.minio.enabled }}
+        - name: MINIO_ENDPOINT
+          value: "{{ .Values.global.minio.endpoint }}"
+        - name: MINIO_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name:  provisioner-secrets
+              key: minioAccessKey
+              optional: true
+        - name: MINIO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name:  provisioner-secrets
+              key: minioSecretKey
+              optional: true
+        {{- end }}
         {{- if .Values.global.s3.enabled }}
         volumeMounts:
           - mountPath: "/home/nonroot/.aws/credentials"
