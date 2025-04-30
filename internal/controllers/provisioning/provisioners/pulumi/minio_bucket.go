@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"fmt"
+
 	"github.com/pulumi/pulumi-minio/sdk/go/minio"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
@@ -16,6 +17,15 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MinioBucket")
+
+	bucketName := provisioning.MatchTarget(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s_%s_%s", minioBucket.Spec.BucketName, tenant.Spec.PlatformRef, tenant.GetName())
+		},
+		func(platform *platformv1.Platform) string {
+			return fmt.Sprintf("%s_%s", minioBucket.Spec.BucketName, platform.GetName())
+		},
+	)
 
 	userName := fmt.Sprintf("%s-%s", provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
@@ -49,7 +59,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
    ]
   }
  ]
-}`, minioBucket.Spec.BucketName, minioBucket.Spec.BucketName)),
+}`, bucketName, bucketName)),
 		TargetUser: user.Name,
 	}, pulumi.DependsOn(dependencies))
 	if err != nil {
@@ -64,7 +74,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 
 	bucket, err := minio.NewS3Bucket(ctx, minioBucket.Name, &minio.S3BucketArgs{
 		Acl:          nil,
-		Bucket:       pulumi.String(minioBucket.Spec.BucketName),
+		Bucket:       pulumi.String(bucketName),
 		ForceDestroy: pulumi.Bool(!pulumiRetainOnDelete),
 	},
 		pulumi.RetainOnDelete(pulumiRetainOnDelete),
@@ -84,7 +94,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 			map[string]exportTemplateWithValue{
 				"accessKey":  {exp.AccessKey, sa.AccessKey},
 				"secretKey":  {exp.SecretKey, sa.SecretKey},
-				"bucketName": {exp.BucketName, pulumi.String(minioBucket.Spec.BucketName)},
+				"bucketName": {exp.BucketName, bucket.Bucket},
 			})
 		if err != nil {
 			return nil, err
