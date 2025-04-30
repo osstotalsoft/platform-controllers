@@ -20,10 +20,10 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 
 	bucketName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
-			return fmt.Sprintf("%s_%s_%s", minioBucket.Spec.BucketName, tenant.Spec.PlatformRef, tenant.GetName())
+			return fmt.Sprintf("%s-%s-%s", minioBucket.Spec.BucketName, tenant.Spec.PlatformRef, tenant.GetName())
 		},
 		func(platform *platformv1.Platform) string {
-			return fmt.Sprintf("%s_%s", minioBucket.Spec.BucketName, platform.GetName())
+			return fmt.Sprintf("%s-%s", minioBucket.Spec.BucketName, platform.GetName())
 		},
 	)
 
