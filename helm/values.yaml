@@ -17,5 +17,7 @@ global:
   s3:
     enabled: false
     profile: minio
-
+  minio:
+    enabled: false
+    endpoint: http://my-minio-server:9000
 
