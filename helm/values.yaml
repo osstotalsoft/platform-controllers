@@ -20,4 +20,5 @@ global:
   minio:
     enabled: false
     endpoint: http://my-minio-server:9000
+  workersCount: 5
 

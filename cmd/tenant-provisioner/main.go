@@ -2,7 +2,9 @@ package main
 
 import (
 	"flag"
+	"os"
 	"path/filepath"
+	"strconv"
 
 	"k8s.io/client-go/kubernetes"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -18,6 +20,10 @@ import (
 	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 	"totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	"totalsoft.ro/platform-controllers/pkg/signals"
+)
+
+const (
+	EnvWorkersCount = "WORKERS_COUNT"
 )
 
 var (
@@ -90,7 +96,12 @@ func main() {
 
 	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
 		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter), eventBroadcaster, messaging.DefaultMessagingPublisher())
-	if err = controller.Run(5, stopCh); err != nil {
+
+	workersCount, err := strconv.Atoi(os.Getenv(EnvWorkersCount))
+	if err != nil {
+		workersCount = 5
+	}
+	if err = controller.Run(workersCount, stopCh); err != nil {
 		klog.Fatalf("Error running controller: %s", err)
 	}
 
