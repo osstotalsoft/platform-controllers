@@ -145,6 +145,8 @@ spec:
               key: minioSecretKey
               optional: true
         {{- end }}
+        - name: WORKERS_COUNT
+          value: "{{ .Values.global.workersCount }}"
         {{- if .Values.global.s3.enabled }}
         volumeMounts:
           - mountPath: "/home/nonroot/.aws/credentials"
