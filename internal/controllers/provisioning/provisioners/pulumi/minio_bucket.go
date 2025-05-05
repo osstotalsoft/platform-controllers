@@ -44,6 +44,11 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		return nil, err
 	}
 
+	minio.NewIamUserPolicyAttachment(ctx, userName, &minio.IamUserPolicyAttachmentArgs{
+		UserName:   user.Name,
+		PolicyName: pulumi.String("readwrite"),
+	}, pulumi.DependsOn(dependencies), pulumi.Parent(user))
+
 	sa, err := minio.NewIamServiceAccount(ctx, userName, &minio.IamServiceAccountArgs{
 		Policy: pulumi.String(fmt.Sprintf(`{
  "Version": "2012-10-17",
