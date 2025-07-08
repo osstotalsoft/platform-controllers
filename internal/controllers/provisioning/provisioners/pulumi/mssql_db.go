@@ -61,7 +61,7 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	}
 
 	restoreFrom := mssqlDb.Spec.RestoreFrom
-	if (restoreFrom != provisioningv1.MsSqlDatabaseRestoreSpec{}) {
+	if restoreFrom.BackupFilePath != "" {
 		_, err = mssql.NewScript(ctx, "restore-db", &mssql.ScriptArgs{
 			DatabaseId: db.ID(),
 			ReadScript: pulumi.String("SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.tables) THEN 'Initialized' ELSE 'Empty' END AS [DatabaseStatus]"),

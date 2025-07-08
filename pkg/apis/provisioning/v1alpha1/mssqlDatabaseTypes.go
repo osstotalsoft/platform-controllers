@@ -23,6 +23,7 @@ type MsSqlDatabaseSpec struct {
 	// Sql Server spec. New database will be created on this server
 	SqlServer MsSqlServerSpec `json:"sqlServer"`
 	// Restore from backup. Leave empty for a new empty database.
+	// +kubebuilder:default:={backupFilePath: ""}
 	RestoreFrom MsSqlDatabaseRestoreSpec `json:"restoreFrom"`
 	// Existing database to be used instead of creating a new one
 	// eg: "2"
