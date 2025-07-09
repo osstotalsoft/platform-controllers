@@ -67,14 +67,16 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 			ReadScript: pulumi.String("SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.tables) THEN 'Initialized' ELSE 'Empty' END AS [DatabaseStatus]"),
 			UpdateScript: db.Name.ApplyT(func(n string) pulumi.StringOutput {
 				return pulumi.Sprintf(`
-DECLARE @DataFilePath NVARCHAR(512) =  CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(512)) + '%v';
-DECLARE @LogFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(512)) + '%v';
+DECLARE @DataFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(512)) + '%v.mdf';
+DECLARE @LogFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(512)) + '%v.ldf';
+DECLARE @XtpFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(512)) + '%v.xtp';
+
 IF (SELECT COUNT(1) FROM sys.tables) = 0
 BEGIN
 	USE master; 
-	RESTORE DATABASE [%v] FROM DISK = '%v' WITH FILE = 1, MOVE N'%v' TO @DataFilePath,  MOVE N'%v' TO @LogFilePath, NOUNLOAD, REPLACE; 
+	RESTORE DATABASE [%v] FROM DISK = '%v' WITH FILE = 1, MOVE N'%v' TO @DataFilePath, MOVE N'%v' TO @LogFilePath, MOVE N'XTP' TO @XtpFilePath, NOUNLOAD, REPLACE; 
 END
-				`, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName)
+				`, n, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName)
 			}).(pulumi.StringOutput),
 			State: pulumi.StringMap{
 				"DatabaseStatus": pulumi.String("Initialized"),
