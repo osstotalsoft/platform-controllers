@@ -56,6 +56,10 @@ type MsSqlServerAuth struct {
 type MsSqlDatabaseRestoreSpec struct {
 	//The backup file to restore from. Should be located on the SQL server machine.
 	BackupFilePath string `json:"backupFilePath"`
+	// The logical name of the data file in the backup.
+	LogicalDataFileName string `json:"logicalDataFileName,omitempty"`
+	// The logical name of the log file in the backup.
+	LogicalLogFileName string `json:"logicalLogFileName,omitempty"`
 }
 
 type MsSqlDatabaseExportsSpec struct {
