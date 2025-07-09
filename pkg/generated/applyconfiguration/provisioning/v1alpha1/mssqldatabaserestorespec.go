@@ -21,7 +21,9 @@ package v1alpha1
 // MsSqlDatabaseRestoreSpecApplyConfiguration represents an declarative configuration of the MsSqlDatabaseRestoreSpec type for use
 // with apply.
 type MsSqlDatabaseRestoreSpecApplyConfiguration struct {
-	BackupFilePath *string `json:"backupFilePath,omitempty"`
+	BackupFilePath      *string `json:"backupFilePath,omitempty"`
+	LogicalDataFileName *string `json:"logicalDataFileName,omitempty"`
+	LogicalLogFileName  *string `json:"logicalLogFileName,omitempty"`
 }
 
 // MsSqlDatabaseRestoreSpecApplyConfiguration constructs an declarative configuration of the MsSqlDatabaseRestoreSpec type for use with
@@ -35,5 +37,21 @@ func MsSqlDatabaseRestoreSpec() *MsSqlDatabaseRestoreSpecApplyConfiguration {
 // If called multiple times, the BackupFilePath field is set to the value of the last call.
 func (b *MsSqlDatabaseRestoreSpecApplyConfiguration) WithBackupFilePath(value string) *MsSqlDatabaseRestoreSpecApplyConfiguration {
 	b.BackupFilePath = &value
+	return b
+}
+
+// WithLogicalDataFileName sets the LogicalDataFileName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LogicalDataFileName field is set to the value of the last call.
+func (b *MsSqlDatabaseRestoreSpecApplyConfiguration) WithLogicalDataFileName(value string) *MsSqlDatabaseRestoreSpecApplyConfiguration {
+	b.LogicalDataFileName = &value
+	return b
+}
+
+// WithLogicalLogFileName sets the LogicalLogFileName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LogicalLogFileName field is set to the value of the last call.
+func (b *MsSqlDatabaseRestoreSpecApplyConfiguration) WithLogicalLogFileName(value string) *MsSqlDatabaseRestoreSpecApplyConfiguration {
+	b.LogicalLogFileName = &value
 	return b
 }

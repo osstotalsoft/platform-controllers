@@ -110,11 +110,19 @@ spec:
                 description: Target platform (custom resource name).
                 type: string
               restoreFrom:
+                default:
+                  backupFilePath: ""
                 description: Restore from backup. Leave empty for a new empty database.
                 properties:
                   backupFilePath:
                     description: The backup file to restore from. Should be located
                       on the SQL server machine.
+                    type: string
+                  logicalDataFileName:
+                    description: The logical name of the data file in the backup.
+                    type: string
+                  logicalLogFileName:
+                    description: The logical name of the log file in the backup.
                     type: string
                 required:
                 - backupFilePath
