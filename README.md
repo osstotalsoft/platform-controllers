@@ -516,6 +516,7 @@ Here's an example of an `MsSqlDatabase` resource:
 ```yaml
 apiVersion: provisioning.totalsoft.ro/v1alpha1
 kind: MsSqlDatabase
+metadata:
   name: test-db
   namespace: provisioning-test
 spec:
