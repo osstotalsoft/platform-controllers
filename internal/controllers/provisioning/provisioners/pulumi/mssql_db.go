@@ -74,9 +74,11 @@ DECLARE @XtpFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultLogPath
 IF (SELECT COUNT(1) FROM sys.tables) = 0
 BEGIN
 	USE master; 
+	ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 	RESTORE DATABASE [%v] FROM DISK = '%v' WITH FILE = 1, MOVE N'%v' TO @DataFilePath, MOVE N'%v' TO @LogFilePath, MOVE N'XTP' TO @XtpFilePath, NOUNLOAD, REPLACE; 
+	ALTER DATABASE [%v] SET MULTI_USER;
 END
-				`, n, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName)
+				`, n, n, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName, n)
 			}).(pulumi.StringOutput),
 			State: pulumi.StringMap{
 				"DatabaseStatus": pulumi.String("Initialized"),
