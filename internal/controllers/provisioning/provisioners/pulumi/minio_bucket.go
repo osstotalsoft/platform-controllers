@@ -27,14 +27,14 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		},
 	)
 
-	userName := fmt.Sprintf("%s-%s", provisioning.MatchTarget(target,
+	userName := fmt.Sprintf("%s-%s-%s", provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
 		},
 		func(platform *platformv1.Platform) string {
 			return fmt.Sprintf("%s", platform.GetName())
 		},
-	), minioBucket.Spec.DomainRef)
+	), minioBucket.Spec.DomainRef, minioBucket.Spec.BucketName)
 
 	user, err := minio.NewIamUser(ctx, userName, &minio.IamUserArgs{
 		ForceDestroy: pulumi.BoolPtr(true),
