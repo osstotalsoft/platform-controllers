@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -51,6 +52,10 @@ type TenantSpec struct {
 	// Tenant specific configs.
 	// +optional
 	Configs map[string]string `json:"configs,omitempty"`
+
+	// ProvisioningOverrides contains a list of resource overrides to be applied during provisioning.
+	// +optional
+	ProvisioningOverrides []ProvisioningResourcePatch `json:"provisioningOverrides,omitempty"`
 }
 
 // TenantStatus is the status for a tenant.
@@ -67,6 +72,31 @@ type TenantStatus struct {
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
+}
+
+// ProvisioningResourceKind is a string value representing the REST resource this dependency represents.
+type ProvisioningResourcePatch struct {
+	// Target contains the reference to the resource to be patched.
+	// +required
+	Target ProvisioningResourcePatchTarget `json:"target"`
+	// Spec contains the override spec for the resource.
+	// +required
+	Spec *apiextensionsv1.JSON `json:"spec"`
+}
+
+type ProvisioningResourcePatchTarget struct {
+	//  The kind of the dependency.
+	// +required
+	Kind string `json:"kind"`
+	// The API version of the dependency.
+	// +required
+	APIVersion string `json:"apiVersion,omitempty" `
+	//  The name of the dependency.
+	// +required
+	Name string `json:"name"`
+	//  The namespace of the dependency. If not specified, the tenant namespace is assumed.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
