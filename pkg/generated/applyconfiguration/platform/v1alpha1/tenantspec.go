@@ -25,14 +25,15 @@ import (
 // TenantSpecApplyConfiguration represents an declarative configuration of the TenantSpec type for use
 // with apply.
 type TenantSpecApplyConfiguration struct {
-	Id           *string                `json:"id,omitempty"`
-	Description  *string                `json:"description,omitempty"`
-	PlatformRef  *string                `json:"platformRef,omitempty"`
-	Enabled      *bool                  `json:"enabled,omitempty"`
-	DomainRefs   []string               `json:"domainRefs,omitempty"`
-	AdminEmail   *string                `json:"adminEmail,omitempty"`
-	DeletePolicy *v1alpha1.DeletePolicy `json:"deletePolicy,omitempty"`
-	Configs      map[string]string      `json:"configs,omitempty"`
+	Id                    *string                                       `json:"id,omitempty"`
+	Description           *string                                       `json:"description,omitempty"`
+	PlatformRef           *string                                       `json:"platformRef,omitempty"`
+	Enabled               *bool                                         `json:"enabled,omitempty"`
+	DomainRefs            []string                                      `json:"domainRefs,omitempty"`
+	AdminEmail            *string                                       `json:"adminEmail,omitempty"`
+	DeletePolicy          *v1alpha1.DeletePolicy                        `json:"deletePolicy,omitempty"`
+	Configs               map[string]string                             `json:"configs,omitempty"`
+	ProvisioningOverrides []ProvisioningResourcePatchApplyConfiguration `json:"provisioningOverrides,omitempty"`
 }
 
 // TenantSpecApplyConfiguration constructs an declarative configuration of the TenantSpec type for use with
@@ -109,6 +110,19 @@ func (b *TenantSpecApplyConfiguration) WithConfigs(entries map[string]string) *T
 	}
 	for k, v := range entries {
 		b.Configs[k] = v
+	}
+	return b
+}
+
+// WithProvisioningOverrides adds the given value to the ProvisioningOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ProvisioningOverrides field.
+func (b *TenantSpecApplyConfiguration) WithProvisioningOverrides(values ...*ProvisioningResourcePatchApplyConfiguration) *TenantSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithProvisioningOverrides")
+		}
+		b.ProvisioningOverrides = append(b.ProvisioningOverrides, *values[i])
 	}
 	return b
 }

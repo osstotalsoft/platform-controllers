@@ -8,6 +8,7 @@ import (
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"totalsoft.ro/platform-controllers/internal/tuple"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
@@ -93,30 +94,37 @@ func applyTargetOverrides[R interface {
 	result := []R{}
 
 	for _, res := range source {
-
 		overrides := MatchTarget(target,
-			func(tenant *platformv1.Tenant) map[string]*apiextensionsv1.JSON {
-				return (res.GetProvisioningMeta()).TenantOverrides
+			func(tenant *platformv1.Tenant) tuple.T2[*apiextensionsv1.JSON, *apiextensionsv1.JSON] {
+				var overridesFromTenant *apiextensionsv1.JSON
+				for _, override := range tenant.Spec.ProvisioningOverrides {
+					gvk := res.GetObjectKind().GroupVersionKind()
+					if override.APIVersion == gvk.GroupVersion().String() &&
+						override.Kind == gvk.Kind &&
+						override.Name == res.GetName() &&
+						(override.Namespace == res.GetNamespace() || (override.Namespace == "" && res.GetNamespace() == target.GetNamespace())) {
+						overridesFromTenant = override.Spec
+						break
+					}
+				}
+				var overridesFromResource *apiextensionsv1.JSON
+				if (res.GetProvisioningMeta()).TenantOverrides != nil {
+					tenantOverridesJson, exists := (res.GetProvisioningMeta()).TenantOverrides[target.GetName()]
+					if exists {
+						overridesFromResource = tenantOverridesJson
+					}
+				}
+
+				return tuple.New2(overridesFromTenant, overridesFromResource)
 			},
-			func(*platformv1.Platform) map[string]*apiextensionsv1.JSON {
-				return nil
+			func(*platformv1.Platform) tuple.T2[*apiextensionsv1.JSON, *apiextensionsv1.JSON] {
+				return tuple.New2[*apiextensionsv1.JSON, *apiextensionsv1.JSON](nil, nil)
 			},
 		)
 
-		if overrides == nil {
+		if overrides.V1 == nil && overrides.V2 == nil {
 			result = append(result, res)
 			continue
-		}
-
-		tenantOverridesJson, exists := overrides[target.GetName()]
-		if !exists {
-			result = append(result, res)
-			continue
-		}
-
-		var tenantOverridesMap map[string]any
-		if err := json.Unmarshal(tenantOverridesJson.Raw, &tenantOverridesMap); err != nil {
-			return nil, err
 		}
 
 		resSpecJsonBytes, err := json.Marshal(res.GetSpec())
@@ -129,8 +137,26 @@ func applyTargetOverrides[R interface {
 			return nil, err
 		}
 
-		if err := mergo.Merge(&targetSpecMap, tenantOverridesMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
-			return nil, err
+		if overrides.V1 != nil {
+			var overridesFromTenantMap map[string]any
+			if err := json.Unmarshal(overrides.V1.Raw, &overridesFromTenantMap); err != nil {
+				return nil, err
+			}
+
+			if err := mergo.Merge(&targetSpecMap, overridesFromTenantMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
+				return nil, err
+			}
+		}
+
+		if overrides.V2 != nil {
+			var overridesFromResourceMap map[string]any
+			if err := json.Unmarshal(overrides.V2.Raw, &overridesFromResourceMap); err != nil {
+				return nil, err
+			}
+
+			if err := mergo.Merge(&targetSpecMap, overridesFromResourceMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
+				return nil, err
+			}
 		}
 
 		resSpecJsonBytes, err = json.Marshal(targetSpecMap)
