@@ -3,6 +3,7 @@ package provisioning
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"reflect"
 
 	"dario.cat/mergo"
@@ -109,9 +110,11 @@ func applyTargetOverrides[R interface {
 				}
 				var overridesFromResource *apiextensionsv1.JSON
 				if (res.GetProvisioningMeta()).TenantOverrides != nil {
-					tenantOverridesJson, exists := (res.GetProvisioningMeta()).TenantOverrides[target.GetName()]
-					if exists {
-						overridesFromResource = tenantOverridesJson
+					for key, val := range (res.GetProvisioningMeta()).TenantOverrides {
+						if matched, _ := filepath.Match(key, target.GetName()); matched {
+							overridesFromResource = val
+							break
+						}
 					}
 				}
 

@@ -535,6 +535,38 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 		assert.Equal(t, "releaseNameBefore1", result[1].Spec.Release.ReleaseName)
 	})
 
+	t.Run("apply wildcard tenant overrides", func(t *testing.T) {
+		tenantName := "tenantPrefix-abc"
+		wildcardKey := "tenantPrefix-*"
+		overrides := map[string]any{
+			"release": map[string]any{
+				"releaseName": "overriddenReleaseName",
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		hr := provisioningv1.HelmRelease{
+			Spec: provisioningv1.HelmReleaseSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					TenantOverrides: map[string]*v1.JSON{
+						wildcardKey: {Raw: overridesBytes},
+					},
+				},
+				Release: v2beta1.HelmReleaseSpec{
+					ReleaseName: "originalReleaseName",
+				},
+			},
+		}
+
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Len(t, result, 1)
+		assert.Equal(t, "overriddenReleaseName", result[0].Spec.Release.ReleaseName)
+	})
+
 }
 
 func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
