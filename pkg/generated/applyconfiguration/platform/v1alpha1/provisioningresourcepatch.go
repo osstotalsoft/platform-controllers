@@ -25,11 +25,8 @@ import (
 // ProvisioningResourcePatchApplyConfiguration represents an declarative configuration of the ProvisioningResourcePatch type for use
 // with apply.
 type ProvisioningResourcePatchApplyConfiguration struct {
-	Kind       *string  `json:"kind,omitempty"`
-	APIVersion *string  `json:"apiVersion,omitempty"`
-	Name       *string  `json:"name,omitempty"`
-	Namespace  *string  `json:"namespace,omitempty"`
-	Spec       *v1.JSON `json:"spec,omitempty"`
+	Target *ProvisioningResourcePatchTargetApplyConfiguration `json:"target,omitempty"`
+	Spec   *v1.JSON                                           `json:"spec,omitempty"`
 }
 
 // ProvisioningResourcePatchApplyConfiguration constructs an declarative configuration of the ProvisioningResourcePatch type for use with
@@ -38,35 +35,11 @@ func ProvisioningResourcePatch() *ProvisioningResourcePatchApplyConfiguration {
 	return &ProvisioningResourcePatchApplyConfiguration{}
 }
 
-// WithKind sets the Kind field in the declarative configuration to the given value
+// WithTarget sets the Target field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Kind field is set to the value of the last call.
-func (b *ProvisioningResourcePatchApplyConfiguration) WithKind(value string) *ProvisioningResourcePatchApplyConfiguration {
-	b.Kind = &value
-	return b
-}
-
-// WithAPIVersion sets the APIVersion field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the APIVersion field is set to the value of the last call.
-func (b *ProvisioningResourcePatchApplyConfiguration) WithAPIVersion(value string) *ProvisioningResourcePatchApplyConfiguration {
-	b.APIVersion = &value
-	return b
-}
-
-// WithName sets the Name field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Name field is set to the value of the last call.
-func (b *ProvisioningResourcePatchApplyConfiguration) WithName(value string) *ProvisioningResourcePatchApplyConfiguration {
-	b.Name = &value
-	return b
-}
-
-// WithNamespace sets the Namespace field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the Namespace field is set to the value of the last call.
-func (b *ProvisioningResourcePatchApplyConfiguration) WithNamespace(value string) *ProvisioningResourcePatchApplyConfiguration {
-	b.Namespace = &value
+// If called multiple times, the Target field is set to the value of the last call.
+func (b *ProvisioningResourcePatchApplyConfiguration) WithTarget(value *ProvisioningResourcePatchTargetApplyConfiguration) *ProvisioningResourcePatchApplyConfiguration {
+	b.Target = value
 	return b
 }
 

@@ -100,10 +100,10 @@ func applyTargetOverrides[R interface {
 				var overridesFromTenant *apiextensionsv1.JSON
 				for _, override := range tenant.Spec.ProvisioningOverrides {
 					gvk := res.GetObjectKind().GroupVersionKind()
-					if override.APIVersion == gvk.GroupVersion().String() &&
-						override.Kind == gvk.Kind &&
-						override.Name == res.GetName() &&
-						(override.Namespace == res.GetNamespace() || (override.Namespace == "" && res.GetNamespace() == target.GetNamespace())) {
+					if override.Target.APIVersion == gvk.GroupVersion().String() &&
+						override.Target.Kind == gvk.Kind &&
+						override.Target.Name == res.GetName() &&
+						(override.Target.Namespace == res.GetNamespace() || (override.Target.Namespace == "" && res.GetNamespace() == target.GetNamespace())) {
 						overridesFromTenant = override.Spec
 						break
 					}
@@ -140,17 +140,6 @@ func applyTargetOverrides[R interface {
 			return nil, err
 		}
 
-		if overrides.V1 != nil {
-			var overridesFromTenantMap map[string]any
-			if err := json.Unmarshal(overrides.V1.Raw, &overridesFromTenantMap); err != nil {
-				return nil, err
-			}
-
-			if err := mergo.Merge(&targetSpecMap, overridesFromTenantMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
-				return nil, err
-			}
-		}
-
 		if overrides.V2 != nil {
 			var overridesFromResourceMap map[string]any
 			if err := json.Unmarshal(overrides.V2.Raw, &overridesFromResourceMap); err != nil {
@@ -158,6 +147,17 @@ func applyTargetOverrides[R interface {
 			}
 
 			if err := mergo.Merge(&targetSpecMap, overridesFromResourceMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
+				return nil, err
+			}
+		}
+
+		if overrides.V1 != nil {
+			var overridesFromTenantMap map[string]any
+			if err := json.Unmarshal(overrides.V1.Raw, &overridesFromTenantMap); err != nil {
+				return nil, err
+			}
+
+			if err := mergo.Merge(&targetSpecMap, overridesFromTenantMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
 				return nil, err
 			}
 		}

@@ -76,6 +76,15 @@ type TenantStatus struct {
 
 // ProvisioningResourceKind is a string value representing the REST resource this dependency represents.
 type ProvisioningResourcePatch struct {
+	// Target contains the reference to the resource to be patched.
+	// +required
+	Target ProvisioningResourcePatchTarget `json:"target"`
+	// Spec contains the override spec for the resource.
+	// +required
+	Spec *apiextensionsv1.JSON `json:"spec"`
+}
+
+type ProvisioningResourcePatchTarget struct {
 	//  The kind of the dependency.
 	// +required
 	Kind string `json:"kind"`
@@ -88,9 +97,6 @@ type ProvisioningResourcePatch struct {
 	//  The namespace of the dependency. If not specified, the tenant namespace is assumed.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
-	// Spec contains the override spec for the resource.
-	// +required
-	Spec *apiextensionsv1.JSON `json:"spec"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

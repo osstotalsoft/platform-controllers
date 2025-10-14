@@ -97,27 +97,34 @@ spec:
                   description: ProvisioningResourceKind is a string value representing
                     the REST resource this dependency represents.
                   properties:
-                    apiVersion:
-                      description: The API version of the dependency.
-                      type: string
-                    kind:
-                      description: ' The kind of the dependency.'
-                      type: string
-                    name:
-                      description: ' The name of the dependency.'
-                      type: string
-                    namespace:
-                      description: ' The namespace of the dependency. If not specified,
-                        the tenant namespace is assumed.'
-                      type: string
                     spec:
                       description: Spec contains the override spec for the resource.
                       x-kubernetes-preserve-unknown-fields: true
+                    target:
+                      description: Target contains the reference to the resource to
+                        be patched.
+                      properties:
+                        apiVersion:
+                          description: The API version of the dependency.
+                          type: string
+                        kind:
+                          description: ' The kind of the dependency.'
+                          type: string
+                        name:
+                          description: ' The name of the dependency.'
+                          type: string
+                        namespace:
+                          description: ' The namespace of the dependency. If not specified,
+                            the tenant namespace is assumed.'
+                          type: string
+                      required:
+                      - apiVersion
+                      - kind
+                      - name
+                      type: object
                   required:
-                  - apiVersion
-                  - kind
-                  - name
                   - spec
+                  - target
                   type: object
                 type: array
             required:
