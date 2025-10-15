@@ -80,6 +80,12 @@ BEGIN
 END
 				`, n, n, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName, n)
 			}).(pulumi.StringOutput),
+			DeleteScript: db.Name.ApplyT(
+				func(n string) pulumi.StringOutput {
+					return pulumi.Sprintf(`
+ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+				`, n)
+				}).(pulumi.StringOutput),
 			State: pulumi.StringMap{
 				"DatabaseStatus": pulumi.String("Initialized"),
 			},
