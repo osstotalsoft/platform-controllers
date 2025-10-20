@@ -121,6 +121,9 @@ spec:
                   logicalDataFileName:
                     description: The logical name of the data file in the backup.
                     type: string
+                  logicalFileStreamFileName:
+                    description: The logical name of the file stream file in the backup.
+                    type: string
                   logicalLogFileName:
                     description: The logical name of the log file in the backup.
                     type: string

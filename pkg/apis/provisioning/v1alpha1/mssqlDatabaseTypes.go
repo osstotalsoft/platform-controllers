@@ -60,6 +60,9 @@ type MsSqlDatabaseRestoreSpec struct {
 	LogicalDataFileName string `json:"logicalDataFileName,omitempty"`
 	// The logical name of the log file in the backup.
 	LogicalLogFileName string `json:"logicalLogFileName,omitempty"`
+	// The logical name of the file stream file in the backup.
+	// +optional
+	LogicalFileStreamFileName string `json:"logicalFileStreamFileName,omitempty"`
 }
 
 type MsSqlDatabaseExportsSpec struct {

@@ -20,7 +20,8 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MsSqlDatabase")
 
-	provider, err := mssql.NewProvider(ctx, "provider-mssql", &mssql.ProviderArgs{
+	providerName := fmt.Sprintf("provider-mssql-%s", mssqlDb.Name)
+	provider, err := mssql.NewProvider(ctx, providerName, &mssql.ProviderArgs{
 		Hostname: pulumi.String(mssqlDb.Spec.SqlServer.HostName),
 		Port:     pulumi.Int(mssqlDb.Spec.SqlServer.Port),
 		SqlAuth: &mssql.ProviderSqlAuthArgs{
@@ -66,6 +67,10 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 			DatabaseId: db.ID(),
 			ReadScript: pulumi.String("SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.tables) THEN 'Initialized' ELSE 'Empty' END AS [DatabaseStatus]"),
 			UpdateScript: db.Name.ApplyT(func(n string) pulumi.StringOutput {
+				xtpMove := ""
+				if mssqlDb.Spec.RestoreFrom.LogicalFileStreamFileName != "" {
+					xtpMove = fmt.Sprintf(", MOVE N'%s' TO @XtpFilePath", mssqlDb.Spec.RestoreFrom.LogicalFileStreamFileName)
+				}
 				return pulumi.Sprintf(`
 DECLARE @DataFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS NVARCHAR(512)) + '%v.mdf';
 DECLARE @LogFilePath NVARCHAR(512) = CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS NVARCHAR(512)) + '%v.ldf';
@@ -75,17 +80,11 @@ IF (SELECT COUNT(1) FROM sys.tables) = 0
 BEGIN
 	USE master; 
 	ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-	RESTORE DATABASE [%v] FROM DISK = '%v' WITH FILE = 1, MOVE N'%v' TO @DataFilePath, MOVE N'%v' TO @LogFilePath, MOVE N'XTP' TO @XtpFilePath, NOUNLOAD, REPLACE; 
+	RESTORE DATABASE [%v] FROM DISK = '%v' WITH FILE = 1, MOVE N'%v' TO @DataFilePath, MOVE N'%v' TO @LogFilePath%s, NOUNLOAD, REPLACE; 
 	ALTER DATABASE [%v] SET MULTI_USER;
 END
-				`, n, n, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName, n)
+				`, n, n, n, n, n, mssqlDb.Spec.RestoreFrom.BackupFilePath, mssqlDb.Spec.RestoreFrom.LogicalDataFileName, mssqlDb.Spec.RestoreFrom.LogicalLogFileName, xtpMove, n)
 			}).(pulumi.StringOutput),
-			DeleteScript: db.Name.ApplyT(
-				func(n string) pulumi.StringOutput {
-					return pulumi.Sprintf(`
-ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-				`, n)
-				}).(pulumi.StringOutput),
 			State: pulumi.StringMap{
 				"DatabaseStatus": pulumi.String("Initialized"),
 			},
