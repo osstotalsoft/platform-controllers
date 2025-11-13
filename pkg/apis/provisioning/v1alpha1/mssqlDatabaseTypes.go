@@ -29,6 +29,9 @@ type MsSqlDatabaseSpec struct {
 	// eg: "2"
 	// +optional
 	ImportDatabaseId string `json:"importDatabaseId,omitempty"`
+	// Login name to be set as the database owner
+	// +optional
+	OwnerLoginName string `json:"ownerLoginName,omitempty"`
 	// +optional
 	Exports          []MsSqlDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
