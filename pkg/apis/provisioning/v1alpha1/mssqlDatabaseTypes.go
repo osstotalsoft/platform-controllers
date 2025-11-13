@@ -30,8 +30,6 @@ type MsSqlDatabaseSpec struct {
 	// +optional
 	ImportDatabaseId string `json:"importDatabaseId,omitempty"`
 	// +optional
-	OwnerLoginName string `json:"ownerLoginName,omitempty"`
-	// +optional
 	Exports          []MsSqlDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
 }
