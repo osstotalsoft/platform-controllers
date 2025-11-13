@@ -61,8 +61,9 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	}
 
 	restoreFrom := mssqlDb.Spec.RestoreFrom
+	var restoreScript pulumi.Resource
 	if restoreFrom.BackupFilePath != "" {
-		_, err = mssql.NewScript(ctx, "restore-db", &mssql.ScriptArgs{
+		restoreScript, err = mssql.NewScript(ctx, "restore-db", &mssql.ScriptArgs{
 			DatabaseId: db.ID(),
 			ReadScript: pulumi.String("SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.tables) THEN 'Initialized' ELSE 'Empty' END AS [DatabaseStatus]"),
 			UpdateScript: db.Name.ApplyT(func(n string) pulumi.StringOutput {
@@ -91,7 +92,31 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 			},
 		},
 			pulumi.Provider(provider),
-			pulumi.Parent(db))
+			pulumi.Parent(db),
+			pulumi.DependsOn([]pulumi.Resource{db}))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if mssqlDb.Spec.OwnerLoginName != "" {
+		ownerDeps := []pulumi.Resource{db}
+		if restoreScript != nil {
+			ownerDeps = append(ownerDeps, restoreScript)
+		}
+		_, err = mssql.NewScript(ctx, "set-db-owner", &mssql.ScriptArgs{
+			DatabaseId: db.ID(),
+			ReadScript: pulumi.String("SELECT SUSER_SNAME(owner_sid) AS [Owner] FROM sys.databases WHERE name = DB_NAME()"),
+			UpdateScript: db.Name.ApplyT(func(n string) pulumi.StringOutput {
+				return pulumi.Sprintf(`ALTER AUTHORIZATION ON DATABASE::[%v] TO [%v];`, n, mssqlDb.Spec.OwnerLoginName)
+			}).(pulumi.StringOutput),
+			State: pulumi.StringMap{
+				"Owner": pulumi.String(mssqlDb.Spec.OwnerLoginName),
+			},
+		},
+			pulumi.Provider(provider),
+			pulumi.Parent(db),
+			pulumi.DependsOn(ownerDeps))
 		if err != nil {
 			return nil, err
 		}
