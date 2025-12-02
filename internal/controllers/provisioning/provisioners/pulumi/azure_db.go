@@ -65,11 +65,7 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	}
 
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
-
-	ignoreChanges := []string{}
-	if pulumiRetainOnDelete {
-		ignoreChanges = []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId", "isLedgerOn"}
-	}
+	ignoreChanges := []string{"resourceGroupName", "serverName", "elasticPoolId", "createMode", "sourceDatabaseId", "maxSizeBytes", "readScale", "requestedBackupStorageRedundancy", "catalogCollation", "collation", "sku", "zoneRedundant", "maintenanceConfigurationId", "isLedgerOn"}
 
 	dbNameV1 := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
