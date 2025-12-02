@@ -43,10 +43,7 @@ func deployAzureManagedDb(
 	}
 
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
-	ignoreChanges := []string{}
-	if pulumiRetainOnDelete {
-		ignoreChanges = []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}
-	}
+	ignoreChanges := []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation"}
 
 	db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
 		pulumi.RetainOnDelete(pulumiRetainOnDelete),

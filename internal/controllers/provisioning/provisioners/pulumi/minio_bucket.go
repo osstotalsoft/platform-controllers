@@ -72,10 +72,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 	}
 
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
-	ignoreChanges := []string{}
-	if pulumiRetainOnDelete {
-		ignoreChanges = []string{"bucket"}
-	}
+	ignoreChanges := []string{"bucket"}
 
 	bucket, err := minio.NewS3Bucket(ctx, minioBucket.Name, &minio.S3BucketArgs{
 		Acl:          nil,

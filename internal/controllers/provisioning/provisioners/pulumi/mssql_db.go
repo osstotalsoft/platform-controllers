@@ -43,10 +43,7 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	dbName = strings.ReplaceAll(dbName, ".", "_")
 
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
-	ignoreChanges := []string{}
-	if pulumiRetainOnDelete {
-		ignoreChanges = []string{"name", "collation"}
-	}
+	ignoreChanges := []string{"name", "collation"}
 
 	db, err := mssql.NewDatabase(ctx, mssqlDb.Name, &mssql.DatabaseArgs{
 		Name: pulumi.String(dbName),
