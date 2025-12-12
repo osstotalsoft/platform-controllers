@@ -27,17 +27,19 @@
             ],
             "env": {
                 "AZURE_LOCATION": "West Europe",
-                //"VAULT_ENABLED": "false",
+                "VAULT_ENABLED": "false",
                 "VAULT_ADDR": "http://localhost:54969/",
                 //"VAULT_TOKEN": "PLEASE_ADD_VAULT_TOKEN",
                 "AZURE_MANAGED_IDENTITY_RG": "global",
                 "AZURE_MANAGED_IDENTITY_NAME": "scriptidentity",
-                "AZURE_ENABLED": "true",
+                "AZURE_ENABLED": "false",
                 "AWS_PROFILE": "minio",
                 // "PULUMI_CONFIG_PASSPHRASE": "PLEASE_ADD_VAULT_TOKEN",
                 // "PULUMI_BACKEND_URL": "s3://BUCKET_NAME?region=ro&endpoint=http://MINIO_HOST:9000&disableSSL=true&s3ForcePathStyle=true"
                 //"RUSI_ENABLED": "true"
                 //"PULUMI_SKIP_REFRESH": "true",
+                //"PULUMI_ACCESS_TOKEN": "PLEASE_ADD_PULUMI_ACCESS_TOKEN",
+                "WORKERS_COUNT": "1"
             },
         },
         {
