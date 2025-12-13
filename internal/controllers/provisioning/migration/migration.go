@@ -53,9 +53,6 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      namer(job.Name, tenant.Name),
 					Namespace: job.Namespace,
-					OwnerReferences: []metav1.OwnerReference{
-						*metav1.NewControllerRef(tenant, platformv1.SchemeGroupVersion.WithKind("Tenant")),
-					},
 				},
 				Spec: v1.JobSpec{
 					Template: corev1.PodTemplateSpec{
