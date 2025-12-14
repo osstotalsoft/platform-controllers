@@ -98,7 +98,11 @@ func main() {
 	ttlSecondsAfterFinished := migration.DefaultTTLSecondsAfterFinished
 	if ttlStr := os.Getenv(EnvMigrationJobTTLSecondsAfterFinished); ttlStr != "" {
 		if ttlVal, err := strconv.Atoi(ttlStr); err == nil {
-			ttlSecondsAfterFinished = ttlVal
+			if ttlVal < 0 {
+				klog.ErrorS(nil, "MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED must be non-negative, using default", "provided", ttlVal, "default", ttlSecondsAfterFinished)
+			} else {
+				ttlSecondsAfterFinished = ttlVal
+			}
 		} else {
 			klog.ErrorS(err, "Error parsing MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED, using default", "default", ttlSecondsAfterFinished)
 		}
