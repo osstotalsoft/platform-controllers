@@ -97,11 +97,11 @@ func main() {
 
 	ttlSecondsAfterFinished := migration.DefaultTTLSecondsAfterFinished
 	if ttlStr := os.Getenv(EnvMigrationJobTTLSecondsAfterFinished); ttlStr != "" {
-		if ttlVal, err := strconv.Atoi(ttlStr); err == nil {
+		if ttlVal, err := strconv.ParseInt(ttlStr, 10, 32); err == nil {
 			if ttlVal < 0 {
 				klog.ErrorS(nil, EnvMigrationJobTTLSecondsAfterFinished+" must be non-negative, using default", "provided", ttlVal, "default", ttlSecondsAfterFinished)
 			} else {
-				ttlSecondsAfterFinished = ttlVal
+				ttlSecondsAfterFinished = int32(ttlVal)
 			}
 		} else {
 			klog.ErrorS(err, "Error parsing "+EnvMigrationJobTTLSecondsAfterFinished+", using default", "default", ttlSecondsAfterFinished)
@@ -109,7 +109,7 @@ func main() {
 	}
 
 	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
-		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter, int32(ttlSecondsAfterFinished)), eventBroadcaster, messaging.DefaultMessagingPublisher())
+		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter, ttlSecondsAfterFinished), eventBroadcaster, messaging.DefaultMessagingPublisher())
 
 	workersCount, err := strconv.Atoi(os.Getenv(EnvWorkersCount))
 	if err != nil {

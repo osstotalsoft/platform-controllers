@@ -55,6 +55,13 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 }
 
 func hasTenantIDEnvVar(job *v1.Job) bool {
+	for _, container := range job.Spec.Template.Spec.InitContainers {
+		for _, env := range container.Env {
+			if env.Name == "TENANT_ID" {
+				return true
+			}
+		}
+	}
 	for _, container := range job.Spec.Template.Spec.Containers {
 		for _, env := range container.Env {
 			if env.Name == "TENANT_ID" {
@@ -102,6 +109,7 @@ func newTenant(name, platform string) *platformv1.Tenant {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: platformv1.TenantSpec{
+			Id:          name,
 			PlatformRef: platform,
 			Description: name + " description",
 		},

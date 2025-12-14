@@ -20,7 +20,7 @@ const (
 	
 	// DefaultTTLSecondsAfterFinished is the default TTL (in seconds) for migration jobs.
 	// The default value is 86400 seconds (24 hours).
-	DefaultTTLSecondsAfterFinished = 86400
+	DefaultTTLSecondsAfterFinished int32 = 86400
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
