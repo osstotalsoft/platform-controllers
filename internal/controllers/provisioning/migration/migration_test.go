@@ -38,16 +38,7 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 		newJobsCount := 0
 		for _, job := range jobs.Items {
 			// Check only newly created jobs (those with TENANT_ID environment variable)
-			hasTenantID := false
-			for _, container := range job.Spec.Template.Spec.Containers {
-				for _, env := range container.Env {
-					if env.Name == "TENANT_ID" {
-						hasTenantID = true
-						break
-					}
-				}
-			}
-			if hasTenantID {
+			if hasTenantIDEnvVar(&job) {
 				newJobsCount++
 				if job.Spec.TTLSecondsAfterFinished == nil {
 					t.Errorf("TTLSecondsAfterFinished not set for job %s", job.Name)
@@ -61,6 +52,17 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 			t.Errorf("Expected 2 new jobs to be created but found %d", newJobsCount)
 		}
 	})
+}
+
+func hasTenantIDEnvVar(job *v1.Job) bool {
+	for _, container := range job.Spec.Template.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == "TENANT_ID" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func newJob(name, domain string, template bool) *v1.Job {

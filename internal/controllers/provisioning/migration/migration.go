@@ -18,7 +18,8 @@ const (
 	jobTemplateLabel = "provisioning.totalsoft.ro/migration-job-template"
 	domainLabel      = "platform.totalsoft.ro/domain"
 	
-	// DefaultTTLSecondsAfterFinished is the default TTL for migration jobs (24 hours)
+	// DefaultTTLSecondsAfterFinished is the default TTL (in seconds) for migration jobs.
+	// The default value is 86400 seconds (24 hours).
 	DefaultTTLSecondsAfterFinished = 86400
 )
 
