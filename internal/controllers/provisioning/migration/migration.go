@@ -17,10 +17,13 @@ import (
 const (
 	jobTemplateLabel = "provisioning.totalsoft.ro/migration-job-template"
 	domainLabel      = "platform.totalsoft.ro/domain"
+	
+	// DefaultTTLSecondsAfterFinished is the default TTL for migration jobs (24 hours)
+	DefaultTTLSecondsAfterFinished = 86400
 )
 
 func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
-	nsFilter func(string, string) bool) func(platform string, tenant *platformv1.Tenant, domain string) error {
+	nsFilter func(string, string) bool, ttlSecondsAfterFinished int32) func(platform string, tenant *platformv1.Tenant, domain string) error {
 	namer := func(jName, tenant string) string {
 		return fmt.Sprintf("%s-%s-%d", jName, tenant, time.Now().Unix())
 	}
@@ -55,6 +58,7 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 					Namespace: job.Namespace,
 				},
 				Spec: v1.JobSpec{
+					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
 						Spec: job.Spec.Template.Spec,
 					},

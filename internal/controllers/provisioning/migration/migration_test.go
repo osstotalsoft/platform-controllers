@@ -20,15 +20,30 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 		newJob("dev4", "some-other-domain", true),
 	}
 	kubeClient := fake.NewSimpleClientset(objects...)
+	ttlSecondsAfterFinished := int32(3600) // 1 hour for testing
 	migrator := KubeJobsMigrationForTenant(kubeClient, func(s string, s2 string) bool {
 		return true
-	})
+	}, ttlSecondsAfterFinished)
 	t.Run("test job selection by label", func(t *testing.T) {
 		migrator("test", newTenant("qa", "qa"), domain)
 		jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
 		expectedNoOfJobs := 4 + 2 //4 existing + 2 new jobs
 		if len(jobs.Items) != expectedNoOfJobs {
 			t.Errorf("Error running migration, expected %d jobs but found %d", expectedNoOfJobs, len(jobs.Items))
+		}
+	})
+	t.Run("test ttlSecondsAfterFinished is set", func(t *testing.T) {
+		jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
+		for _, job := range jobs.Items {
+			// Check only newly created jobs (those with tenant name in the job name)
+			if job.Name != "dev1" && job.Name != "dev2" && job.Name != "dev3" && job.Name != "dev4" {
+				if job.Spec.TTLSecondsAfterFinished == nil {
+					t.Errorf("TTLSecondsAfterFinished not set for job %s", job.Name)
+				} else if *job.Spec.TTLSecondsAfterFinished != ttlSecondsAfterFinished {
+					t.Errorf("Expected TTLSecondsAfterFinished to be %d but got %d for job %s", 
+						ttlSecondsAfterFinished, *job.Spec.TTLSecondsAfterFinished, job.Name)
+				}
+			}
 		}
 	})
 }

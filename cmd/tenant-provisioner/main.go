@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	EnvWorkersCount = "WORKERS_COUNT"
+	EnvWorkersCount                   = "WORKERS_COUNT"
+	EnvMigrationJobTTLSecondsAfterFinished = "MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED"
 )
 
 var (
@@ -94,8 +95,17 @@ func main() {
 	eventBroadcaster.StartStructuredLogging(0)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
+	ttlSecondsAfterFinished := migration.DefaultTTLSecondsAfterFinished
+	if ttlStr := os.Getenv(EnvMigrationJobTTLSecondsAfterFinished); ttlStr != "" {
+		if ttlVal, err := strconv.Atoi(ttlStr); err == nil {
+			ttlSecondsAfterFinished = ttlVal
+		} else {
+			klog.ErrorS(err, "Error parsing MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED, using default", "default", ttlSecondsAfterFinished)
+		}
+	}
+
 	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
-		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter), eventBroadcaster, messaging.DefaultMessagingPublisher())
+		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter, int32(ttlSecondsAfterFinished)), eventBroadcaster, messaging.DefaultMessagingPublisher())
 
 	workersCount, err := strconv.Atoi(os.Getenv(EnvWorkersCount))
 	if err != nil {
