@@ -168,7 +168,8 @@ func NewPlatformController(
 
 			controller.recorder.Event(tenant, corev1.EventTypeNormal, "Tenant deleted successfully", "Tenant deleted successfully")
 			event := TenantDeleted{
-				TenantId: tenant.Spec.Id,
+				TenantId:   tenant.Spec.Id,
+				TenantName: tenant.Name,
 			}
 			err := controller.messagingPublisher(context.TODO(), TenantDeletedSuccessfullyTopic, event, tenant.Spec.PlatformRef)
 			if err != nil {

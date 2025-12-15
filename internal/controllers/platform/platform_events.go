@@ -33,7 +33,8 @@ type TenantUpdated struct {
 	Configs      map[string]string
 }
 type TenantDeleted struct {
-	TenantId string
+	TenantId   string
+	TenantName string
 }
 
 type DomainCreated struct {
