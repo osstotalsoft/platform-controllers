@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	v1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -20,9 +21,10 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 		newJob("dev4", "some-other-domain", true),
 	}
 	kubeClient := fake.NewSimpleClientset(objects...)
+	ttlSecondsAfterFinished := int32(3600) // 1 hour for testing
 	migrator := KubeJobsMigrationForTenant(kubeClient, func(s string, s2 string) bool {
 		return true
-	})
+	}, ttlSecondsAfterFinished)
 	t.Run("test job selection by label", func(t *testing.T) {
 		migrator("test", newTenant("qa", "qa"), domain)
 		jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
@@ -31,6 +33,43 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 			t.Errorf("Error running migration, expected %d jobs but found %d", expectedNoOfJobs, len(jobs.Items))
 		}
 	})
+	t.Run("test ttlSecondsAfterFinished is set", func(t *testing.T) {
+		jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
+		newJobsCount := 0
+		for _, job := range jobs.Items {
+			// Check only newly created jobs (those with TENANT_ID environment variable)
+			if hasTenantIDEnvVar(&job) {
+				newJobsCount++
+				if job.Spec.TTLSecondsAfterFinished == nil {
+					t.Errorf("TTLSecondsAfterFinished not set for job %s", job.Name)
+				} else if *job.Spec.TTLSecondsAfterFinished != ttlSecondsAfterFinished {
+					t.Errorf("Expected TTLSecondsAfterFinished to be %d but got %d for job %s", 
+						ttlSecondsAfterFinished, *job.Spec.TTLSecondsAfterFinished, job.Name)
+				}
+			}
+		}
+		if newJobsCount != 2 {
+			t.Errorf("Expected 2 new jobs to be created but found %d", newJobsCount)
+		}
+	})
+}
+
+func hasTenantIDEnvVar(job *v1.Job) bool {
+	for _, container := range job.Spec.Template.Spec.InitContainers {
+		for _, env := range container.Env {
+			if env.Name == "TENANT_ID" {
+				return true
+			}
+		}
+	}
+	for _, container := range job.Spec.Template.Spec.Containers {
+		for _, env := range container.Env {
+			if env.Name == "TENANT_ID" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func newJob(name, domain string, template bool) *v1.Job {
@@ -40,7 +79,18 @@ func newJob(name, domain string, template bool) *v1.Job {
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
 		},
-		Spec: v1.JobSpec{},
+		Spec: v1.JobSpec{
+			Template: corev1.PodTemplateSpec{
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test-container",
+							Image: "test:latest",
+						},
+					},
+				},
+			},
+		},
 	}
 	if template {
 		j.SetLabels(map[string]string{
@@ -59,6 +109,7 @@ func newTenant(name, platform string) *platformv1.Tenant {
 			Namespace: metav1.NamespaceDefault,
 		},
 		Spec: platformv1.TenantSpec{
+			Id:          name,
 			PlatformRef: platform,
 			Description: name + " description",
 		},

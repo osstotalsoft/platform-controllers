@@ -21,4 +21,5 @@ global:
     enabled: false
     endpoint: http://my-minio-server:9000
   workersCount: 5
+  migrationJobTTLSecondsAfterFinished: 86400  # 24 hours (default TTL for migration jobs)
 
