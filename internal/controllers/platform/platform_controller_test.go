@@ -275,11 +275,6 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", qaConfigMap.Data)
 		}
 
-		qaMsg := <-msgChan
-		if qaMsg.Topic != SyncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", SyncedSuccessfullyTopic, ", got", qaMsg.Topic)
-		}
-
 		uatConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("uat").Get(context.TODO(), "charismaonline.uat-tenants", metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)

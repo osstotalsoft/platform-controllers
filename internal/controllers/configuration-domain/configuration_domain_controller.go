@@ -38,7 +38,6 @@ import (
 	csiClientset "sigs.k8s.io/secrets-store-csi-driver/pkg/client/clientset/versioned"
 	csiInformers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions/apis/v1"
 	csiListers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/listers/apis/v1"
-	messaging "totalsoft.ro/platform-controllers/internal/messaging"
 )
 
 const (
@@ -63,8 +62,6 @@ const (
 	// If the Condition is False, the resource SHOULD be considered to be in the process of reconciling and not a
 	// representation of actual state.
 	ReadyCondition = "Ready"
-
-	syncedSuccessfullyTopic = "PlatformControllers.ConfigurationDomainController.SyncedSuccessfully"
 
 	EnvVaultEnabled = "VAULT_ENABLED"
 )
@@ -105,7 +102,6 @@ type ConfigurationDomainController struct {
 	configurationHandler *configurationHandler
 	kubeSecretsHandler   *kubeSecretsHandler
 	vaultSecretsHandler  *secretsHandler
-	messagingPublisher   messaging.MessagingPublisher
 
 	vaultEnabled bool
 }
@@ -122,7 +118,6 @@ func NewConfigurationDomainController(
 	spcInformer csiInformers.SecretProviderClassInformer,
 
 	eventBroadcaster record.EventBroadcaster,
-	messagingPublisher messaging.MessagingPublisher,
 ) *ConfigurationDomainController {
 
 	vaultEnabled, err := strconv.ParseBool(os.Getenv(EnvVaultEnabled))
@@ -150,9 +145,8 @@ func NewConfigurationDomainController(
 		kubeSecretsLister:  kubeSecretInformer.Lister(),
 		kubeSecretsSynced:  kubeSecretInformer.Informer().HasSynced,
 
-		recorder:           &record.FakeRecorder{},
-		workqueue:          workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configuration-domain"),
-		messagingPublisher: messagingPublisher,
+		recorder:  &record.FakeRecorder{},
+		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configuration-domain"),
 
 		vaultEnabled: vaultEnabled,
 	}
@@ -380,17 +374,6 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	// current state of the world
 	c.updateStatus(configDomain, true, SuccessConfigurationDomainSynced)
 	c.recorder.Event(configDomain, corev1.EventTypeNormal, SuccessConfigurationDomainSynced, MessageResourceSynced)
-	var ev = struct {
-		Domain    string
-		Namespace string
-	}{
-		Domain:    domain,
-		Namespace: namespace,
-	}
-	err = c.messagingPublisher(context.TODO(), syncedSuccessfullyTopic, ev, platformObj.Name)
-	if err != nil {
-		klog.ErrorS(err, "message publisher error")
-	}
 	return nil
 }
 
