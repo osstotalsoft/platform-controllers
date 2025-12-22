@@ -275,8 +275,6 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			t.Error("expected output config ", expectedOutput, ", got", qaConfigMap.Data)
 		}
 
-		<-msgChan
-
 		uatConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("uat").Get(context.TODO(), "charismaonline.uat-tenants", metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
