@@ -23,7 +23,6 @@ import (
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
 
 	"totalsoft.ro/platform-controllers/internal/controllers"
-	messaging "totalsoft.ro/platform-controllers/internal/messaging/mock"
 )
 
 func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
@@ -43,7 +42,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -69,11 +68,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("update aggregate when config map changes", func(t *testing.T) {
@@ -91,7 +85,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -140,11 +134,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message published to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate two kube secrets", func(t *testing.T) {
@@ -162,7 +151,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, secrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, secrets, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -194,11 +183,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output secret ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate domain specific and global config map", func(t *testing.T) {
@@ -216,7 +200,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			items := c.workqueue.Len()
 			t.Error("queue should have only 1 item, but it has", items)
@@ -244,11 +228,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message published to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate domain specific and global kube secret", func(t *testing.T) {
@@ -266,7 +245,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		configMaps := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			items := c.workqueue.Len()
 			t.Error("queue should have only 1 item, but it has", items)
@@ -300,11 +279,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output secret ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message published to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate domain specific config maps from a different namespace", func(t *testing.T) {
@@ -325,7 +299,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 2 {
 			items := c.workqueue.Len()
 			t.Error("queue should have only 2 items, but it has", items)
@@ -366,11 +340,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate domain specific kube secrets from a different namespace", func(t *testing.T) {
@@ -391,7 +360,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		configMaps := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 2 {
 			items := c.workqueue.Len()
 			t.Error("queue should have only 2 items, but it has", items)
@@ -438,11 +407,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate platform config map", func(t *testing.T) {
@@ -461,7 +425,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -488,11 +452,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate platform kube secrets", func(t *testing.T) {
@@ -511,7 +470,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		configMaps := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -544,11 +503,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output.Data, expectedOutput) {
 			t.Error("expected output secret ", expectedOutput, ", got", output.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("should update output when platform changes", func(t *testing.T) {
@@ -567,7 +521,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
 			return
@@ -577,7 +531,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
-		<-msgChan
 
 		foundConfigurationDomain, err := c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Get(context.TODO(), domain, metav1.GetOptions{})
 		if err != nil {
@@ -612,11 +565,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(foundConfigMap.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", foundConfigMap.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("should perform cleanup when aggregateConfigMaps is false", func(t *testing.T) {
@@ -634,7 +582,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, _ := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
@@ -680,7 +628,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 		if c.workqueue.Len() != 2 {
 			items := c.workqueue.Len()
 			t.Error("queue should have 2 items, but it has", items)
@@ -712,11 +660,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if !reflect.DeepEqual(output2.Data, expectedOutput) {
 			t.Error("expected output config ", expectedOutput, ", got", output2.Data)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("aggregate two vault secrets", func(t *testing.T) {
@@ -731,7 +674,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -772,11 +715,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if output.Spec.Parameters["objects"] != expectedOutput {
 			t.Error("expected output secret objects", expectedOutput, ", got", output.Spec.Parameters["objects"])
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("should re-generate SPC on delete", func(t *testing.T) {
@@ -791,7 +729,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -809,7 +747,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
-		<-msgChan
 
 		outputSpcName := getOutputSpcName(domain)
 		_, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
@@ -846,11 +783,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		if output == nil || err != nil {
 			t.Errorf("output SPC %s should be re-generated ", outputSpcName)
 		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
-		}
 	})
 
 	t.Run("should re-queue key when vault secrets synced", func(t *testing.T) {
@@ -865,7 +797,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
-		c, msgChan := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
+		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -900,11 +832,6 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 
 		if actualKey != expectedKey {
 			t.Error("expected key", expectedKey, ", got", actualKey)
-		}
-
-		msg := <-msgChan
-		if msg.Topic != syncedSuccessfullyTopic {
-			t.Error("expected message pblished to topic ", syncedSuccessfullyTopic, ", got", msg.Topic)
 		}
 	})
 
@@ -967,7 +894,7 @@ func newSecret(name, domain, namespace, platform string, data map[string][]byte)
 	}
 }
 
-func runController(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, kubeSecrets []runtime.Object, spcs []runtime.Object) (*ConfigurationDomainController, chan messaging.RcvMsg) {
+func runController(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, kubeSecrets []runtime.Object, spcs []runtime.Object) *ConfigurationDomainController {
 	platformClient := fakeClientset.NewSimpleClientset(append(platforms, configurationDomains...)...)
 	kubeClient := kubeFakeClientSet.NewSimpleClientset(append(configMaps, kubeSecrets...)...)
 	csiClient := fakeCsiClientSet.NewSimpleClientset(spcs...)
@@ -976,9 +903,6 @@ func runController(platforms []runtime.Object, configurationDomains, configMaps 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	csiInformerFactory := csiinformers.NewSharedInformerFactory(csiClient, time.Second*30)
 
-	msgChan := make(chan messaging.RcvMsg)
-	msgPublisher := messaging.MessagingPublisherMock(msgChan)
-
 	c := NewConfigurationDomainController(platformClient, kubeClient, csiClient,
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Configuration().V1alpha1().ConfigurationDomains(),
@@ -986,7 +910,6 @@ func runController(platforms []runtime.Object, configurationDomains, configMaps 
 		kubeInformerFactory.Core().V1().Secrets(),
 		csiInformerFactory.Secretsstore().V1().SecretProviderClasses(),
 		nil,
-		msgPublisher,
 	)
 
 	platformInformerFactory.Start(nil)
@@ -997,5 +920,5 @@ func runController(platforms []runtime.Object, configurationDomains, configMaps 
 	kubeInformerFactory.WaitForCacheSync(nil)
 	csiInformerFactory.WaitForCacheSync(nil)
 
-	return c, msgChan
+	return c
 }
