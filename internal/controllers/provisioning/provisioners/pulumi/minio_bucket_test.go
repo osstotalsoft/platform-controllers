@@ -43,9 +43,9 @@ func TestDeployMinioBucket(t *testing.T) {
 		mocks := &minioMocks{}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			user, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, ctx)
+			bucket, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, ctx)
 			assert.NoError(t, err)
-			assert.NotNil(t, user)
+			assert.NotNil(t, bucket)
 			return nil
 
 		}, pulumi.WithMocks("project", "stack", mocks))
