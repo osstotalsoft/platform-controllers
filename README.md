@@ -461,6 +461,10 @@ Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_miniobucket
 The `MinioBucket` spec has the following fields:
 
 - `bucketName`: The name of the bucket.
+- `minioServer`: Optional Minio server configuration. If omitted, the controller uses the default Pulumi Minio provider configured from environment variables.
+  - `server`: The Minio server host and port.
+  - `user`: The Minio user.
+  - `password`: The Minio password.
 - `domainRef`: The reference to the domain that the user belongs to.
 - `platformRef`: The reference to the platform that the user belongs to.
 
@@ -475,6 +479,10 @@ metadata:
   name: core-storage
 spec:
   bucketName: "core-storage"
+  minioServer:
+    server: "minio.example.com:9000"
+    user: "minio-user"
+    password: "minio-password"
   domainRef: "core"
   platformRef: "qa"
   exports:

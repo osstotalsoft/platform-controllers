@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
+    controller-gen.kubebuilder.io/version: v0.20.1
   name: miniobuckets.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
@@ -48,8 +48,7 @@ spec:
           spec:
             properties:
               bucketName:
-                description: UserPrincipalName represents the user principal name,
-                  e.g. "jdoe@domain.com"
+                description: BucketName represents the bucket name.
                 type: string
               dependsOn:
                 description: List of dependencies
@@ -152,6 +151,21 @@ spec:
                       type: object
                   type: object
                 type: array
+              minioServer:
+                description: MinioServer represents the Minio server configuration.
+                  If omitted, the default Pulumi provider configuration is used.
+                properties:
+                  password:
+                    type: string
+                  server:
+                    type: string
+                  user:
+                    type: string
+                required:
+                - password
+                - server
+                - user
+                type: object
               platformRef:
                 description: Target platform (custom resource name).
                 type: string

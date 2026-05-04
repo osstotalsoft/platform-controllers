@@ -18,6 +18,11 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MinioBucket")
 
+	providerOptions, err := minioProviderOptions(ctx, minioBucket)
+	if err != nil {
+		return nil, err
+	}
+
 	bucketName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s-%s", minioBucket.Spec.BucketName, tenant.Spec.PlatformRef, tenant.GetName())
@@ -37,9 +42,10 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 	), minioBucket.Spec.DomainRef, minioBucket.Spec.BucketName)
 
 	user, err := minio.NewIamUser(ctx, userName, &minio.IamUserArgs{
+
 		ForceDestroy: pulumi.BoolPtr(true),
 		Name:         pulumi.String(userName),
-	}, pulumi.DependsOn(dependencies))
+	}, minioResourceOptions(providerOptions, pulumi.DependsOn(dependencies))...)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +53,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 	minio.NewIamUserPolicyAttachment(ctx, userName, &minio.IamUserPolicyAttachmentArgs{
 		UserName:   user.Name,
 		PolicyName: pulumi.String("readwrite"),
-	}, pulumi.DependsOn(dependencies), pulumi.Parent(user))
+	}, minioResourceOptions(providerOptions, pulumi.DependsOn(dependencies), pulumi.Parent(user))...)
 
 	sa, err := minio.NewIamServiceAccount(ctx, userName, &minio.IamServiceAccountArgs{
 		Policy: pulumi.String(fmt.Sprintf(`{
@@ -66,7 +72,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
  ]
 }`, bucketName, bucketName)),
 		TargetUser: user.Name,
-	}, pulumi.DependsOn(dependencies))
+	}, minioResourceOptions(providerOptions, pulumi.DependsOn(dependencies))...)
 	if err != nil {
 		return nil, err
 	}
@@ -79,9 +85,10 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		Bucket:       pulumi.String(bucketName),
 		ForceDestroy: pulumi.Bool(!pulumiRetainOnDelete),
 	},
-		pulumi.RetainOnDelete(pulumiRetainOnDelete),
-		pulumi.IgnoreChanges(ignoreChanges),
-		pulumi.DependsOn(dependencies))
+		minioResourceOptions(providerOptions,
+			pulumi.RetainOnDelete(pulumiRetainOnDelete),
+			pulumi.IgnoreChanges(ignoreChanges),
+			pulumi.DependsOn(dependencies))...)
 	if err != nil {
 		return nil, err
 	}
@@ -103,4 +110,29 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		}
 	}
 	return bucket, nil
+}
+
+func minioProviderOptions(ctx *pulumi.Context, minioBucket *provisioningv1.MinioBucket) ([]pulumi.ResourceOption, error) {
+	if minioBucket.Spec.MinioServer == nil {
+		return nil, nil
+	}
+
+	server := minioBucket.Spec.MinioServer
+	provider, err := minio.NewProvider(ctx, fmt.Sprintf("%s-minio-provider", minioBucket.Name), &minio.ProviderArgs{
+		MinioServer:   pulumi.String(server.Server),
+		MinioUser:     pulumi.String(server.User),
+		MinioPassword: pulumi.String(server.Password),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return []pulumi.ResourceOption{pulumi.Provider(provider)}, nil
+}
+
+func minioResourceOptions(providerOptions []pulumi.ResourceOption, resourceOptions ...pulumi.ResourceOption) []pulumi.ResourceOption {
+	options := make([]pulumi.ResourceOption, 0, len(providerOptions)+len(resourceOptions))
+	options = append(options, providerOptions...)
+	options = append(options, resourceOptions...)
+	return options
 }

@@ -19,13 +19,23 @@ type MinioBucket struct {
 }
 
 type MinioBucketSpec struct {
-	// UserPrincipalName represents the user principal name, e.g. "jdoe@domain.com"
+	// BucketName represents the bucket name.
 	BucketName string `json:"bucketName"`
+
+	// MinioServer represents the Minio server configuration. If omitted, the default Pulumi provider configuration is used.
+	// +optional
+	MinioServer *MinioServerSpec `json:"minioServer,omitempty"`
 
 	// Export provisioning values spec.
 	// +optional
 	Exports          []MinioBucketExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
+}
+
+type MinioServerSpec struct {
+	Server   string `json:"server"`
+	User     string `json:"user"`
+	Password string `json:"password"`
 }
 
 type MinioBucketExportsSpec struct {
