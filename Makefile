@@ -29,6 +29,9 @@ build-linux:
 	mkdir -p $(OUT_DIR)
 	CGO_ENABLED=0 GOOS=linux go build -o $(OUT_DIR) -ldflags "$(DEFAULT_LDFLAGS) -s -w" ./cmd/tenant-provisioner ./cmd/platform-controller ./cmd/configuration-domain-controller
 
+build-windows:
+	powershell -NoProfile -ExecutionPolicy Bypass -Command "New-Item -ItemType Directory -Force -Path '$(OUT_DIR)' | Out-Null; $$env:CGO_ENABLED='0'; go build -o '$(OUT_DIR)' -ldflags '$(DEFAULT_LDFLAGS) -s -w' ./cmd/tenant-provisioner ./cmd/platform-controller ./cmd/configuration-domain-controller"
+
 modtidy:
 	go mod tidy
 
@@ -43,8 +46,11 @@ init-proto:
 gen-proto:
 	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/messaging/rusi/v1/rusi.proto
 
-test:
+test-linux:
 	CGO_ENABLED=0 go test -v `go list ./... | grep -v 'platform-controllers/pkg/generated'`
+
+test-windows:
+	powershell -NoProfile -ExecutionPolicy Bypass -Command "$$env:CGO_ENABLED='0'; $$packages = go list ./... | Where-Object { $$_ -notmatch 'platform-controllers/pkg/generated' }; go test -v $$packages"
 
 include hack/generate_kube_crd.mk
 include docker/docker.mk

@@ -165,43 +165,43 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 
 	// for inline source programs, we must manage plugins ourselves
 	if azureEnabled {
-		err = w.InstallPlugin(ctx, "azure-native", "v2.4.0")
+		err = w.InstallPlugin(ctx, "azure-native", "v2.92.2")
 		if err != nil {
 			klog.Errorf("Failed to install azure-native plugin: %v", err)
 			return auto.Stack{}, err
 		}
-		err = w.InstallPlugin(ctx, "azuread", "v5.38.0")
+		err = w.InstallPlugin(ctx, "azuread", "v5.53.8")
 		if err != nil {
 			klog.Errorf("Failed to install azure-ad plugin: %v", err)
 			return auto.Stack{}, err
 		}
 	}
-	err = w.InstallPlugin(ctx, "random", "v4.13.2")
+	err = w.InstallPlugin(ctx, "random", "v4.19.2")
 	if err != nil {
 		klog.Errorf("Failed to install random plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "vault", "v5.11.0")
+	err = w.InstallPlugin(ctx, "vault", "v5.20.0")
 	if err != nil {
 		klog.Errorf("Failed to install vault plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "kubernetes", "v4.18.3")
+	err = w.InstallPlugin(ctx, "kubernetes", "v3.30.2")
 	if err != nil {
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "mssql", "v0.1.0")
+	err = w.InstallPlugin(ctx, "mssql", "v0.0.8")
 	if err != nil {
 		klog.Errorf("Failed to install mssql plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "command", "v1.0.1")
+	err = w.InstallPlugin(ctx, "command", "v1.2.1")
 	if err != nil {
 		klog.Errorf("Failed to install command plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "minio", "v0.16.3")
+	err = w.InstallPlugin(ctx, "minio", "v0.16.9")
 	if err != nil {
 		klog.Errorf("Failed to install minio plugin: %v", err)
 		return auto.Stack{}, err

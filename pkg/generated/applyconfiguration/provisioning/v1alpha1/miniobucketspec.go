@@ -26,6 +26,7 @@ import (
 // with apply.
 type MinioBucketSpecApplyConfiguration struct {
 	BucketName                         *string                                    `json:"bucketName,omitempty"`
+	MinioServer                        *MinioServerSpecApplyConfiguration         `json:"minioServer,omitempty"`
 	Exports                            []MinioBucketExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -41,6 +42,14 @@ func MinioBucketSpec() *MinioBucketSpecApplyConfiguration {
 // If called multiple times, the BucketName field is set to the value of the last call.
 func (b *MinioBucketSpecApplyConfiguration) WithBucketName(value string) *MinioBucketSpecApplyConfiguration {
 	b.BucketName = &value
+	return b
+}
+
+// WithMinioServer sets the MinioServer field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the MinioServer field is set to the value of the last call.
+func (b *MinioBucketSpecApplyConfiguration) WithMinioServer(value *MinioServerSpecApplyConfiguration) *MinioBucketSpecApplyConfiguration {
+	b.MinioServer = value
 	return b
 }
 

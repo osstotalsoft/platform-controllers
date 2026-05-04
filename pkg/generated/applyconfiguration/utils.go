@@ -141,6 +141,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.MinioBucketExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioBucketSpec"):
 		return &applyconfigurationprovisioningv1alpha1.MinioBucketSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioServerSpec"):
+		return &applyconfigurationprovisioningv1alpha1.MinioServerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabase"):
 		return &applyconfigurationprovisioningv1alpha1.MsSqlDatabaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlDatabaseExportsSpec"):
