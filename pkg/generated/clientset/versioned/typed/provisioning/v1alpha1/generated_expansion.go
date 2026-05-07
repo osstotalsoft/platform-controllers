@@ -32,6 +32,8 @@ type EntraUserExpansion interface{}
 
 type HelmReleaseExpansion interface{}
 
+type HelmReleaseV2Expansion interface{}
+
 type LocalScriptExpansion interface{}
 
 type MinioBucketExpansion interface{}

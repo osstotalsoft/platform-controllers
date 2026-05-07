@@ -38,6 +38,8 @@ type Interface interface {
 	EntraUsers() EntraUserInformer
 	// HelmReleases returns a HelmReleaseInformer.
 	HelmReleases() HelmReleaseInformer
+	// HelmReleaseV2s returns a HelmReleaseV2Informer.
+	HelmReleaseV2s() HelmReleaseV2Informer
 	// LocalScripts returns a LocalScriptInformer.
 	LocalScripts() LocalScriptInformer
 	// MinioBuckets returns a MinioBucketInformer.
@@ -90,6 +92,11 @@ func (v *version) EntraUsers() EntraUserInformer {
 // HelmReleases returns a HelmReleaseInformer.
 func (v *version) HelmReleases() HelmReleaseInformer {
 	return &helmReleaseInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// HelmReleaseV2s returns a HelmReleaseV2Informer.
+func (v *version) HelmReleaseV2s() HelmReleaseV2Informer {
+	return &helmReleaseV2Informer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // LocalScripts returns a LocalScriptInformer.

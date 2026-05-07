@@ -16,6 +16,7 @@ const (
 	ProvisioningResourceKindAzureVirtualDesktop   = provisioningv1.ProvisioningResourceKind("AzureVirtualDesktop")
 	ProvisioningResourceKindAzureVirtualMachine   = provisioningv1.ProvisioningResourceKind("AzureVirtualMachine")
 	ProvisioningResourceKindHelmRelease           = provisioningv1.ProvisioningResourceKind("HelmRelease")
+	ProvisioningResourceKindHelmReleaseV2         = provisioningv1.ProvisioningResourceKind("HelmReleaseV2")
 	ProvisioningResourceKindMsSqlDatabase         = provisioningv1.ProvisioningResourceKind("MsSqlDatabase")
 	ProvisioningResourceKindLocalScript           = provisioningv1.ProvisioningResourceKind("LocalScript")
 )
@@ -27,6 +28,7 @@ type InfrastructureManifests struct {
 	AzureManagedDbs        []*provisioningv1.AzureManagedDatabase
 	AzurePowerShellScripts []*provisioningv1.AzurePowerShellScript
 	HelmReleases           []*provisioningv1.HelmRelease
+	HelmReleaseV2s         []*provisioningv1.HelmReleaseV2
 	AzureVirtualMachines   []*provisioningv1.AzureVirtualMachine
 	AzureVirtualDesktops   []*provisioningv1.AzureVirtualDesktop
 	MsSqlDbs               []*provisioningv1.MsSqlDatabase
@@ -55,6 +57,8 @@ func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResource
 		return findByName(id.Name, infra.AzurePowerShellScripts)
 	case ProvisioningResourceKindHelmRelease:
 		return findByName(id.Name, infra.HelmReleases)
+	case ProvisioningResourceKindHelmReleaseV2:
+		return findByName(id.Name, infra.HelmReleaseV2s)
 	case ProvisioningResourceKindAzureVirtualMachine:
 		return findByName(id.Name, infra.AzureVirtualMachines)
 	case ProvisioningResourceKindAzureVirtualDesktop:

@@ -74,6 +74,14 @@ type HelmReleaseListerExpansion interface{}
 // HelmReleaseNamespaceLister.
 type HelmReleaseNamespaceListerExpansion interface{}
 
+// HelmReleaseV2ListerExpansion allows custom methods to be added to
+// HelmReleaseV2Lister.
+type HelmReleaseV2ListerExpansion interface{}
+
+// HelmReleaseV2NamespaceListerExpansion allows custom methods to be added to
+// HelmReleaseV2NamespaceLister.
+type HelmReleaseV2NamespaceListerExpansion interface{}
+
 // LocalScriptListerExpansion allows custom methods to be added to
 // LocalScriptLister.
 type LocalScriptListerExpansion interface{}

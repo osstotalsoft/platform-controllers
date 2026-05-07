@@ -73,6 +73,7 @@ type ProvisioningController struct {
 	azureManagedDbInformer        provisioningInformersv1.AzureManagedDatabaseInformer
 	azurePowerShellScriptInformer provisioningInformersv1.AzurePowerShellScriptInformer
 	helmReleaseInformer           provisioningInformersv1.HelmReleaseInformer
+	helmReleaseV2Informer         provisioningInformersv1.HelmReleaseV2Informer
 	azureVirtualMachineInformer   provisioningInformersv1.AzureVirtualMachineInformer
 	azureVirtualDesktopInformer   provisioningInformersv1.AzureVirtualDesktopInformer
 	entraUserInformer             provisioningInformersv1.EntraUserInformer
@@ -115,6 +116,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureManagedDbInformer:        factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 		azurePowerShellScriptInformer: factory.Provisioning().V1alpha1().AzurePowerShellScripts(),
 		helmReleaseInformer:           factory.Provisioning().V1alpha1().HelmReleases(),
+		helmReleaseV2Informer:         factory.Provisioning().V1alpha1().HelmReleaseV2s(),
 		azureVirtualMachineInformer:   factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 		azureVirtualDesktopInformer:   factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 		entraUserInformer:             factory.Provisioning().V1alpha1().EntraUsers(),
@@ -138,6 +140,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	addPlatformHandlers(c.platformInformer)
 
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
+	addResourceHandlers[*provisioningv1.HelmReleaseV2]("Helm release v2", c.helmReleaseV2Informer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.MsSqlDatabase]("MsSql database", c.mssqlDbInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.LocalScript]("Local script", c.localScriptInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.MinioBucket]("Minio bucket", c.minioBucketInformer.Informer(), c.enqueueDomain)
@@ -283,6 +286,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 					AzureDbs:             []*provisioningv1.AzureDatabase{},
 					AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
 					HelmReleases:         []*provisioningv1.HelmRelease{},
+					HelmReleaseV2s:       []*provisioningv1.HelmReleaseV2{},
 					AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
 					AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
 					MsSqlDbs:             []*provisioningv1.MsSqlDatabase{},
@@ -314,6 +318,16 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	}
 	helmReleases = selectItemsInTarget(target.GetPlatformName(), domain, helmReleases, target)
 	helmReleases, err = applyTargetOverrides(helmReleases, target)
+	if err != nil {
+		return err
+	}
+
+	helmReleaseV2s, err := c.helmReleaseV2Informer.Lister().List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	helmReleaseV2s = selectItemsInTarget(target.GetPlatformName(), domain, helmReleaseV2s, target)
+	helmReleaseV2s, err = applyTargetOverrides(helmReleaseV2s, target)
 	if err != nil {
 		return err
 	}
@@ -422,6 +436,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		AzureManagedDbs:        azureManagedDbs,
 		AzurePowerShellScripts: azurePowerShellScripts,
 		HelmReleases:           helmReleases,
+		HelmReleaseV2s:         helmReleaseV2s,
 		AzureVirtualMachines:   azureVirtualMachines,
 		AzureVirtualDesktops:   azureVirtualDesktops,
 		EntraUsers:             entraUsers,

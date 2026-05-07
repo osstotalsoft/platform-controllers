@@ -40,6 +40,7 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyManagedAzureDb := len(infra.AzureManagedDbs) > 0
 	anyAzurePowerShellScript := len(infra.AzurePowerShellScripts) > 0
 	anyHelmRelease := len(infra.HelmReleases) > 0
+	anyHelmReleaseV2 := len(infra.HelmReleaseV2s) > 0
 	anyVirtualMachine := len(infra.AzureVirtualMachines) > 0
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
@@ -47,7 +48,7 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
 	anyLocalScript := len(infra.LocalScripts) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyLocalScript
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyHelmReleaseV2 || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
@@ -289,6 +290,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindHelmRelease):
 		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, ctx)
+	case string(provisioning.ProvisioningResourceKindHelmReleaseV2):
+		return deployHelmReleaseV2(target, res.(*provisioningv1.HelmReleaseV2), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualMachine):
 		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):

@@ -240,6 +240,48 @@ spec:
             secretProviderClass: origination-aggregate
 ```
 
+### HelmReleaseV2
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_helmreleasev2s.yaml)
+
+`HelmReleaseV2` supports the same provisioning behavior as `HelmRelease`, but provisions Flux `HelmRelease` resources with `apiVersion: helm.toolkit.fluxcd.io/v2`.
+
+Example:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: HelmReleaseV2
+metadata:
+  name: my-helm-release-v2
+  namespace: my-namespace
+spec:
+  domainRef: origination
+  platformRef: radu.demo
+  release:
+    interval: 10m
+    releaseName: my-release
+    chart:
+      spec:
+        version: ">=0.1.0-0"
+        chart: my-chart
+        sourceRef:
+          kind: HelmRepository
+          name: my-helm-repo
+          namespace: my-namespace
+    upgrade:
+      remediation:
+        remediateLastFailure: false
+    values:
+      global:
+        vaultEnvironment: "false"
+
+        runtimeConfiguration:
+          enabled: false
+          configMap: origination-aggregate
+          csi:
+            secretProviderClass: origination-aggregate
+```
+
 > _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
 ### AzureVirtualMachine
