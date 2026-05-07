@@ -64,8 +64,8 @@ spec:
                 items:
                   properties:
                     domain:
-                      description: The domain or bounded-context in which this database
-                        will be used.
+                      description: The domain or bounded-context for which HelmReleaseV2
+                        values are exported.
                       type: string
                     releaseName:
                       properties:
