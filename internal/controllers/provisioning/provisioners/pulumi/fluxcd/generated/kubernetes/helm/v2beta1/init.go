@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/blang/semver"
-	"github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes"
+	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/utilities"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
@@ -23,6 +23,10 @@ func (m *module) Construct(ctx *pulumi.Context, name, typ, urn string) (r pulumi
 	switch typ {
 	case "kubernetes:helm.toolkit.fluxcd.io/v2beta1:HelmRelease":
 		r = &HelmRelease{}
+	case "kubernetes:helm.toolkit.fluxcd.io/v2beta1:HelmReleaseList":
+		r = &HelmReleaseList{}
+	case "kubernetes:helm.toolkit.fluxcd.io/v2beta1:HelmReleasePatch":
+		r = &HelmReleasePatch{}
 	default:
 		return nil, fmt.Errorf("unknown resource type: %s", typ)
 	}
@@ -32,7 +36,7 @@ func (m *module) Construct(ctx *pulumi.Context, name, typ, urn string) (r pulumi
 }
 
 func init() {
-	version, err := kubernetes.PkgVersion()
+	version, err := utilities.PkgVersion()
 	if err != nil {
 		version = semver.Version{Major: 1}
 	}

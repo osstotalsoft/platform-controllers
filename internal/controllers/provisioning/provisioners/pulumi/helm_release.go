@@ -5,10 +5,10 @@ import (
 
 	"encoding/json"
 
-	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v3/go/kubernetes/meta/v1"
+	metav1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/meta/v1"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
-	fluxcd "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi/fluxcd/kubernetes/helm/v2beta1"
+	fluxcd "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi/fluxcd/generated/kubernetes/helm/v2beta1"
 	"totalsoft.ro/platform-controllers/internal/template"
 	"totalsoft.ro/platform-controllers/internal/tuple"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -82,7 +82,7 @@ func pulumiFluxHrArgs(target provisioning.ProvisioningTarget, hr *provisioningv1
 				Spec: fluxcd.HelmReleaseSpecChartSpecArgs{
 					Chart:   pulumi.String(hr.Spec.Release.Chart.Spec.Chart),
 					Version: pulumi.String(hr.Spec.Release.Chart.Spec.Version),
-					SourceRef: fluxcd.HelmReleaseSpecChartSpecSourcerefArgs{
+					SourceRef: fluxcd.HelmReleaseSpecChartSpecSourceRefArgs{
 						Kind:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Kind),
 						Name:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Name),
 						Namespace: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Namespace),

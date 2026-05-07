@@ -12,6 +12,8 @@ import (
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	clientfeatures "k8s.io/client-go/features"
+	clientfeaturestesting "k8s.io/client-go/features/testing"
 	"totalsoft.ro/platform-controllers/internal/messaging"
 	messagingMock "totalsoft.ro/platform-controllers/internal/messaging/mock"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -20,6 +22,7 @@ import (
 )
 
 func TestProvisioningController_processNextWorkItem(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	t.Run("add three tenants", func(t *testing.T) {
 		domain := "my-domain"
@@ -333,7 +336,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 					},
 				},
 				Release: v2beta1.HelmReleaseSpec{
-					Chart: v2beta1.HelmChartTemplate{
+					Chart: &v2beta1.HelmChartTemplate{
 						Spec: v2beta1.HelmChartTemplateSpec{
 							Version: "0.0.0-0",
 						},
