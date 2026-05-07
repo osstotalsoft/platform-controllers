@@ -186,7 +186,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install vault plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "kubernetes", "v3.30.2")
+	err = w.InstallPlugin(ctx, "kubernetes", "v4.30.0")
 	if err != nil {
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err

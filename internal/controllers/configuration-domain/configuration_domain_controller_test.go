@@ -7,9 +7,12 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	clientfeatures "k8s.io/client-go/features"
+	clientfeaturestesting "k8s.io/client-go/features/testing"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
 
@@ -26,6 +29,7 @@ import (
 )
 
 func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	t.Run("aggregate two config maps", func(t *testing.T) {
 		// Arrange
@@ -606,8 +610,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("queue should be empty, but contains ", item)
 		}
 
-		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigMap, metav1.GetOptions{})
-		if foundConfigMap != nil || err == nil {
+		_, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigMap, metav1.GetOptions{})
+		if !k8serrors.IsNotFound(err) {
 			t.Errorf("output config map %s should be deleted ", outputConfigMap)
 		}
 	})

@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	clientfeatures "k8s.io/client-go/features"
+	clientfeaturestesting "k8s.io/client-go/features/testing"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging/mock"
@@ -18,6 +20,7 @@ import (
 )
 
 func TestPlatformController_processNextWorkItem(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	t.Run("one platform with two tenants", func(t *testing.T) {
 		// Arrange
