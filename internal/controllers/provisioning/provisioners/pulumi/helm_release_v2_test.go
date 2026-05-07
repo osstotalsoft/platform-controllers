@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	fluxcd "totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi/fluxcd/generated/kubernetes/helm/v2"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -59,6 +60,19 @@ func TestHelmReleaseV2DeployFunc(t *testing.T) {
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)
 	})
+}
+
+func TestPulumiFluxHrV2ArgsOmitsUpgradeWhenNotConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Upgrade = nil
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	assert.Nil(t, spec.Upgrade)
 }
 
 func newHrV2(name, platform string) *provisioningv1.HelmReleaseV2 {

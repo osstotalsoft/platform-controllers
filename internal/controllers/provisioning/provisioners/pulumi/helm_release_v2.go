@@ -73,9 +73,29 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 		pulumiValues = pulumi.ToMap(values)
 	}
 
-	remediateLastFailure := false
+	spec := fluxcd.HelmReleaseSpecArgs{
+		Chart: fluxcd.HelmReleaseSpecChartArgs{
+			Spec: fluxcd.HelmReleaseSpecChartSpecArgs{
+				Chart:   pulumi.String(hr.Spec.Release.Chart.Spec.Chart),
+				Version: pulumi.String(hr.Spec.Release.Chart.Spec.Version),
+				SourceRef: fluxcd.HelmReleaseSpecChartSpecSourceRefArgs{
+					Kind:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Kind),
+					Name:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Name),
+					Namespace: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Namespace),
+				},
+			},
+		},
+		Interval:    pulumi.String(hr.Spec.Release.Interval.Duration.String()),
+		ReleaseName: pulumi.String(helmReleaseName),
+		Values:      pulumiValues,
+	}
+
 	if hr.Spec.Release.Upgrade != nil {
-		remediateLastFailure = hr.Spec.Release.Upgrade.GetRemediation().MustRemediateLastFailure()
+		spec.Upgrade = fluxcd.HelmReleaseSpecUpgradeArgs{
+			Remediation: fluxcd.HelmReleaseSpecUpgradeRemediationArgs{
+				RemediateLastFailure: pulumi.Bool(hr.Spec.Release.Upgrade.GetRemediation().MustRemediateLastFailure()),
+			},
+		}
 	}
 
 	args := fluxcd.HelmReleaseArgs{
@@ -83,27 +103,7 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 			Name:      pulumi.String(fluxHelmReleaseName),
 			Namespace: pulumi.String(hr.Namespace),
 		},
-		Spec: fluxcd.HelmReleaseSpecArgs{
-			Chart: fluxcd.HelmReleaseSpecChartArgs{
-				Spec: fluxcd.HelmReleaseSpecChartSpecArgs{
-					Chart:   pulumi.String(hr.Spec.Release.Chart.Spec.Chart),
-					Version: pulumi.String(hr.Spec.Release.Chart.Spec.Version),
-					SourceRef: fluxcd.HelmReleaseSpecChartSpecSourceRefArgs{
-						Kind:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Kind),
-						Name:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Name),
-						Namespace: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Namespace),
-					},
-				},
-			},
-			Interval:    pulumi.String(hr.Spec.Release.Interval.Duration.String()),
-			ReleaseName: pulumi.String(helmReleaseName),
-			Upgrade: fluxcd.HelmReleaseSpecUpgradeArgs{
-				Remediation: fluxcd.HelmReleaseSpecUpgradeRemediationArgs{
-					RemediateLastFailure: pulumi.Bool(remediateLastFailure),
-				},
-			},
-			Values: pulumiValues,
-		},
+		Spec: spec,
 	}
 
 	return &args, nil
