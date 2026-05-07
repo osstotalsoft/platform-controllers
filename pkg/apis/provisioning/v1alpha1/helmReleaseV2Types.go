@@ -39,10 +39,10 @@ type HelmReleaseV2List struct {
 	Items []HelmReleaseV2 `json:"items"`
 }
 
-func (db *HelmReleaseV2) GetProvisioningMeta() *ProvisioningMeta {
-	return &db.Spec.ProvisioningMeta
+func (hr *HelmReleaseV2) GetProvisioningMeta() *ProvisioningMeta {
+	return &hr.Spec.ProvisioningMeta
 }
 
-func (db *HelmReleaseV2) GetSpec() any {
-	return &db.Spec
+func (hr *HelmReleaseV2) GetSpec() any {
+	return &hr.Spec
 }
