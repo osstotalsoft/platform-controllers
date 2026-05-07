@@ -93,7 +93,6 @@ func TestPulumiFluxHrV2ArgsUsesChartRefWhenConfigured(t *testing.T) {
 	assert.True(t, ok)
 	assert.Nil(t, spec.Chart)
 	assert.IsType(t, fluxcd.HelmReleaseSpecChartRefArgs{}, spec.ChartRef)
-	assert.NotNil(t, spec.ChartRef)
 }
 
 func TestPulumiFluxHrV2ArgsErrorsWhenChartConfigurationMissing(t *testing.T) {
