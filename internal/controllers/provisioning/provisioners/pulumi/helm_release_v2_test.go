@@ -76,7 +76,7 @@ func TestPulumiFluxHrV2ArgsOmitsUpgradeWhenNotConfigured(t *testing.T) {
 }
 
 func newHrV2(name, platform string) *provisioningv1.HelmReleaseV2 {
-	false := false
+	remediateLastFailure := false
 	values := map[string]interface{}{
 		"val1": "",
 		"val2": 8,
@@ -112,7 +112,7 @@ func newHrV2(name, platform string) *provisioningv1.HelmReleaseV2 {
 				ReleaseName: "my-helm-release",
 				Upgrade: &fluxv2.Upgrade{
 					Remediation: &fluxv2.UpgradeRemediation{
-						RemediateLastFailure: &(false),
+						RemediateLastFailure: &remediateLastFailure,
 					},
 				},
 				Values: &apiextensionsv1.JSON{

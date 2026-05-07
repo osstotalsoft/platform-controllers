@@ -25,7 +25,7 @@ type HelmReleaseV2Spec struct {
 }
 
 type HelmReleaseV2ExportsSpec struct {
-	// The domain or bounded-context in which this database will be used.
+	// The domain or bounded-context for which HelmReleaseV2 values are exported.
 	Domain string `json:"domain"`
 	// +optional
 	ReleaseName ValueExport `json:"releaseName,omitempty"`
