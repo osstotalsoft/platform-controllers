@@ -74,7 +74,14 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 	}
 
 	spec := fluxcd.HelmReleaseSpecArgs{
-		Chart: fluxcd.HelmReleaseSpecChartArgs{
+		Interval:    pulumi.String(hr.Spec.Release.Interval.Duration.String()),
+		ReleaseName: pulumi.String(helmReleaseName),
+		Values:      pulumiValues,
+	}
+
+	switch {
+	case hr.Spec.Release.Chart != nil:
+		spec.Chart = fluxcd.HelmReleaseSpecChartArgs{
 			Spec: fluxcd.HelmReleaseSpecChartSpecArgs{
 				Chart:   pulumi.String(hr.Spec.Release.Chart.Spec.Chart),
 				Version: pulumi.String(hr.Spec.Release.Chart.Spec.Version),
@@ -84,10 +91,21 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 					Namespace: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Namespace),
 				},
 			},
-		},
-		Interval:    pulumi.String(hr.Spec.Release.Interval.Duration.String()),
-		ReleaseName: pulumi.String(helmReleaseName),
-		Values:      pulumiValues,
+		}
+	case hr.Spec.Release.ChartRef != nil:
+		chartRef := fluxcd.HelmReleaseSpecChartRefArgs{
+			Kind: pulumi.StringPtr(hr.Spec.Release.ChartRef.Kind),
+			Name: pulumi.StringPtr(hr.Spec.Release.ChartRef.Name),
+		}
+		if hr.Spec.Release.ChartRef.APIVersion != "" {
+			chartRef.ApiVersion = pulumi.StringPtr(hr.Spec.Release.ChartRef.APIVersion)
+		}
+		if hr.Spec.Release.ChartRef.Namespace != "" {
+			chartRef.Namespace = pulumi.StringPtr(hr.Spec.Release.ChartRef.Namespace)
+		}
+		spec.ChartRef = chartRef
+	default:
+		return nil, fmt.Errorf("helm release %q must define either spec.release.chart or spec.release.chartRef", hr.Name)
 	}
 
 	if hr.Spec.Release.Upgrade != nil {

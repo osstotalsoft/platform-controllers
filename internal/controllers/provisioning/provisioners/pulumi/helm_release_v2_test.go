@@ -75,6 +75,39 @@ func TestPulumiFluxHrV2ArgsOmitsUpgradeWhenNotConfigured(t *testing.T) {
 	assert.Nil(t, spec.Upgrade)
 }
 
+func TestPulumiFluxHrV2ArgsUsesChartRefWhenConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Chart = nil
+	hr.Spec.Release.ChartRef = &fluxv2.CrossNamespaceSourceReference{
+		APIVersion: "source.toolkit.fluxcd.io/v1",
+		Kind:       "OCIRepository",
+		Name:       "my-chart",
+		Namespace:  "flux-system",
+	}
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	assert.Nil(t, spec.Chart)
+	assert.IsType(t, fluxcd.HelmReleaseSpecChartRefArgs{}, spec.ChartRef)
+	assert.NotNil(t, spec.ChartRef)
+}
+
+func TestPulumiFluxHrV2ArgsErrorsWhenChartConfigurationMissing(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Chart = nil
+	hr.Spec.Release.ChartRef = nil
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.Nil(t, args)
+	assert.ErrorContains(t, err, "must define either spec.release.chart or spec.release.chartRef")
+}
+
 func newHrV2(name, platform string) *provisioningv1.HelmReleaseV2 {
 	remediateLastFailure := false
 	values := map[string]interface{}{
