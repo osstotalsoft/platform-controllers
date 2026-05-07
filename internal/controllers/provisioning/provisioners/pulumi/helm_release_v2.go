@@ -67,7 +67,9 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 		}
 
 		var values map[string]interface{}
-		json.Unmarshal([]byte(valuesJson), &values)
+		if err := json.Unmarshal([]byte(valuesJson), &values); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal templated Helm values as JSON: %w", err)
+		}
 		pulumiValues = pulumi.ToMap(values)
 	}
 
