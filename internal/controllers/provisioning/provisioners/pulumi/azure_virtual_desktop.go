@@ -789,7 +789,10 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			ResourceGroupName: resourceGroupName,
 			TargetName:        pulumi.String(target.GetName()),
 			HostPoolName:      avdComponent.HostPool.Name,
-			RegistrationToken: avdComponent.HostPool.RegistrationInfo.Token().Elem(),
+			RegistrationToken: desktopvirtualization.GetHostPoolRegistrationTokenOutput(ctx, desktopvirtualization.GetHostPoolRegistrationTokenOutputArgs{
+				HostPoolName:      avdComponent.HostPool.Name,
+				ResourceGroupName: resourceGroupName,
+			}).Token().Elem(),
 			VMSize:            pulumi.String(avd.Spec.VmSize),
 			SubnetID:          pulumi.String(avd.Spec.SubnetId),
 			LoginUserGroupId:  appsUserGroup.ID(),
