@@ -95,6 +95,25 @@ func TestPulumiFluxHrV2ArgsUsesChartRefWhenConfigured(t *testing.T) {
 	assert.IsType(t, fluxcd.HelmReleaseSpecChartRefArgs{}, spec.ChartRef)
 }
 
+func TestPulumiFluxHrV2ArgsOmitsSourceRefNamespaceWhenEmpty(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Chart.Spec.SourceRef.Namespace = ""
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	chart, ok := spec.Chart.(fluxcd.HelmReleaseSpecChartArgs)
+	assert.True(t, ok)
+	chartSpec, ok := chart.Spec.(fluxcd.HelmReleaseSpecChartSpecArgs)
+	assert.True(t, ok)
+	sourceRef, ok := chartSpec.SourceRef.(fluxcd.HelmReleaseSpecChartSpecSourceRefArgs)
+	assert.True(t, ok)
+	assert.Nil(t, sourceRef.Namespace)
+}
+
 func TestPulumiFluxHrV2ArgsErrorsWhenChartConfigurationMissing(t *testing.T) {
 	tenant := newTenant("tenant1", "dev")
 	hr := newHrV2("my-helm-release-v2", "dev")
