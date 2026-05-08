@@ -394,6 +394,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 			}
 		}
 
+		for _, hrV2 := range infra.HelmReleaseV2s {
+			_, err := deployResourceWithDeps(target, rgName, hrV2, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
 		for _, vm := range infra.AzureVirtualMachines {
 			_, err := deployResourceWithDeps(target, rgName, vm, provisionedRes, infra, ctx)
 			if err != nil {
