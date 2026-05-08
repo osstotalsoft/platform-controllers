@@ -35,6 +35,7 @@ type ProvisioningV1alpha1Interface interface {
 	AzureVirtualMachinesGetter
 	EntraUsersGetter
 	HelmReleasesGetter
+	HelmReleaseV2sGetter
 	LocalScriptsGetter
 	MinioBucketsGetter
 	MsSqlDatabasesGetter
@@ -71,6 +72,10 @@ func (c *ProvisioningV1alpha1Client) EntraUsers(namespace string) EntraUserInter
 
 func (c *ProvisioningV1alpha1Client) HelmReleases(namespace string) HelmReleaseInterface {
 	return newHelmReleases(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) HelmReleaseV2s(namespace string) HelmReleaseV2Interface {
+	return newHelmReleaseV2s(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) LocalScripts(namespace string) LocalScriptInterface {

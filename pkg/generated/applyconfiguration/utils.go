@@ -125,6 +125,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseSpec"):
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseV2"):
+		return &applyconfigurationprovisioningv1alpha1.HelmReleaseV2ApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseV2ExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.HelmReleaseV2ExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseV2Spec"):
+		return &applyconfigurationprovisioningv1alpha1.HelmReleaseV2SpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("InitScriptArgs"):
 		return &applyconfigurationprovisioningv1alpha1.InitScriptArgsApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("KubeSecretTemplate"):

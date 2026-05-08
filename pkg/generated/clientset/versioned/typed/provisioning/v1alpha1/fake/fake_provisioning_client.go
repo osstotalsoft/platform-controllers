@@ -56,6 +56,10 @@ func (c *FakeProvisioningV1alpha1) HelmReleases(namespace string) v1alpha1.HelmR
 	return &FakeHelmReleases{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) HelmReleaseV2s(namespace string) v1alpha1.HelmReleaseV2Interface {
+	return &FakeHelmReleaseV2s{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) LocalScripts(namespace string) v1alpha1.LocalScriptInterface {
 	return &FakeLocalScripts{c, namespace}
 }

@@ -43,6 +43,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&EntraUserList{},
 		&HelmRelease{},
 		&HelmReleaseList{},
+		&HelmReleaseV2{},
+		&HelmReleaseV2List{},
 		&MsSqlDatabase{},
 		&MsSqlDatabaseList{},
 		&LocalScript{},
