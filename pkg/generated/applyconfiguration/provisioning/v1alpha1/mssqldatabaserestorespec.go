@@ -21,9 +21,10 @@ package v1alpha1
 // MsSqlDatabaseRestoreSpecApplyConfiguration represents an declarative configuration of the MsSqlDatabaseRestoreSpec type for use
 // with apply.
 type MsSqlDatabaseRestoreSpecApplyConfiguration struct {
-	BackupFilePath      *string `json:"backupFilePath,omitempty"`
-	LogicalDataFileName *string `json:"logicalDataFileName,omitempty"`
-	LogicalLogFileName  *string `json:"logicalLogFileName,omitempty"`
+	BackupFilePath            *string `json:"backupFilePath,omitempty"`
+	LogicalDataFileName       *string `json:"logicalDataFileName,omitempty"`
+	LogicalLogFileName        *string `json:"logicalLogFileName,omitempty"`
+	LogicalFileStreamFileName *string `json:"logicalFileStreamFileName,omitempty"`
 }
 
 // MsSqlDatabaseRestoreSpecApplyConfiguration constructs an declarative configuration of the MsSqlDatabaseRestoreSpec type for use with
@@ -53,5 +54,13 @@ func (b *MsSqlDatabaseRestoreSpecApplyConfiguration) WithLogicalDataFileName(val
 // If called multiple times, the LogicalLogFileName field is set to the value of the last call.
 func (b *MsSqlDatabaseRestoreSpecApplyConfiguration) WithLogicalLogFileName(value string) *MsSqlDatabaseRestoreSpecApplyConfiguration {
 	b.LogicalLogFileName = &value
+	return b
+}
+
+// WithLogicalFileStreamFileName sets the LogicalFileStreamFileName field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the LogicalFileStreamFileName field is set to the value of the last call.
+func (b *MsSqlDatabaseRestoreSpecApplyConfiguration) WithLogicalFileStreamFileName(value string) *MsSqlDatabaseRestoreSpecApplyConfiguration {
+	b.LogicalFileStreamFileName = &value
 	return b
 }
