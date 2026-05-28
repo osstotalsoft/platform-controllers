@@ -26,6 +26,7 @@ import (
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
 
 	"totalsoft.ro/platform-controllers/internal/controllers"
+	testing_utils "totalsoft.ro/platform-controllers/internal/controllers/testing"
 )
 
 func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
@@ -47,10 +48,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -58,10 +56,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
 		if err != nil {
@@ -90,20 +85,14 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
 
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		// update configMap1
 		configMap1, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), "configMap1", metav1.GetOptions{})
@@ -156,10 +145,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		configMaps := []runtime.Object{}
 		spcs := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, secrets, spcs)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -173,10 +159,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 		outputSecret := getOutputSecretName(domain)
 		output, err := c.kubeClientset.CoreV1().Secrets(namespace).Get(context.TODO(), outputSecret, metav1.GetOptions{})
 		if err != nil {
@@ -205,11 +188,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			items := c.workqueue.Len()
-			t.Error("queue should have only 1 item, but it has", items)
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -217,10 +196,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
@@ -250,11 +226,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		configMaps := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			items := c.workqueue.Len()
-			t.Error("queue should have only 1 item, but it has", items)
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -268,10 +240,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputSecret := getOutputSecretName(domain)
 		output, err := c.kubeClientset.CoreV1().Secrets(namespace).Get(context.TODO(), outputSecret, metav1.GetOptions{})
@@ -304,11 +273,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 2 {
-			items := c.workqueue.Len()
-			t.Error("queue should have only 2 items, but it has", items)
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 2)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -319,10 +284,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace1).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
@@ -365,11 +327,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		configMaps := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 2 {
-			items := c.workqueue.Len()
-			t.Error("queue should have only 2 items, but it has", items)
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 2)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -386,10 +344,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputSecret := getOutputSecretName(domain)
 		output, err := c.kubeClientset.CoreV1().Secrets(namespace1).Get(context.TODO(), outputSecret, metav1.GetOptions{})
@@ -430,10 +385,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -441,10 +393,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputConfigmap := getOutputConfigmapName(domain)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
@@ -475,10 +424,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		configMaps := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		var oldGetSecrets = getSecrets
 		defer func() { getSecrets = oldGetSecrets }()
@@ -492,10 +438,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputSecret := getOutputSecretName(domain)
 		output, err := c.kubeClientset.CoreV1().Secrets(namespace).Get(context.TODO(), outputSecret, metav1.GetOptions{})
@@ -526,10 +469,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -544,21 +484,14 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		foundConfigurationDomain.Spec.PlatformRef = new_platform
 		c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Update(context.TODO(), foundConfigurationDomain, metav1.UpdateOptions{})
 
-		time.Sleep(100 * time.Millisecond)
-
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have 1 item, but contains ", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		aggregateConfigMap := getOutputConfigmapName(domain)
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), aggregateConfigMap, metav1.GetOptions{})
@@ -588,10 +521,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
 
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -602,13 +532,8 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error("processing failed")
 		}
 
-		time.Sleep(1 * time.Second)
-
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		_, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), outputConfigMap, metav1.GetOptions{})
 		if !k8serrors.IsNotFound(err) {
@@ -633,11 +558,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		spcs := []runtime.Object{}
 		kubeSecrets := []runtime.Object{}
 		c := runController(platforms, configurationDomains, configMaps, kubeSecrets, spcs)
-		if c.workqueue.Len() != 2 {
-			items := c.workqueue.Len()
-			t.Error("queue should have 2 items, but it has", items)
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 2)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -649,10 +570,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		outputConfigmap := getOutputConfigmapName(domain)
 		output2, err := c.kubeClientset.CoreV1().ConfigMaps(namespace2).Get(context.TODO(), outputConfigmap, metav1.GetOptions{})
@@ -689,9 +607,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			}, nil
 		}
 
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -699,10 +615,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 		outputSpcName := getOutputSpcName(domain)
 		output, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
 		if err != nil {
@@ -744,9 +657,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			}, nil
 		}
 
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
@@ -765,23 +676,14 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		time.Sleep(10 * time.Millisecond)
-
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-			return
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		output, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), outputSpcName, metav1.GetOptions{})
 		if output == nil || err != nil {
@@ -815,20 +717,12 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		requeueInterval = 1 * time.Millisecond
 
 		// Act
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 		if result := c.processNextWorkItem(); !result {
 			t.Error("processing failed")
 		}
 
-		time.Sleep(30 * time.Millisecond)
-
-		// Assert
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
-			return
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		obj, _ := c.workqueue.Get()
 		actualKey, _ := obj.(string)

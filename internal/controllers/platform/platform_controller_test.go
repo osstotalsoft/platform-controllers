@@ -13,6 +13,7 @@ import (
 	clientfeaturestesting "k8s.io/client-go/features/testing"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
+	testing_utils "totalsoft.ro/platform-controllers/internal/controllers/testing"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging/mock"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
@@ -29,9 +30,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant2 := _newTenant("tenant2", "charismaonline.qa", []string{})
 
 		c, msgChan := _runController([]runtime.Object{platform, tenant1, tenant2})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -39,10 +38,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		output, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
 		if err != nil {
@@ -101,9 +97,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant2 := _newTenant("tenant2", platform.Name, []string{})
 
 		c, msgChan := _runController([]runtime.Object{platform, domain, tenant1, tenant2})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -111,10 +105,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		output, err := c.kubeClientset.CoreV1().ConfigMaps(domain.Namespace).Get(context.TODO(), "origination-tenants", metav1.GetOptions{})
 		if err != nil {
@@ -169,9 +160,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant2 := _newTenant("tenant2", "charismaonline.qa", []string{})
 
 		c, _ := _runController([]runtime.Object{tenant1, tenant2})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -179,10 +168,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		//expect no error
 	})
@@ -192,9 +178,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		platform := _newPlatform("qa", "charismaonline.qa")
 
 		c, msgChan := _runController([]runtime.Object{platform})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -202,10 +186,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		output, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
 		if err != nil {
@@ -230,9 +211,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant1 := _newTenant("tenant1", "charismaonline.qa", []string{})
 
 		c, msgChan := _runController([]runtime.Object{platformQa, platformUat, tenant1})
-		if c.workqueue.Len() != 2 {
-			t.Error("queue should have 2 items, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 2)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -263,10 +242,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		qaConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
 		if err != nil {
@@ -331,9 +307,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		tenant1 := _newTenant("tenant1", "charismaonline.qa", []string{})
 
 		c, msgChan := _runController([]runtime.Object{platformQa, tenant1})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -357,10 +331,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 		time.Sleep(10 * time.Millisecond) //fix stale cache
 		configMap, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
 		if err != nil {
@@ -427,11 +398,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
-
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 		output, err := c.kubeClientset.CoreV1().ConfigMaps("qa").Get(context.TODO(), "charismaonline.qa-tenants", metav1.GetOptions{})
 		if err != nil {
 			t.Error(err)
@@ -455,9 +422,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		domain := _newDomain("qa", "origination", platform.Name)
 
 		c, msgChan := _runController([]runtime.Object{platform, domain})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -465,10 +430,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		// Collect messages with a timeout
 		var receivedMsgs []messaging.RcvMsg
@@ -511,9 +473,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		domain := _newDomain("qa", "origination", platformQa.Name)
 
 		c, msgChan := _runController([]runtime.Object{platformQa, platformUat, domain})
-		if c.workqueue.Len() != 2 {
-			t.Error("queue should have 2 items, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 2)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -543,10 +503,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		dUpdated, err := c.platformClientset.PlatformV1alpha1().Domains("qa").Get(context.TODO(), "origination", metav1.GetOptions{})
 		if err != nil {
@@ -597,9 +554,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		domain := _newDomain("qa", "origination", platform.Name)
 
 		c, msgChan := _runController([]runtime.Object{platform, domain})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -617,10 +572,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		// Collect messages with a timeout
 		var receivedMsgs []messaging.RcvMsg
@@ -662,9 +614,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		service := _newService("qa", "service1", platform.Name)
 
 		c, msgChan := _runController([]runtime.Object{platform, service})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -672,10 +622,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		// Collect messages with a timeout
 		var receivedMsgs []messaging.RcvMsg
@@ -718,9 +665,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		service := _newService("qa", "service1", platformQa.Name)
 
 		c, msgChan := _runController([]runtime.Object{platformQa, platformUat, service})
-		if c.workqueue.Len() != 2 {
-			t.Error("queue should have 2 items, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 2)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -750,10 +695,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		sUpdated, err := c.platformClientset.PlatformV1alpha1().Services("qa").Get(context.TODO(), "service1", metav1.GetOptions{})
 		if err != nil {
@@ -804,9 +746,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		service := _newService("qa", "service1", platform.Name)
 
 		c, msgChan := _runController([]runtime.Object{platform, service})
-		if c.workqueue.Len() != 1 {
-			t.Error("queue should have only 1 item, but it has", c.workqueue.Len())
-		}
+		testing_utils.WaitForQueueLen(t, c.workqueue, 1)
 
 		// Act
 		if result := c.processNextWorkItem(); !result {
@@ -824,10 +764,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		}
 
 		// Assert
-		if c.workqueue.Len() != 0 {
-			item, _ := c.workqueue.Get()
-			t.Error("queue should be empty, but contains ", item)
-		}
+		testing_utils.WaitForQueueEmpty(t, c.workqueue)
 
 		// Collect messages with a timeout
 		var receivedMsgs []messaging.RcvMsg

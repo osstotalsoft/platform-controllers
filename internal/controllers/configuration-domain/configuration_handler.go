@@ -202,7 +202,7 @@ func getOutputConfigmapName(domain string) string {
 
 func isOutputConfigMap(configMap *corev1.ConfigMap) bool {
 	owner := metav1.GetControllerOf(configMap)
-	return (owner != nil &&
+	return owner != nil &&
 		owner.Kind == "ConfigurationDomain" &&
-		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1")
+		owner.APIVersion == "configuration.totalsoft.ro/v1alpha1"
 }
