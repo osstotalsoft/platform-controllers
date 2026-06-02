@@ -45,10 +45,12 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
 	anyMinioBucket := len(infra.MinioBuckets) > 0
+	anyKeycloakClient := len(infra.KeycloakClients) > 0
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
 	anyLocalScript := len(infra.LocalScripts) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyHelmReleaseV2 || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyLocalScript
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyHelmReleaseV2 || anyVirtualMachine ||
+		anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyKeycloakClient || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
@@ -367,6 +369,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 		}
 
 		for _, user := range infra.MinioBuckets {
+			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, user := range infra.KeycloakClients {
 			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
 			if err != nil {
 				return err

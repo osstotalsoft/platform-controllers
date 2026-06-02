@@ -145,6 +145,18 @@ spec:
               key: minioSecretKey
               optional: true
         {{- end }}
+        {{- if .Values.global.keycloak.enabled }}
+        - name: KEYCLOAK_URL
+          value: {{ .Values.global.keycloak.url | quote }}
+        - name: KEYCLOAK_CLIENT_ID
+          value: {{ .Values.global.keycloak.clientId | quote }}
+        - name: KEYCLOAK_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name:  provisioner-secrets
+              key: keycloakClientSecret
+              optional: true
+        {{- end }}
         - name: WORKERS_COUNT
           value: "{{ .Values.global.workersCount }}"
         - name: MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED
