@@ -159,7 +159,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 			domain = spec.DomainRef
 		}
 
-		err = valueExporter(newExportContext(ctx, domain, keycloakClient.Name, keycloakClient.ObjectMeta, gvk),
+		err = valueExporter(newExportContext(ctx, domain, "keycloak-"+keycloakClient.Name, keycloakClient.ObjectMeta, gvk),
 			map[string]exportTemplateWithValue{
 				"clientId":     {exp.ClientId, client.ClientId},
 				"clientSecret": {exp.ClientSecret, client.ClientSecret},
