@@ -51,6 +51,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&LocalScriptList{},
 		&MinioBucket{},
 		&MinioBucketList{},
+		&KeycloakClient{},
+		&KeycloakClientList{},
 		&metav1.Status{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

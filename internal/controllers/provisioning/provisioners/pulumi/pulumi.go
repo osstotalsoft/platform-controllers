@@ -207,6 +207,11 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install minio plugin: %v", err)
 		return auto.Stack{}, err
 	}
+	err = w.InstallPlugin(ctx, "keycloak", "v6.10.1")
+	if err != nil {
+		klog.Errorf("Failed to install keycloak plugin: %v", err)
+		return auto.Stack{}, err
+	}
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
@@ -278,6 +283,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 	}
 
 	switch kind {
+	case string(provisioning.ProvisioningResourceKindKeycloakClient):
+		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMinioBucket):
 		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):

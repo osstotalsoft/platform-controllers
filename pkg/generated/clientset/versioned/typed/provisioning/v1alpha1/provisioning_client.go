@@ -36,6 +36,7 @@ type ProvisioningV1alpha1Interface interface {
 	EntraUsersGetter
 	HelmReleasesGetter
 	HelmReleaseV2sGetter
+	KeycloakClientsGetter
 	LocalScriptsGetter
 	MinioBucketsGetter
 	MsSqlDatabasesGetter
@@ -76,6 +77,10 @@ func (c *ProvisioningV1alpha1Client) HelmReleases(namespace string) HelmReleaseI
 
 func (c *ProvisioningV1alpha1Client) HelmReleaseV2s(namespace string) HelmReleaseV2Interface {
 	return newHelmReleaseV2s(c, namespace)
+}
+
+func (c *ProvisioningV1alpha1Client) KeycloakClients(namespace string) KeycloakClientInterface {
+	return newKeycloakClients(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) LocalScripts(namespace string) LocalScriptInterface {
