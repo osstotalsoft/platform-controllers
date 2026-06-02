@@ -133,6 +133,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseV2SpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("InitScriptArgs"):
 		return &applyconfigurationprovisioningv1alpha1.InitScriptArgsApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("KeycloakClient"):
+		return &applyconfigurationprovisioningv1alpha1.KeycloakClientApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("KeycloakClientExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.KeycloakClientExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("KeycloakClientSpec"):
+		return &applyconfigurationprovisioningv1alpha1.KeycloakClientSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("KubeSecretTemplate"):
 		return &applyconfigurationprovisioningv1alpha1.KubeSecretTemplateApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("LocalScript"):
@@ -161,6 +167,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.MsSqlServerAuthApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MsSqlServerSpec"):
 		return &applyconfigurationprovisioningv1alpha1.MsSqlServerSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProtocolMapper"):
+		return &applyconfigurationprovisioningv1alpha1.ProtocolMapperApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProvisioningMeta"):
 		return &applyconfigurationprovisioningv1alpha1.ProvisioningMetaApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProvisioningResourceIdendtifier"):
