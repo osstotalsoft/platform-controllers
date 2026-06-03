@@ -22,7 +22,7 @@ type KeycloakClientSpec struct {
 	// ClientName represents the client name.
 	ClientName string `json:"clientName"`
 
-	// ClientName represents the client name.
+	// ClientId represents the client id.
 	ClientId string `json:"clientId"`
 
 	// Associated realm.
