@@ -9,6 +9,7 @@ import (
 	"github.com/pulumi/pulumi-keycloak/sdk/v6/go/keycloak/openid"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -34,10 +35,28 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		accessType = "PUBLIC"
 	}
 
-	client, err := openid.NewClient(ctx, keycloakClient.Name, &openid.ClientArgs{
+	clientName := provisioning.MatchTarget(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s-%s-%s", spec.ClientName, tenant.Spec.PlatformRef, tenant.GetName())
+		},
+		func(platform *platformv1.Platform) string {
+			return fmt.Sprintf("%s-%s", spec.ClientName, platform.GetName())
+		},
+	)
+
+	clientId := provisioning.MatchTarget(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s-%s-%s", spec.ClientId, tenant.Spec.PlatformRef, tenant.GetName())
+		},
+		func(platform *platformv1.Platform) string {
+			return fmt.Sprintf("%s-%s", spec.ClientId, platform.GetName())
+		},
+	)
+
+	client, err := openid.NewClient(ctx, clientId, &openid.ClientArgs{
 		RealmId:                   pulumi.String(realm.Id),
-		ClientId:                  pulumi.String(spec.ClientId),
-		Name:                      pulumi.String(spec.ClientName),
+		ClientId:                  pulumi.String(clientId),
+		Name:                      pulumi.String(clientName),
 		Enabled:                   pulumi.Bool(spec.Enabled),
 		AccessType:                pulumi.String(accessType),
 		ConsentRequired:           pulumi.Bool(spec.ConsentRequired),
