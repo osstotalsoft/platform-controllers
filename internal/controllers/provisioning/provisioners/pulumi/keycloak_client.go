@@ -3,6 +3,7 @@ package pulumi
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/pulumi/pulumi-command/sdk/go/command/local"
 	"github.com/pulumi/pulumi-keycloak/sdk/v6/go/keycloak"
@@ -141,15 +142,35 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 			return nil, fmt.Errorf("KEYCLOAK_URL, KEYCLOAK_CLIENT_ID and KEYCLOAK_CLIENT_SECRET environment variables must be set")
 		}
 		tc := provisioning.GetTemplateContext(target)
-		org, err := template.ParseTemplate(spec.Organization, tc)
+		orgId, err := template.ParseTemplate(spec.Organization, tc)
 
-		createCmd := saUser.Id().ApplyT(func(userId string) string {
+		getOrgCmd, err := local.NewCommand(ctx,
+			fmt.Sprintf("%s-get-org-id", keycloakClient.Name),
+			&local.CommandArgs{
+				Create: pulumi.Sprintf(
+					`TOKEN=$(curl -s -X POST "%s/realms/master/protocol/openid-connect/token" `+
+						`-d "grant_type=client_credentials&client_id=%s&client_secret=%s" | jq -r .access_token) && `+
+						`curl -s -X GET "%s/admin/realms/%s/organizations?q=tid:%s" `+
+						`-H "Authorization: Bearer $TOKEN" | jq -r '.[0].id'`,
+					keycloakURL, keycloakClientID, keycloakClientSecret,
+					keycloakURL, spec.Realm, orgId,
+				),
+			}, pulumi.Parent(client))
+		if err != nil {
+			return nil, err
+		}
+
+		// Then use getOrgCmd.Stdout in the membership command
+		createCmd := pulumi.All(saUser.Id(), getOrgCmd.Stdout).ApplyT(func(args []any) string {
+			userId := args[0].(string)
+			orgId := args[1].(string)
 			return fmt.Sprintf(
 				`curl -s -X POST "%s/admin/realms/%s/organizations/%s/members" `+
 					`-H "Authorization: Bearer $(curl -s -X POST "%s/realms/master/protocol/openid-connect/token" `+
 					`-d "grant_type=client_credentials&client_id=%s&client_secret=%s" | jq -r .access_token)" `+
 					`-H "Content-Type: application/json" -d '{"id":"%s"}'`,
-				keycloakURL, spec.Realm, org, keycloakURL, keycloakClientID, keycloakClientSecret, userId,
+				keycloakURL, spec.Realm, strings.TrimSpace(orgId),
+				keycloakURL, keycloakClientID, keycloakClientSecret, userId,
 			)
 		}).(pulumi.StringOutput)
 
