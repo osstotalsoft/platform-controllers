@@ -375,8 +375,8 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 			}
 		}
 
-		for _, user := range infra.KeycloakClients {
-			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+		for _, keycloakClient := range infra.KeycloakClients {
+			_, err := deployResourceWithDeps(target, rgName, keycloakClient, provisionedRes, infra, ctx)
 			if err != nil {
 				return err
 			}
