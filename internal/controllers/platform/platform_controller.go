@@ -345,7 +345,14 @@ func (c *PlatformController) Run(workers int, stopCh <-chan struct{}) error {
 
 	// Wait for the caches to be synced before starting workers
 	klog.Info("Waiting for informer caches to sync")
-	if ok := cache.WaitForCacheSync(stopCh, c.configMapsSynced, c.tenantsSynced); !ok {
+	if ok := cache.WaitForCacheSync(
+		stopCh,
+		c.configMapsSynced,
+		c.platformsSynced,
+		c.tenantsSynced,
+		c.domainsSynced,
+		c.servicesSynced,
+	); !ok {
 		return fmt.Errorf("failed to wait for caches to sync")
 	}
 

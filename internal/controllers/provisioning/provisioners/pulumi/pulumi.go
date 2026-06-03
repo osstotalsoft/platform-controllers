@@ -45,10 +45,12 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
 	anyMinioBucket := len(infra.MinioBuckets) > 0
+	anyKeycloakClient := len(infra.KeycloakClients) > 0
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
 	anyLocalScript := len(infra.LocalScripts) > 0
 
-	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyHelmReleaseV2 || anyVirtualMachine || anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyLocalScript
+	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyHelmReleaseV2 || anyVirtualMachine ||
+		anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyKeycloakClient || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := provisioning.MatchTarget(target,
@@ -207,6 +209,11 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install minio plugin: %v", err)
 		return auto.Stack{}, err
 	}
+	err = w.InstallPlugin(ctx, "keycloak", "v6.10.1")
+	if err != nil {
+		klog.Errorf("Failed to install keycloak plugin: %v", err)
+		return auto.Stack{}, err
+	}
 	klog.V(4).Info("Successfully installed plugins")
 
 	// set stack configuration
@@ -278,6 +285,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 	}
 
 	switch kind {
+	case string(provisioning.ProvisioningResourceKindKeycloakClient):
+		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMinioBucket):
 		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):
@@ -361,6 +370,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 
 		for _, user := range infra.MinioBuckets {
 			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, keycloakClient := range infra.KeycloakClients {
+			_, err := deployResourceWithDeps(target, rgName, keycloakClient, provisionedRes, infra, ctx)
 			if err != nil {
 				return err
 			}
