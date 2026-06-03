@@ -9,6 +9,7 @@ import (
 	"github.com/pulumi/pulumi-keycloak/sdk/v6/go/keycloak/openid"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	"totalsoft.ro/platform-controllers/internal/template"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
@@ -37,20 +38,16 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 
 	clientName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
-			return fmt.Sprintf("%s-%s-%s", spec.ClientName, tenant.Spec.PlatformRef, tenant.GetName())
+			return fmt.Sprintf("%s-%s", spec.ClientName, tenant.GetName())
 		},
-		func(platform *platformv1.Platform) string {
-			return fmt.Sprintf("%s-%s", spec.ClientName, platform.GetName())
-		},
+		func(platform *platformv1.Platform) string { return spec.ClientName },
 	)
 
 	clientId := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
-			return fmt.Sprintf("%s-%s-%s", spec.ClientId, tenant.Spec.PlatformRef, tenant.GetName())
+			return fmt.Sprintf("%s-%s", spec.ClientId, tenant.GetName())
 		},
-		func(platform *platformv1.Platform) string {
-			return fmt.Sprintf("%s-%s", spec.ClientId, platform.GetName())
-		},
+		func(platform *platformv1.Platform) string { return spec.ClientName },
 	)
 
 	client, err := openid.NewClient(ctx, keycloakClient.Name, &openid.ClientArgs{
@@ -143,15 +140,16 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		if keycloakURL == "" || keycloakClientID == "" || keycloakClientSecret == "" {
 			return nil, fmt.Errorf("KEYCLOAK_URL, KEYCLOAK_CLIENT_ID and KEYCLOAK_CLIENT_SECRET environment variables must be set")
 		}
+		tc := provisioning.GetTemplateContext(target)
+		org, err := template.ParseTemplate(spec.Organization, tc)
+
 		createCmd := saUser.Id().ApplyT(func(userId string) string {
 			return fmt.Sprintf(
 				`curl -s -X POST "%s/admin/realms/%s/organizations/%s/members" `+
 					`-H "Authorization: Bearer $(curl -s -X POST "%s/realms/master/protocol/openid-connect/token" `+
 					`-d "grant_type=client_credentials&client_id=%s&client_secret=%s" | jq -r .access_token)" `+
 					`-H "Content-Type: application/json" -d '{"id":"%s"}'`,
-				keycloakURL, spec.Realm, spec.Organization,
-				keycloakURL, keycloakClientID, keycloakClientSecret,
-				userId,
+				keycloakURL, spec.Realm, org, keycloakURL, keycloakClientID, keycloakClientSecret, userId,
 			)
 		}).(pulumi.StringOutput)
 
