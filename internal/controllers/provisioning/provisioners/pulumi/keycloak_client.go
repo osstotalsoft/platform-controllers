@@ -53,7 +53,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		},
 	)
 
-	client, err := openid.NewClient(ctx, clientId, &openid.ClientArgs{
+	client, err := openid.NewClient(ctx, keycloakClient.Name, &openid.ClientArgs{
 		RealmId:                   pulumi.String(realm.Id),
 		ClientId:                  pulumi.String(clientId),
 		Name:                      pulumi.String(clientName),
