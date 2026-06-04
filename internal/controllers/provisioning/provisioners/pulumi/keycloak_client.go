@@ -149,7 +149,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 					`-d "grant_type=client_credentials&client_id=$KEYCLOAK_CLIENT_ID&client_secret=$KEYCLOAK_CLIENT_SECRET" | jq -r .access_token) && `+
 					`ORG_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/%s/organizations?q=tid:%s" `+
 					`-H "Authorization: Bearer $TOKEN" | jq -r '.[0].id') && `+
-					`curl -s -X POST "$KEYCLOAK_URL/admin/realms/%s/organizations/$ORG_ID/members" `+
+					`curl --fail-with-body -s -X POST "$KEYCLOAK_URL/admin/realms/%s/organizations/$ORG_ID/members" `+
 					`-H "Authorization: Bearer $TOKEN" `+
 					`-H "Content-Type: application/json" -d '"%s"'`,
 				spec.Realm, orgId, spec.Realm, userId,
