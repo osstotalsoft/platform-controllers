@@ -1,6 +1,8 @@
 module totalsoft.ro/platform-controllers
 
-go 1.26.4
+go 1.26.0
+
+toolchain go1.26.4
 
 require (
 	dario.cat/mergo v1.0.2
@@ -20,6 +22,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/storage/v2 v2.92.2
 	github.com/pulumi/pulumi-azuread/sdk/v5 v5.53.8
 	github.com/pulumi/pulumi-command/sdk v1.2.1
+	github.com/pulumi/pulumi-keycloak/sdk/v6 v6.11.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.31.1
 	github.com/pulumi/pulumi-minio/sdk v0.17.0
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0
@@ -132,7 +135,6 @@ require (
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.24.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.2 // indirect
-	github.com/pulumi/pulumi-keycloak/sdk/v6 v6.11.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
