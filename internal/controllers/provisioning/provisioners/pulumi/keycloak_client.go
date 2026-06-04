@@ -3,7 +3,6 @@ package pulumi
 import (
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/pulumi/pulumi-command/sdk/go/command/local"
 	"github.com/pulumi/pulumi-keycloak/sdk/v6/go/keycloak"
@@ -144,33 +143,16 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		tc := provisioning.GetTemplateContext(target)
 		orgId, err := template.ParseTemplate(spec.Organization, tc)
 
-		getOrgCmd, err := local.NewCommand(ctx,
-			fmt.Sprintf("%s-get-org-id", keycloakClient.Name),
-			&local.CommandArgs{
-				Create: pulumi.Sprintf(
-					`TOKEN=$(curl -s -X POST "%s/realms/master/protocol/openid-connect/token" `+
-						`-d "grant_type=client_credentials&client_id=%s&client_secret=%s" | jq -r .access_token) && `+
-						`curl -s -X GET "%s/admin/realms/%s/organizations?q=tid:%s" `+
-						`-H "Authorization: Bearer $TOKEN" | jq -r '.[0].id'`,
-					keycloakURL, keycloakClientID, keycloakClientSecret,
-					keycloakURL, spec.Realm, orgId,
-				),
-			}, pulumi.Parent(client))
-		if err != nil {
-			return nil, err
-		}
-
-		// Then use getOrgCmd.Stdout in the membership command
-		createCmd := pulumi.All(saUser.Id(), getOrgCmd.Stdout).ApplyT(func(args []any) string {
-			userId := args[0].(string)
-			orgId := args[1].(string)
+		createCmd := saUser.Id().ApplyT(func(userId string) string {
 			return fmt.Sprintf(
-				`curl -s -X POST "%s/admin/realms/%s/organizations/%s/members" `+
-					`-H "Authorization: Bearer $(curl -s -X POST "%s/realms/master/protocol/openid-connect/token" `+
-					`-d "grant_type=client_credentials&client_id=%s&client_secret=%s" | jq -r .access_token)" `+
+				`TOKEN=$(curl -s -X POST "$KEYCLOAK_URL/realms/master/protocol/openid-connect/token" `+
+					`-d "grant_type=client_credentials&client_id=$KEYCLOAK_CLIENT_ID&client_secret=$KEYCLOAK_CLIENT_SECRET" | jq -r .access_token) && `+
+					`ORG_ID=$(curl -s -X GET "$KEYCLOAK_URL/admin/realms/%s/organizations?q=tid:%s" `+
+					`-H "Authorization: Bearer $TOKEN" | jq -r '.[0].id') && `+
+					`curl -s -X POST "$KEYCLOAK_URL/admin/realms/%s/organizations/$ORG_ID/members" `+
+					`-H "Authorization: Bearer $TOKEN" `+
 					`-H "Content-Type: application/json" -d '{"id":"%s"}'`,
-				keycloakURL, spec.Realm, strings.TrimSpace(orgId),
-				keycloakURL, keycloakClientID, keycloakClientSecret, userId,
+				spec.Realm, orgId, spec.Realm, userId,
 			)
 		}).(pulumi.StringOutput)
 
@@ -180,10 +162,15 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		//}
 
 		_, err = local.NewCommand(ctx,
-			fmt.Sprintf("%s-org-member", keycloakClient.Name),
+			fmt.Sprintf("%s-add-member-to-organization", keycloakClient.Name),
 			&local.CommandArgs{
 				Create: createCmd,
 				//Interpreter: pulumi.ToStringArray(interpreter),
+				Environment: pulumi.StringMap{
+					"KEYCLOAK_URL":           pulumi.String(keycloakURL),
+					"KEYCLOAK_CLIENT_ID":     pulumi.String(keycloakClientID),
+					"KEYCLOAK_CLIENT_SECRET": pulumi.String(keycloakClientSecret),
+				},
 			}, pulumi.Parent(client))
 		if err != nil {
 			return nil, err
