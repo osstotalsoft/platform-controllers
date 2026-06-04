@@ -68,8 +68,8 @@ func TestDeployKeycloakClient(t *testing.T) {
 		assert.NoError(t, err)
 
 		clientInputs := mocks.resourceInputs["keycloak:openid/client:Client"]
-		assert.Equal(t, "test-client-id", clientInputs["clientId"].StringValue())
-		assert.Equal(t, "test-client", clientInputs["name"].StringValue())
+		assert.Equal(t, "test-client-id-tenant1", clientInputs["clientId"].StringValue())
+		assert.Equal(t, "test-client-tenant1", clientInputs["name"].StringValue())
 		assert.Equal(t, "CONFIDENTIAL", clientInputs["accessType"].StringValue())
 		assert.Equal(t, true, clientInputs["enabled"].BoolValue())
 		assert.Equal(t, true, clientInputs["serviceAccountsEnabled"].BoolValue())
