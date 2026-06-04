@@ -151,7 +151,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 					`-H "Authorization: Bearer $TOKEN" | jq -r '.[0].id') && `+
 					`curl -s -X POST "$KEYCLOAK_URL/admin/realms/%s/organizations/$ORG_ID/members" `+
 					`-H "Authorization: Bearer $TOKEN" `+
-					`-H "Content-Type: application/json" -d '{"id":"%s"}'`,
+					`-H "Content-Type: application/json" -d '"%s"'`,
 				spec.Realm, orgId, spec.Realm, userId,
 			)
 		}).(pulumi.StringOutput)
@@ -162,7 +162,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		//}
 
 		_, err = local.NewCommand(ctx,
-			fmt.Sprintf("%s-add-member-to-organization", keycloakClient.Name),
+			fmt.Sprintf("%s-add-member-organization", keycloakClient.Name),
 			&local.CommandArgs{
 				Create: createCmd,
 				//Interpreter: pulumi.ToStringArray(interpreter),
