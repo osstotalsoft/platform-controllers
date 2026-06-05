@@ -1,6 +1,6 @@
 module totalsoft.ro/platform-controllers
 
-go 1.26.2
+go 1.26.4
 
 require (
 	dario.cat/mergo v1.0.2
@@ -20,6 +20,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/storage/v2 v2.92.2
 	github.com/pulumi/pulumi-azuread/sdk/v5 v5.53.8
 	github.com/pulumi/pulumi-command/sdk v1.2.1
+	github.com/pulumi/pulumi-keycloak/sdk/v6 v6.11.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.31.1
 	github.com/pulumi/pulumi-minio/sdk v0.17.0
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0
@@ -132,7 +133,6 @@ require (
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
 	github.com/pulumi/esc v0.24.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.2 // indirect
-	github.com/pulumi/pulumi-keycloak/sdk/v6 v6.11.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect
@@ -162,15 +162,15 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.50.0 // indirect
+	golang.org/x/crypto v0.52.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/mod v0.35.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/term v0.42.0 // indirect
-	golang.org/x/text v0.36.0 // indirect
+	golang.org/x/sys v0.45.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
+	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.44.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260311181403-84a4fc48630c // indirect
