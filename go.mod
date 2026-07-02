@@ -72,6 +72,8 @@ require (
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.2 // indirect
 	github.com/go-git/gcfg/v2 v2.0.2 // indirect
+	// go-git/v6 pre-release versions are required by github.com/pulumi/pulumi/sdk/v3;
+	// no stable v6 release exists yet (alpha.4 is the latest published version).
 	github.com/go-git/go-billy/v6 v6.0.0-alpha.1 // indirect
 	github.com/go-git/go-git/v6 v6.0.0-alpha.4 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
