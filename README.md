@@ -646,6 +646,92 @@ spec:
     category: Tenant
 ```
 
+### KeycloakClient
+
+`KeycloakClient` is a Custom Resource Definition (CRD) that represents a Keycloak OpenID client.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_keycloakclients.yaml)
+
+## Spec
+
+The `KeycloakClient` spec has the following fields:
+
+- `clientName`: The display name of the client in Keycloak.
+- `clientId`: The client identifier used by applications.
+- `realm`: The Keycloak realm where the client will be created.
+- `organization`: Optional organization identifier/template used to associate the service account with a Keycloak organization.
+- `enabled`: Indicates if the client is enabled.
+- `consentRequired`: Indicates if user consent is required.
+- `publicClient`: Indicates whether the client is public or confidential.
+- `serviceAccountsEnabled`: Enables service accounts for the client.
+- `standardFlowEnabled`: Enables the standard authorization code flow.
+- `implicitFlowEnabled`: Enables the implicit flow.
+- `directAccessGrantsEnabled`: Enables direct access grants (resource owner password flow).
+- `fullScopeAllowed`: Allows full scope for the client.
+- `protocolMappers`: Optional protocol mapper definitions.
+- `defaultClientScopes`: Optional list of default client scopes.
+- `optionalClientScopes`: Optional list of optional client scopes.
+- `domainRef`: The reference to the business domain.
+- `platformRef`: The reference to the target platform.
+- `target`: The provisioning target. Can be `Tenant` or `Platform`.
+- `exports`: Exported values such as `clientId` and `clientSecret`.
+- `dependsOn`: Optional dependencies on other provisioning resources.
+
+## Example
+
+Here's an example of a `KeycloakClient` resource:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: KeycloakClient
+metadata:
+  name: agent-gateway
+  namespace: provisioning-test
+spec:
+  clientName: agent-gateway
+  clientId: agent-gateway
+  realm: charisma
+  enabled: true
+  consentRequired: false
+  publicClient: false
+  serviceAccountsEnabled: true
+  standardFlowEnabled: true
+  implicitFlowEnabled: false
+  directAccessGrantsEnabled: false
+  fullScopeAllowed: false
+  domainRef: security
+  platformRef: provisioning.test
+  organization: "{{ .Tenant.Id }}"
+  defaultClientScopes:
+    - profile
+    - email
+    - roles
+  optionalClientScopes:
+    - offline_access
+  protocolMappers:
+    - name: audience-mapper
+      protocol: openid-connect
+      protocolMapper: oidc-audience-mapper
+      config:
+        included.custom.audience: agent-gateway
+        access.token.claim: "true"
+        id.token.claim: "false"
+  exports:
+    - domain: security
+      clientId:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__Security__Keycloak__ClientId
+      clientSecret:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__Security__Keycloak__ClientSecret
+  target:
+    category: Tenant
+```
+
+> _Note 1_ When `organization` is specified, the controller also attempts to add the generated service account user to the resolved Keycloak organization.
+
+> _Note 2_ Exported values can be written to ConfigMaps, Kubernetes Secrets, or Vault, similar to other provisioning resources.
+
 ## configuration.totalsoft.ro
 
 manages external configuration for the services in the platform, read more about from the [Twelve-Factor App ](https://12factor.net/config) methodology.

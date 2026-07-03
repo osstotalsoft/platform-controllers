@@ -19,6 +19,7 @@ const (
 	ProvisioningResourceKindHelmReleaseV2         = provisioningv1.ProvisioningResourceKind("HelmReleaseV2")
 	ProvisioningResourceKindMsSqlDatabase         = provisioningv1.ProvisioningResourceKind("MsSqlDatabase")
 	ProvisioningResourceKindLocalScript           = provisioningv1.ProvisioningResourceKind("LocalScript")
+	ProvisioningResourceKindKeycloakClient        = provisioningv1.ProvisioningResourceKind("KeycloakClient")
 )
 
 type InfrastructureManifests struct {
@@ -33,6 +34,7 @@ type InfrastructureManifests struct {
 	AzureVirtualDesktops   []*provisioningv1.AzureVirtualDesktop
 	MsSqlDbs               []*provisioningv1.MsSqlDatabase
 	LocalScripts           []*provisioningv1.LocalScript
+	KeycloakClients        []*provisioningv1.KeycloakClient
 }
 
 type ProvisioningResource interface {
@@ -45,6 +47,8 @@ type ProvisioningResource interface {
 
 func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResourceIdendtifier) (ProvisioningResource, bool) {
 	switch id.Kind {
+	case ProvisioningResourceKindKeycloakClient:
+		return findByName(id.Name, infra.KeycloakClients)
 	case ProvisioningResourceKindMinioBucket:
 		return findByName(id.Name, infra.MinioBuckets)
 	case ProvisioningResourceKindEntraUser:

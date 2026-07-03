@@ -40,6 +40,8 @@ type Interface interface {
 	HelmReleases() HelmReleaseInformer
 	// HelmReleaseV2s returns a HelmReleaseV2Informer.
 	HelmReleaseV2s() HelmReleaseV2Informer
+	// KeycloakClients returns a KeycloakClientInformer.
+	KeycloakClients() KeycloakClientInformer
 	// LocalScripts returns a LocalScriptInformer.
 	LocalScripts() LocalScriptInformer
 	// MinioBuckets returns a MinioBucketInformer.
@@ -97,6 +99,11 @@ func (v *version) HelmReleases() HelmReleaseInformer {
 // HelmReleaseV2s returns a HelmReleaseV2Informer.
 func (v *version) HelmReleaseV2s() HelmReleaseV2Informer {
 	return &helmReleaseV2Informer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// KeycloakClients returns a KeycloakClientInformer.
+func (v *version) KeycloakClients() KeycloakClientInformer {
+	return &keycloakClientInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // LocalScripts returns a LocalScriptInformer.

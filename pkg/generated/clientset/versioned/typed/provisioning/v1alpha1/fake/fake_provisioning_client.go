@@ -60,6 +60,10 @@ func (c *FakeProvisioningV1alpha1) HelmReleaseV2s(namespace string) v1alpha1.Hel
 	return &FakeHelmReleaseV2s{c, namespace}
 }
 
+func (c *FakeProvisioningV1alpha1) KeycloakClients(namespace string) v1alpha1.KeycloakClientInterface {
+	return &FakeKeycloakClients{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) LocalScripts(namespace string) v1alpha1.LocalScriptInterface {
 	return &FakeLocalScripts{c, namespace}
 }

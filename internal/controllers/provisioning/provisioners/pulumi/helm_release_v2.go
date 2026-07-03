@@ -81,15 +81,18 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 
 	switch {
 	case hr.Spec.Release.Chart != nil:
+		sourceRef := fluxcd.HelmReleaseSpecChartSpecSourceRefArgs{
+			Kind: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Kind),
+			Name: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Name),
+		}
+		if hr.Spec.Release.Chart.Spec.SourceRef.Namespace != "" {
+			sourceRef.Namespace = pulumi.StringPtr(hr.Spec.Release.Chart.Spec.SourceRef.Namespace)
+		}
 		spec.Chart = fluxcd.HelmReleaseSpecChartArgs{
 			Spec: fluxcd.HelmReleaseSpecChartSpecArgs{
-				Chart:   pulumi.String(hr.Spec.Release.Chart.Spec.Chart),
-				Version: pulumi.String(hr.Spec.Release.Chart.Spec.Version),
-				SourceRef: fluxcd.HelmReleaseSpecChartSpecSourceRefArgs{
-					Kind:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Kind),
-					Name:      pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Name),
-					Namespace: pulumi.String(hr.Spec.Release.Chart.Spec.SourceRef.Namespace),
-				},
+				Chart:     pulumi.String(hr.Spec.Release.Chart.Spec.Chart),
+				Version:   pulumi.String(hr.Spec.Release.Chart.Spec.Version),
+				SourceRef: sourceRef,
 			},
 		}
 	case hr.Spec.Release.ChartRef != nil:

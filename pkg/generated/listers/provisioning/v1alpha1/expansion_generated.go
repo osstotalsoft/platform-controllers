@@ -82,6 +82,14 @@ type HelmReleaseV2ListerExpansion interface{}
 // HelmReleaseV2NamespaceLister.
 type HelmReleaseV2NamespaceListerExpansion interface{}
 
+// KeycloakClientListerExpansion allows custom methods to be added to
+// KeycloakClientLister.
+type KeycloakClientListerExpansion interface{}
+
+// KeycloakClientNamespaceListerExpansion allows custom methods to be added to
+// KeycloakClientNamespaceLister.
+type KeycloakClientNamespaceListerExpansion interface{}
+
 // LocalScriptListerExpansion allows custom methods to be added to
 // LocalScriptLister.
 type LocalScriptListerExpansion interface{}

@@ -34,6 +34,8 @@ type HelmReleaseExpansion interface{}
 
 type HelmReleaseV2Expansion interface{}
 
+type KeycloakClientExpansion interface{}
+
 type LocalScriptExpansion interface{}
 
 type MinioBucketExpansion interface{}
