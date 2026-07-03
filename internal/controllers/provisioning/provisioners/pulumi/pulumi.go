@@ -231,7 +231,10 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	}
 
 	if azureEnabled {
-		useMsi, _ := strconv.ParseBool(os.Getenv(EnvAzureUseMsi))
+		useMsi, err := strconv.ParseBool(os.Getenv(EnvAzureUseMsi))
+		if err != nil {
+			return auto.Stack{}, fmt.Errorf("invalid value for %s: %w", EnvAzureUseMsi, err)
+		}
 
 		azureConfigValues := map[string]auto.ConfigValue{
 			"azure-native:location":       {Value: os.Getenv("AZURE_LOCATION")},
