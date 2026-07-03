@@ -26,6 +26,7 @@ import (
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 	EnvAzureEnabled      = "AZURE_ENABLED"
+	EnvAzureUseMsi       = "AZURE_USE_MSI"
 )
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
@@ -223,16 +224,31 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	}
 
 	if azureEnabled {
+		useMsi, _ := strconv.ParseBool(os.Getenv(EnvAzureUseMsi))
+
 		azureConfigValues := map[string]auto.ConfigValue{
 			"azure-native:location":       {Value: os.Getenv("AZURE_LOCATION")},
-			"azure-native:clientId":       {Value: os.Getenv("AZURE_CLIENT_ID")},
 			"azure-native:subscriptionId": {Value: os.Getenv("AZURE_SUBSCRIPTION_ID")},
 			"azure-native:tenantId":       {Value: os.Getenv("AZURE_TENANT_ID")},
-			"azure-native:clientSecret":   {Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true},
-			"azuread:clientId":            {Value: os.Getenv("ARM_CLIENT_ID")},
 			"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
-			"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true},
 		}
+
+		if useMsi {
+			azureConfigValues["azure-native:useMsi"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azuread:useMsi"] = auto.ConfigValue{Value: "true"}
+			if clientId := os.Getenv("AZURE_CLIENT_ID"); clientId != "" {
+				azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: clientId}
+			}
+			if armClientId := os.Getenv("ARM_CLIENT_ID"); armClientId != "" {
+				azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: armClientId}
+			}
+		} else {
+			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_ID")}
+			azureConfigValues["azure-native:clientSecret"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true}
+			azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: os.Getenv("ARM_CLIENT_ID")}
+			azureConfigValues["azuread:clientSecret"] = auto.ConfigValue{Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true}
+		}
+
 		for key, value := range azureConfigValues {
 			configValues[key] = value
 		}
