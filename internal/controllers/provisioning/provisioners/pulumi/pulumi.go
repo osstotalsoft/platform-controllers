@@ -244,14 +244,14 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		}
 
 		if useMsi {
+			clientId := os.Getenv("AZURE_CLIENT_ID")
+			if clientId == "" {
+				return auto.Stack{}, fmt.Errorf("MSI is enabled but AZURE_CLIENT_ID is not set; ensure Workload Identity is configured correctly")
+			}
 			azureConfigValues["azure-native:useMsi"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: clientId}
 			azureConfigValues["azuread:useMsi"] = auto.ConfigValue{Value: "true"}
-			if clientId := os.Getenv("AZURE_CLIENT_ID"); clientId != "" {
-				azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: clientId}
-			}
-			if armClientId := os.Getenv("ARM_CLIENT_ID"); armClientId != "" {
-				azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: armClientId}
-			}
+			azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: clientId}
 		} else {
 			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_ID")}
 			azureConfigValues["azure-native:clientSecret"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true}

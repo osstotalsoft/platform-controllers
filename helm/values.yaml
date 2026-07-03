@@ -12,6 +12,7 @@ global:
   azure:
     enabled: true
     useMsi: false
+    workloadIdentityClientId: ""
   backend:
     type: cloud # cloud | custom
     customBackedUrl: s3://my-bucket?region=ro&endpoint=http://my-minio-server:9000&disableSSL=true&s3ForcePathStyle=true

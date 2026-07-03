@@ -21,6 +21,9 @@ spec:
         app.kubernetes.io/name: {{ .Release.Name }}
         app.kubernetes.io/version: {{ .Values.global.tag }}
         app.kubernetes.io/managed-by: "helm"
+        {{- if and .Values.global.azure.useMsi .Values.global.azure.workloadIdentityClientId }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
       {{- if .Values.global.s3.enabled }}
       volumes:
@@ -49,11 +52,13 @@ spec:
               name: azure-secret
               key: clientSecret
         {{- end }}
+        {{- if not .Values.global.azure.useMsi }}
         - name: AZURE_CLIENT_ID
           valueFrom:
             configMapKeyRef:
               name: azure-config
               key: clientId
+        {{- end }}
         - name: AZURE_LOCATION
           valueFrom:
             configMapKeyRef:
@@ -79,11 +84,13 @@ spec:
             configMapKeyRef:
               name: azure-config
               key: managedIdentityName
+        {{- if not .Values.global.azure.useMsi }}
         - name: ARM_CLIENT_ID
           valueFrom:
             configMapKeyRef:
               name: azure-config
               key: clientId
+        {{- end }}
         {{- if not .Values.global.azure.useMsi }}
         - name: ARM_CLIENT_SECRET
           valueFrom:
