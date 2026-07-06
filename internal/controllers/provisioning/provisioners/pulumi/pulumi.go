@@ -26,6 +26,7 @@ import (
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 	EnvAzureEnabled      = "AZURE_ENABLED"
+	EnvAzureUseWorkloadIdentity       = "AZURE_USE_WORKLOAD_IDENTITY"
 )
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
@@ -230,16 +231,40 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	}
 
 	if azureEnabled {
+		useWorkloadIdentity, err := strconv.ParseBool(os.Getenv(EnvAzureUseWorkloadIdentity))
+		if err != nil {
+			return auto.Stack{}, fmt.Errorf("invalid value for %s: %w", EnvAzureUseWorkloadIdentity, err)
+		}
+
 		azureConfigValues := map[string]auto.ConfigValue{
 			"azure-native:location":       {Value: os.Getenv("AZURE_LOCATION")},
-			"azure-native:clientId":       {Value: os.Getenv("AZURE_CLIENT_ID")},
 			"azure-native:subscriptionId": {Value: os.Getenv("AZURE_SUBSCRIPTION_ID")},
 			"azure-native:tenantId":       {Value: os.Getenv("AZURE_TENANT_ID")},
-			"azure-native:clientSecret":   {Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true},
-			"azuread:clientId":            {Value: os.Getenv("ARM_CLIENT_ID")},
 			"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
-			"azuread:clientSecret":        {Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true},
 		}
+
+		if useWorkloadIdentity {
+			clientId := os.Getenv("AZURE_CLIENT_ID")
+			if clientId == "" {
+				return auto.Stack{}, fmt.Errorf("MSI is enabled but AZURE_CLIENT_ID is not set; ensure Workload Identity is configured correctly")
+			}
+			tokenFile := os.Getenv("AZURE_FEDERATED_TOKEN_FILE")
+			if tokenFile == "" {
+				return auto.Stack{}, fmt.Errorf("MSI is enabled but AZURE_FEDERATED_TOKEN_FILE is not set; ensure the Workload Identity webhook is active")
+			}
+			azureConfigValues["azure-native:useOidc"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azure-native:oidcTokenFilePath"] = auto.ConfigValue{Value: tokenFile}
+			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: clientId}
+			azureConfigValues["azuread:useOidc"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azuread:oidcTokenFilePath"] = auto.ConfigValue{Value: tokenFile}
+			azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: clientId}
+		} else {
+			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_ID")}
+			azureConfigValues["azure-native:clientSecret"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_SECRET"), Secret: true}
+			azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: os.Getenv("ARM_CLIENT_ID")}
+			azureConfigValues["azuread:clientSecret"] = auto.ConfigValue{Value: os.Getenv("ARM_CLIENT_SECRET"), Secret: true}
+		}
+
 		for key, value := range azureConfigValues {
 			configValues[key] = value
 		}
