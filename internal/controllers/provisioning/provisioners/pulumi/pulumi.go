@@ -252,16 +252,11 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 			if tokenFile == "" {
 				return auto.Stack{}, fmt.Errorf("MSI is enabled but AZURE_FEDERATED_TOKEN_FILE is not set; ensure the Workload Identity webhook is active")
 			}
-			tokenBytes, err := os.ReadFile(tokenFile)
-			if err != nil {
-				return auto.Stack{}, fmt.Errorf("failed to read OIDC token file %s: %w", tokenFile, err)
-			}
-			token := string(tokenBytes)
 			azureConfigValues["azure-native:useOidc"] = auto.ConfigValue{Value: "true"}
-			azureConfigValues["azure-native:oidcToken"] = auto.ConfigValue{Value: token, Secret: true}
+			azureConfigValues["azure-native:oidcTokenFilePath"] = auto.ConfigValue{Value: tokenFile}
 			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: clientId}
 			azureConfigValues["azuread:useOidc"] = auto.ConfigValue{Value: "true"}
-			azureConfigValues["azuread:oidcToken"] = auto.ConfigValue{Value: token, Secret: true}
+			azureConfigValues["azuread:oidcTokenFilePath"] = auto.ConfigValue{Value: tokenFile}
 			azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: clientId}
 		} else {
 			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_ID")}
