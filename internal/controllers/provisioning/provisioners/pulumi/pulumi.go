@@ -26,7 +26,7 @@ import (
 var (
 	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
 	EnvAzureEnabled      = "AZURE_ENABLED"
-	EnvAzureUseMsi       = "AZURE_USE_MSI"
+	EnvAzureUseWorkloadIdentity       = "AZURE_USE_WORKLOAD_IDENTITY"
 )
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
@@ -231,9 +231,9 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 	}
 
 	if azureEnabled {
-		useMsi, err := strconv.ParseBool(os.Getenv(EnvAzureUseMsi))
+		useWorkloadIdentity, err := strconv.ParseBool(os.Getenv(EnvAzureUseWorkloadIdentity))
 		if err != nil {
-			return auto.Stack{}, fmt.Errorf("invalid value for %s: %w", EnvAzureUseMsi, err)
+			return auto.Stack{}, fmt.Errorf("invalid value for %s: %w", EnvAzureUseWorkloadIdentity, err)
 		}
 
 		azureConfigValues := map[string]auto.ConfigValue{
@@ -243,14 +243,25 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 			"azuread:tenantId":            {Value: os.Getenv("ARM_TENANT_ID")},
 		}
 
-		if useMsi {
+		if useWorkloadIdentity {
 			clientId := os.Getenv("AZURE_CLIENT_ID")
 			if clientId == "" {
 				return auto.Stack{}, fmt.Errorf("MSI is enabled but AZURE_CLIENT_ID is not set; ensure Workload Identity is configured correctly")
 			}
-			azureConfigValues["azure-native:useMsi"] = auto.ConfigValue{Value: "true"}
+			tokenFile := os.Getenv("AZURE_FEDERATED_TOKEN_FILE")
+			if tokenFile == "" {
+				return auto.Stack{}, fmt.Errorf("MSI is enabled but AZURE_FEDERATED_TOKEN_FILE is not set; ensure the Workload Identity webhook is active")
+			}
+			tokenBytes, err := os.ReadFile(tokenFile)
+			if err != nil {
+				return auto.Stack{}, fmt.Errorf("failed to read OIDC token file %s: %w", tokenFile, err)
+			}
+			token := string(tokenBytes)
+			azureConfigValues["azure-native:useOidc"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azure-native:oidcToken"] = auto.ConfigValue{Value: token, Secret: true}
 			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: clientId}
-			azureConfigValues["azuread:useMsi"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azuread:useOidc"] = auto.ConfigValue{Value: "true"}
+			azureConfigValues["azuread:oidcToken"] = auto.ConfigValue{Value: token, Secret: true}
 			azureConfigValues["azuread:clientId"] = auto.ConfigValue{Value: clientId}
 		} else {
 			azureConfigValues["azure-native:clientId"] = auto.ConfigValue{Value: os.Getenv("AZURE_CLIENT_ID")}

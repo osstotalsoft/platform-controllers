@@ -11,7 +11,7 @@ global:
     enabled: true
   azure:
     enabled: true
-    useMsi: false
+    useWorkloadIdentity: false
     workloadIdentityClientId: ""
   backend:
     type: cloud # cloud | custom

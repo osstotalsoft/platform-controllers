@@ -21,7 +21,7 @@ spec:
         app.kubernetes.io/name: {{ .Release.Name }}
         app.kubernetes.io/version: {{ .Values.global.tag }}
         app.kubernetes.io/managed-by: "helm"
-        {{- if and .Values.global.azure.useMsi .Values.global.azure.workloadIdentityClientId }}
+        {{- if and .Values.global.azure.useWorkloadIdentity .Values.global.azure.workloadIdentityClientId }}
         azure.workload.identity/use: "true"
         {{- end }}
     spec:
@@ -42,17 +42,15 @@ spec:
               fieldPath: metadata.namespace
         - name: AZURE_ENABLED
           value: {{ .Values.global.azure.enabled | quote }}
-        - name: AZURE_USE_MSI
-          value: {{ .Values.global.azure.useMsi | quote }}
+        - name: AZURE_USE_WORKLOAD_IDENTITY
+          value: {{ .Values.global.azure.useWorkloadIdentity | quote }}
         {{- if .Values.global.azure.enabled }}
-        {{- if not .Values.global.azure.useMsi }}
+        {{- if not .Values.global.azure.useWorkloadIdentity }}
         - name: AZURE_CLIENT_SECRET
           valueFrom:
             secretKeyRef:
               name: azure-secret
               key: clientSecret
-        {{- end }}
-        {{- if not .Values.global.azure.useMsi }}
         - name: AZURE_CLIENT_ID
           valueFrom:
             configMapKeyRef:
@@ -84,14 +82,12 @@ spec:
             configMapKeyRef:
               name: azure-config
               key: managedIdentityName
-        {{- if not .Values.global.azure.useMsi }}
+        {{- if not .Values.global.azure.useWorkloadIdentity }}
         - name: ARM_CLIENT_ID
           valueFrom:
             configMapKeyRef:
               name: azure-config
               key: clientId
-        {{- end }}
-        {{- if not .Values.global.azure.useMsi }}
         - name: ARM_CLIENT_SECRET
           valueFrom:
             secretKeyRef:

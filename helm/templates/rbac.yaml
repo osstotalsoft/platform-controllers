@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: provisioning-controller
-  {{- if and .Values.global.azure.useMsi .Values.global.azure.workloadIdentityClientId }}
+  {{- if and .Values.global.azure.useWorkloadIdentity .Values.global.azure.workloadIdentityClientId }}
   annotations:
     azure.workload.identity/client-id: {{ .Values.global.azure.workloadIdentityClientId | quote }}
   {{- end }}

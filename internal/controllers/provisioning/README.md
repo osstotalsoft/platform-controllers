@@ -25,8 +25,8 @@ global:
 
   azure:
     enabled: false
-    useMsi: false
-    workloadIdentityClientId: ""       # set to enable Workload Identity (see below)
+    useWorkloadIdentity: false         # set to true to use Workload Identity instead of service principal
+    workloadIdentityClientId: ""       # client ID of the user-assigned managed identity (required when useWorkloadIdentity=true)
 
   backend:
     type: cloud                        # "cloud" | "custom"
@@ -76,14 +76,14 @@ kubectl create secret generic provisioner-secrets \
 
 ### ConfigMap: `azure-config` (when `azure.enabled=true`)
 
-| Key | Description |
-|-----|-------------|
-| `clientId` | Service principal or user-assigned managed identity client ID |
-| `location` | Default Azure region (e.g. `West Europe`) |
-| `subscriptionId` | Azure subscription ID |
-| `tenantId` | Azure AD tenant ID |
-| `managedIdentityRG` | Resource group of the managed identity |
-| `managedIdentityName` | Name of the managed identity |
+| Key | Used in | Description |
+|-----|---------|-------------|
+| `clientId` | service principal only | Azure AD application client ID |
+| `location` | both modes | Default Azure region (e.g. `West Europe`) |
+| `subscriptionId` | both modes | Azure subscription ID |
+| `tenantId` | both modes | Azure AD tenant ID |
+| `managedIdentityRG` | both modes | Resource group of the managed identity |
+| `managedIdentityName` | both modes | Name of the managed identity |
 
 ```bash
 kubectl create configmap azure-config \
@@ -110,18 +110,18 @@ kubectl create secret generic azure-secret \
 
 ### 1. Service Principal
 
-Set `azure.useMsi=false` (default). Requires `azure-config` ConfigMap and `azure-secret` Secret.
+Set `azure.useWorkloadIdentity=false` (default). Requires `azure-config` ConfigMap and `azure-secret` Secret.
 
 ```yaml
 global:
   azure:
     enabled: true
-    useMsi: false
+    useWorkloadIdentity: false
 ```
 
 ### 2. Workload Identity
 
-Scopes Azure credentials to the `provisioning-controller` ServiceAccount rather than the entire node. Requires three one-time Azure setup steps, then a single Helm value.
+Scopes Azure credentials to the `provisioning-controller` ServiceAccount via OIDC federation. The Workload Identity webhook injects `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, and `AZURE_FEDERATED_TOKEN_FILE` into the pod. The controller reads the token from that file and passes it to both Pulumi providers (`azure-native` and `azuread`) using `useOidc`/`oidcToken`.
 
 **Step 1 — Enable OIDC issuer and Workload Identity on the cluster:**
 
@@ -146,22 +146,22 @@ az identity federated-credential create \
   --audiences api://AzureADTokenExchange
 ```
 
-**Step 3 — Set `workloadIdentityClientId` in Helm values:**
+**Step 3 — Set values in Helm:**
 
 ```yaml
 global:
   azure:
     enabled: true
-    useMsi: true
+    useWorkloadIdentity: true
     workloadIdentityClientId: "<managed-identity-client-id>"
 ```
 
 The Helm chart will:
 - Annotate the `provisioning-controller` ServiceAccount with `azure.workload.identity/client-id`
 - Label the pod with `azure.workload.identity/use: "true"` so the webhook injects credentials
-- Skip the `AZURE_CLIENT_ID` and `ARM_CLIENT_ID` env vars (the webhook and the controller's fallback logic handle them)
+- Omit `AZURE_CLIENT_ID` and `ARM_CLIENT_ID` from the pod spec (the webhook injects `AZURE_CLIENT_ID` directly)
 
-With Workload Identity active, the `azure-config` ConfigMap is still required for `location`, `subscriptionId`, `tenantId`, `managedIdentityRG`, and `managedIdentityName`. The `clientId` key in that ConfigMap is not used — the client ID comes from `workloadIdentityClientId` in Helm values and is injected by the webhook.
+The `azure-config` ConfigMap is still required for `location`, `subscriptionId`, `tenantId`, `managedIdentityRG`, and `managedIdentityName`. The `clientId` key is not used in this mode.
 
 ---
 
@@ -198,16 +198,17 @@ All values below are injected by the Helm chart. This table is useful when runni
 |----------|--------|-------------|
 | `NAMESPACE` | pod field | Kubernetes namespace the controller runs in |
 | `AZURE_ENABLED` | `azure.enabled` | Enable Azure Pulumi providers |
-| `AZURE_USE_MSI` | `azure.useMsi` | Use managed identity instead of service principal |
-| `AZURE_CLIENT_ID` | `azure-config` / webhook | Client ID of the service principal or user-assigned MI |
-| `AZURE_CLIENT_SECRET` | `azure-secret` | Service principal secret (non-MSI only) |
+| `AZURE_USE_WORKLOAD_IDENTITY` | `azure.useWorkloadIdentity` | Use Workload Identity (OIDC) instead of service principal |
+| `AZURE_CLIENT_ID` | `azure-config` (SP) / webhook (WI) | Azure AD application or managed identity client ID |
+| `AZURE_CLIENT_SECRET` | `azure-secret` | Service principal secret (service principal mode only) |
+| `AZURE_FEDERATED_TOKEN_FILE` | webhook | Path to the projected ServiceAccount token file (Workload Identity only, injected automatically) |
 | `AZURE_LOCATION` | `azure-config` | Default Azure region |
 | `AZURE_SUBSCRIPTION_ID` | `azure-config` | Azure subscription |
 | `AZURE_TENANT_ID` | `azure-config` | Azure AD tenant |
 | `AZURE_MANAGED_IDENTITY_RG` | `azure-config` | Resource group of the managed identity |
 | `AZURE_MANAGED_IDENTITY_NAME` | `azure-config` | Name of the managed identity |
-| `ARM_CLIENT_ID` | `azure-config` or fallback | Client ID for the `azuread` Pulumi provider; falls back to `AZURE_CLIENT_ID` when Workload Identity is active |
-| `ARM_CLIENT_SECRET` | `azure-secret` | Secret for the `azuread` provider (non-MSI only) |
+| `ARM_CLIENT_ID` | `azure-config` | Client ID for the `azuread` Pulumi provider (service principal mode only) |
+| `ARM_CLIENT_SECRET` | `azure-secret` | Secret for the `azuread` provider (service principal mode only) |
 | `ARM_TENANT_ID` | `azure-config` | Tenant for the `azuread` provider |
 | `VAULT_ENABLED` | `vault.enabled` | Enable Vault integration |
 | `VAULT_ADDR` | `vault.address` | Vault server URL |
@@ -221,9 +222,9 @@ All values below are injected by the Helm chart. This table is useful when runni
 | `PULUMI_ACCESS_TOKEN` | `provisioner-secrets` | Pulumi Cloud token (cloud backend) |
 | `PULUMI_BACKEND_URL` | `backend.customBackedUrl` | Custom backend URL |
 | `PULUMI_CONFIG_PASSPHRASE` | `provisioner-secrets` | State encryption passphrase (custom backend) |
+| `PULUMI_SKIP_REFRESH` | — | Set to `true` to skip the Pulumi refresh step on each reconcile (faster, less safe) |
 | `GITHUB_TOKEN` | `provisioner-secrets` | GitHub token for private Helm chart sources |
 | `AWS_PROFILE` | `s3.profile` | AWS/S3 credentials profile |
-| `PULUMI_SKIP_REFRESH` | — | Set to `true` to skip the Pulumi refresh step on each reconcile (faster, less safe) |
 | `RUSI_ENABLED` | `rusi.enabled` | Enable RUSI sidecar for event publishing |
 | `RUSI_GRPC_PORT` | — | RUSI sidecar gRPC port (when RUSI enabled) |
 | `WORKERS_COUNT` | `workersCount` | Number of parallel reconcile workers |
