@@ -1,4 +1,4 @@
-FROM alpine:latest as builder
+FROM alpine:latest AS builder
 RUN apk add -U --no-cache ca-certificates curl
 RUN curl -fsSL https://get.pulumi.com | sh
 #RUN /root/.pulumi/bin/pulumi plugin install resource azure-native 1.60.0
