@@ -25,11 +25,12 @@ import (
 // ProvisioningMetaApplyConfiguration represents an declarative configuration of the ProvisioningMeta type for use
 // with apply.
 type ProvisioningMetaApplyConfiguration struct {
-	PlatformRef     *string                                             `json:"platformRef,omitempty"`
-	DomainRef       *string                                             `json:"domainRef,omitempty"`
-	TenantOverrides map[string]*v1.JSON                                 `json:"tenantOverrides,omitempty"`
-	Target          *ProvisioningTargetApplyConfiguration               `json:"target,omitempty"`
-	DependsOn       []ProvisioningResourceIdendtifierApplyConfiguration `json:"dependsOn,omitempty"`
+	PlatformRef       *string                                             `json:"platformRef,omitempty"`
+	DomainRef         *string                                             `json:"domainRef,omitempty"`
+	CategoryOverrides map[string]*v1.JSON                                 `json:"categoryOverrides,omitempty"`
+	TenantOverrides   map[string]*v1.JSON                                 `json:"tenantOverrides,omitempty"`
+	Target            *ProvisioningTargetApplyConfiguration               `json:"target,omitempty"`
+	DependsOn         []ProvisioningResourceIdendtifierApplyConfiguration `json:"dependsOn,omitempty"`
 }
 
 // ProvisioningMetaApplyConfiguration constructs an declarative configuration of the ProvisioningMeta type for use with
@@ -51,6 +52,20 @@ func (b *ProvisioningMetaApplyConfiguration) WithPlatformRef(value string) *Prov
 // If called multiple times, the DomainRef field is set to the value of the last call.
 func (b *ProvisioningMetaApplyConfiguration) WithDomainRef(value string) *ProvisioningMetaApplyConfiguration {
 	b.DomainRef = &value
+	return b
+}
+
+// WithCategoryOverrides puts the entries into the CategoryOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the CategoryOverrides field,
+// overwriting an existing map entries in CategoryOverrides field with the same key.
+func (b *ProvisioningMetaApplyConfiguration) WithCategoryOverrides(entries map[string]*v1.JSON) *ProvisioningMetaApplyConfiguration {
+	if b.CategoryOverrides == nil && len(entries) > 0 {
+		b.CategoryOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.CategoryOverrides[k] = v
+	}
 	return b
 }
 

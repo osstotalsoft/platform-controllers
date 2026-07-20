@@ -30,11 +30,23 @@ const (
 	ProvisioningFilterKindWhitelist = ProvisioningFilterKind("Whitelist")
 )
 
+type ProvisioningFilterBy string
+
+const (
+	ProvisioningFilterByName     = ProvisioningFilterBy("Name")
+	ProvisioningFilterByCategory = ProvisioningFilterBy("Category")
+)
+
 type ProvisioningTargetFilter struct {
 	// Includes or excludes the speciffied targets. Possibile values: Blacklist, Whitelist
 	// +kubebuilder:validation:Enum=Blacklist;Whitelist
 	// +kubebuilder:default:=Blacklist
 	Kind ProvisioningFilterKind `json:"kind"`
+
+	// What tenant attribute the Values are matched against. Possible values: Name, Category
+	// +kubebuilder:validation:Enum=Name;Category
+	// +kubebuilder:default:=Name
+	By ProvisioningFilterBy `json:"by,omitempty"`
 
 	// A list of targets to include or exculde
 	Values []string `json:"values,omitempty"`
@@ -66,6 +78,11 @@ type ProvisioningMeta struct {
 	// Business Domain that this resource is provision for.
 	// +required
 	DomainRef string `json:"domainRef"`
+	// Overrides for tenant category. Dictionary with category value (Tenant.spec.categoryRef) as exact key, spec override as value.
+	// The spec override has the same structure as Spec. Applied before TenantCategory.spec.provisioningOverrides,
+	// TenantOverrides and Tenant.spec.provisioningOverrides, all of which take precedence when they also match.
+	// +optional
+	CategoryOverrides map[string]*apiextensionsv1.JSON `json:"categoryOverrides,omitempty"`
 	// Overrides for tenants. Dictionary with tenant name as key, spec override as value.
 	// The spec override has the same structure as Spec
 	// +optional

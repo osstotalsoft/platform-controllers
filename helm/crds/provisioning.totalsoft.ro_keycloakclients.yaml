@@ -47,8 +47,16 @@ spec:
             type: object
           spec:
             properties:
+              categoryOverrides:
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: |-
+                  Overrides for tenant category. Dictionary with category value (Tenant.spec.categoryRef) as exact key, spec override as value.
+                  The spec override has the same structure as Spec. Applied before TenantCategory.spec.provisioningOverrides,
+                  TenantOverrides and Tenant.spec.provisioningOverrides, all of which take precedence when they also match.
+                type: object
               clientId:
-                description: ClientName represents the client name.
+                description: ClientId represents the client id.
                 type: string
               clientName:
                 description: ClientName represents the client name.
@@ -226,6 +234,14 @@ spec:
                       Filter targets (applies for category "Tenant").
                       If ommited all targets are selected.
                     properties:
+                      by:
+                        default: Name
+                        description: 'What tenant attribute the Values are matched
+                          against. Possible values: Name, Category'
+                        enum:
+                        - Name
+                        - Category
+                        type: string
                       kind:
                         default: Blacklist
                         description: 'Includes or excludes the speciffied targets.

@@ -32,6 +32,7 @@ type PlatformV1alpha1Interface interface {
 	PlatformsGetter
 	ServicesGetter
 	TenantsGetter
+	TenantCategoriesGetter
 }
 
 // PlatformV1alpha1Client is used to interact with features provided by the platform.totalsoft.ro group.
@@ -53,6 +54,10 @@ func (c *PlatformV1alpha1Client) Services(namespace string) ServiceInterface {
 
 func (c *PlatformV1alpha1Client) Tenants(namespace string) TenantInterface {
 	return newTenants(c, namespace)
+}
+
+func (c *PlatformV1alpha1Client) TenantCategories(namespace string) TenantCategoryInterface {
+	return newTenantCategories(c, namespace)
 }
 
 // NewForConfig creates a new PlatformV1alpha1Client for the given config.

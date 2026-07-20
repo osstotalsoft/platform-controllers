@@ -9,8 +9,8 @@ import (
 	"dario.cat/mergo"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"totalsoft.ro/platform-controllers/internal/tuple"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
 type ProvisioningTarget interface {
@@ -84,10 +84,33 @@ func GetTemplateContext(target ProvisioningTarget) any {
 	)
 }
 
+// matchProvisioningOverride finds the first patch in patches whose Target matches res's GVK/name/namespace.
+func matchProvisioningOverride(patches []platformv1.ProvisioningResourcePatch, res ProvisioningResource, target ProvisioningTarget) *apiextensionsv1.JSON {
+	gvk := res.GetObjectKind().GroupVersionKind()
+	for _, override := range patches {
+		if override.Target.APIVersion == gvk.GroupVersion().String() &&
+			override.Target.Kind == gvk.Kind &&
+			override.Target.Name == res.GetName() &&
+			(override.Target.Namespace == res.GetNamespace() || (override.Target.Namespace == "" && res.GetNamespace() == target.GetNamespace())) {
+			return override.Spec
+		}
+	}
+	return nil
+}
+
+func allNil(overrides []*apiextensionsv1.JSON) bool {
+	for _, override := range overrides {
+		if override != nil {
+			return false
+		}
+	}
+	return true
+}
+
 func applyTargetOverrides[R interface {
 	ProvisioningResource
 	Cloner[R]
-}](source []R, target ProvisioningTarget) ([]R, error) {
+}](source []R, target ProvisioningTarget, category *platformv1.TenantCategory) ([]R, error) {
 	if source == nil {
 		return source, nil
 	}
@@ -95,19 +118,21 @@ func applyTargetOverrides[R interface {
 	result := []R{}
 
 	for _, res := range source {
+		ensureResourceGVK(res)
+
+		// Ordered by ascending precedence: category-map override (base) < TenantCategory override < tenant name override < tenant-specific override.
 		overrides := MatchTarget(target,
-			func(tenant *platformv1.Tenant) tuple.T2[*apiextensionsv1.JSON, *apiextensionsv1.JSON] {
-				var overridesFromTenant *apiextensionsv1.JSON
-				for _, override := range tenant.Spec.ProvisioningOverrides {
-					gvk := res.GetObjectKind().GroupVersionKind()
-					if override.Target.APIVersion == gvk.GroupVersion().String() &&
-						override.Target.Kind == gvk.Kind &&
-						override.Target.Name == res.GetName() &&
-						(override.Target.Namespace == res.GetNamespace() || (override.Target.Namespace == "" && res.GetNamespace() == target.GetNamespace())) {
-						overridesFromTenant = override.Spec
-						break
-					}
+			func(tenant *platformv1.Tenant) []*apiextensionsv1.JSON {
+				var overridesFromCategoryMap *apiextensionsv1.JSON
+				if categoryOverrides := (res.GetProvisioningMeta()).CategoryOverrides; categoryOverrides != nil {
+					overridesFromCategoryMap = categoryOverrides[tenant.Spec.CategoryRef]
 				}
+
+				var overridesFromTenantCategory *apiextensionsv1.JSON
+				if category != nil {
+					overridesFromTenantCategory = matchProvisioningOverride(category.Spec.ProvisioningOverrides, res, target)
+				}
+
 				var overridesFromResource *apiextensionsv1.JSON
 				if (res.GetProvisioningMeta()).TenantOverrides != nil {
 					for key, val := range (res.GetProvisioningMeta()).TenantOverrides {
@@ -118,14 +143,16 @@ func applyTargetOverrides[R interface {
 					}
 				}
 
-				return tuple.New2(overridesFromTenant, overridesFromResource)
+				overridesFromTenant := matchProvisioningOverride(tenant.Spec.ProvisioningOverrides, res, target)
+
+				return []*apiextensionsv1.JSON{overridesFromCategoryMap, overridesFromTenantCategory, overridesFromResource, overridesFromTenant}
 			},
-			func(*platformv1.Platform) tuple.T2[*apiextensionsv1.JSON, *apiextensionsv1.JSON] {
-				return tuple.New2[*apiextensionsv1.JSON, *apiextensionsv1.JSON](nil, nil)
+			func(*platformv1.Platform) []*apiextensionsv1.JSON {
+				return nil
 			},
 		)
 
-		if overrides.V1 == nil && overrides.V2 == nil {
+		if allNil(overrides) {
 			result = append(result, res)
 			continue
 		}
@@ -140,24 +167,17 @@ func applyTargetOverrides[R interface {
 			return nil, err
 		}
 
-		if overrides.V2 != nil {
-			var overridesFromResourceMap map[string]any
-			if err := json.Unmarshal(overrides.V2.Raw, &overridesFromResourceMap); err != nil {
+		for _, override := range overrides {
+			if override == nil {
+				continue
+			}
+
+			var overrideMap map[string]any
+			if err := json.Unmarshal(override.Raw, &overrideMap); err != nil {
 				return nil, err
 			}
 
-			if err := mergo.Merge(&targetSpecMap, overridesFromResourceMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
-				return nil, err
-			}
-		}
-
-		if overrides.V1 != nil {
-			var overridesFromTenantMap map[string]any
-			if err := json.Unmarshal(overrides.V1.Raw, &overridesFromTenantMap); err != nil {
-				return nil, err
-			}
-
-			if err := mergo.Merge(&targetSpecMap, overridesFromTenantMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
+			if err := mergo.Merge(&targetSpecMap, overrideMap, mergo.WithOverride, mergo.WithTransformers(jsonTransformer{})); err != nil {
 				return nil, err
 			}
 		}
@@ -177,6 +197,20 @@ func applyTargetOverrides[R interface {
 	}
 
 	return result, nil
+}
+
+func ensureResourceGVK(res ProvisioningResource) {
+	gvk := res.GetObjectKind().GroupVersionKind()
+	if gvk.Kind != "" && gvk.GroupVersion().String() != "" {
+		return
+	}
+
+	kind := reflect.Indirect(reflect.ValueOf(res)).Type().Name()
+	if kind == "" {
+		return
+	}
+
+	res.GetObjectKind().SetGroupVersionKind(provisioningv1.SchemeGroupVersion.WithKind(kind))
 }
 
 func (t jsonTransformer) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {

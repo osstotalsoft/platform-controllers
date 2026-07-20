@@ -56,6 +56,37 @@ spec:
   platformRef: charismaonline.qa
 ```
 
+### TenantCategory
+
+Definition can be found [here](./helm/crds/platform.totalsoft.ro_tenantcategories.yaml)
+
+A `TenantCategory` is an optional classification (country, business typology, tenant group, etc.) that a `Tenant` can reference by name via `spec.categoryRef`. It lives in the same namespace as the tenants that reference it. Like a `Tenant`, it can declare its own `provisioningOverrides` (see [Overrides](#overrides)), applied to every tenant referencing it.
+
+> _Note_ If a tenant's `categoryRef` does not resolve to an existing `TenantCategory`, provisioning for that tenant fails until the reference is corrected. Updating a `TenantCategory` automatically re-triggers provisioning for every tenant referencing it.
+
+Example:
+
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: TenantCategory
+metadata:
+  name: CEEAS
+  namespace: qa
+spec:
+  description: Central and Eastern Europe, Austria, Switzerland
+```
+
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: Tenant
+metadata:
+  name: tenant1
+  namespace: qa
+spec:
+  categoryRef: CEEAS
+  ...
+```
+
 ## provisioning.totalsoft.ro
 
 monitors infrastructure manifests and provisions the desired infrastructure for every platform / tenant.
@@ -94,6 +125,22 @@ spec:
        - bnpro
 ```
 
+By default the filter `values` are matched against the tenant name. To filter tenants by their `Tenant.spec.categoryRef` instead (e.g. to provision a resource only for tenants belonging to a business/region group), set `filter.by` to `Category`. The values are matched against the name of the referenced `TenantCategory` resource (see below):
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureDatabase
+spec:
+  ....
+  target:
+   category: Tenant
+   filter:
+     kind: Whitelist
+     by: Category
+     values:
+       - CEEAS
+```
+
 #### Platform target
 
 The `Platform` target allows provisioning shared resources for the entire platform.
@@ -109,6 +156,51 @@ spec:
  ...
   target:
     category: Platform
+```
+
+### Overrides
+
+The spec of a provisioning resource can be overridden per tenant category (two ways), per tenant name, or per tenant. When more than one override applies to the same tenant, they are merged in the following order (later ones win):
+
+1. `categoryOverrides` (on the provisioning resource) — dictionary keyed by the exact `Tenant.spec.categoryRef` value, spec override as value.
+2. `TenantCategory.spec.provisioningOverrides` — declared on the `TenantCategory` referenced by the tenant's `categoryRef`, targeting a specific resource by kind/apiVersion/name/namespace. Applies to every tenant referencing that category.
+3. `tenantOverrides` (on the provisioning resource) — keyed by a glob pattern (`filepath.Match`) matched against the tenant name.
+4. `Tenant.spec.provisioningOverrides` — declared on the tenant itself, targeting a specific resource by kind/apiVersion/name/namespace. Always takes precedence.
+
+Example:
+
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: TenantCategory
+metadata:
+  name: CEEAS
+  namespace: qa
+spec:
+  provisioningOverrides:
+    - target:
+        kind: AzureDatabase
+        apiVersion: provisioning.totalsoft.ro/v1alpha1
+        name: mercury-db
+      spec:
+        sqlServer:
+          elasticPoolName: dbpool-ceeas
+```
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureDatabase
+metadata:
+  name: mercury-db
+spec:
+  ....
+  categoryOverrides:
+    CEEAS:
+      sqlServer:
+        elasticPoolName: dbpool-ceeas-fallback
+  tenantOverrides:
+    mbfs*:
+      sqlServer:
+        elasticPoolName: dbpool-mbfs
 ```
 
 ### Dependencies

@@ -91,7 +91,11 @@ func selectItemsInTarget[R ProvisioningResource](platform string, domain string,
 		provisioningMeta := res.GetProvisioningMeta()
 
 		if provisioningMeta.Target.Category == provisioningv1.ProvisioningTargetCategoryTenant {
-			if exludeTenant(provisioningMeta.Target.Filter, target.GetName()) {
+			tenantCategory := MatchTarget(target,
+				func(tenant *platformv1.Tenant) string { return tenant.Spec.CategoryRef },
+				func(*platformv1.Platform) string { return "" },
+			)
+			if exludeTenant(provisioningMeta.Target.Filter, target.GetName(), tenantCategory) {
 				continue
 			}
 
@@ -117,13 +121,18 @@ func selectItemsInTarget[R ProvisioningResource](platform string, domain string,
 	return result
 }
 
-func exludeTenant(filter provisioningv1.ProvisioningTargetFilter, tenant string) bool {
-	tenantInList := slices.Contains(filter.Values, tenant)
-	if filter.Kind == provisioningv1.ProvisioningFilterKindBlacklist && tenantInList {
+func exludeTenant(filter provisioningv1.ProvisioningTargetFilter, tenantName string, tenantCategory string) bool {
+	matchValue := tenantName
+	if filter.By == provisioningv1.ProvisioningFilterByCategory {
+		matchValue = tenantCategory
+	}
+
+	valueInList := slices.Contains(filter.Values, matchValue)
+	if filter.Kind == provisioningv1.ProvisioningFilterKindBlacklist && valueInList {
 		return true
 	}
 
-	if filter.Kind == provisioningv1.ProvisioningFilterKindWhitelist && !tenantInList {
+	if filter.Kind == provisioningv1.ProvisioningFilterKindWhitelist && !valueInList {
 		return true
 	}
 

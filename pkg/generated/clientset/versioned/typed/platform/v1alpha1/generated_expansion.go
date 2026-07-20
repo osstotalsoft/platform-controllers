@@ -25,3 +25,5 @@ type PlatformExpansion interface{}
 type ServiceExpansion interface{}
 
 type TenantExpansion interface{}
+
+type TenantCategoryExpansion interface{}

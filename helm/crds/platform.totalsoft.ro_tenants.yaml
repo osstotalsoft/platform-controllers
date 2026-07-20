@@ -61,6 +61,11 @@ spec:
               adminEmail:
                 description: Tenant administrator email address.
                 type: string
+              categoryRef:
+                description: |-
+                  CategoryRef is the name of a TenantCategory this tenant belongs to.
+                  Used by provisioning resources to filter/override tenants during provisioning.
+                type: string
               configs:
                 additionalProperties:
                   type: string

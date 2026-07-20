@@ -223,6 +223,20 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDomainRef(value string) 
 	return b
 }
 
+// WithCategoryOverrides puts the entries into the CategoryOverrides field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the CategoryOverrides field,
+// overwriting an existing map entries in CategoryOverrides field with the same key.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithCategoryOverrides(entries map[string]*v1.JSON) *AzureVirtualDesktopSpecApplyConfiguration {
+	if b.CategoryOverrides == nil && len(entries) > 0 {
+		b.CategoryOverrides = make(map[string]*v1.JSON, len(entries))
+	}
+	for k, v := range entries {
+		b.CategoryOverrides[k] = v
+	}
+	return b
+}
+
 // WithTenantOverrides puts the entries into the TenantOverrides field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, the entries provided by each call will be put on the TenantOverrides field,

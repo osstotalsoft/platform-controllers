@@ -44,6 +44,11 @@ type TenantSpec struct {
 	// +required
 	AdminEmail string `json:"adminEmail"`
 
+	// CategoryRef is the name of a TenantCategory this tenant belongs to.
+	// Used by provisioning resources to filter/override tenants during provisioning.
+	// +optional
+	CategoryRef string `json:"categoryRef,omitempty"`
+
 	// Possible values are RetainStatefulResources (retain stateful provisioned resources), DeleteAll (delete all resources).
 	// +kubebuilder:validation:Enum=RetainStatefulResources;DeleteAll
 	// +kubebuilder:default:=RetainStatefulResources

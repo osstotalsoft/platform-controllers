@@ -26,6 +26,7 @@ import (
 // with apply.
 type ProvisioningTargetFilterApplyConfiguration struct {
 	Kind   *v1alpha1.ProvisioningFilterKind `json:"kind,omitempty"`
+	By     *v1alpha1.ProvisioningFilterBy   `json:"by,omitempty"`
 	Values []string                         `json:"values,omitempty"`
 }
 
@@ -40,6 +41,14 @@ func ProvisioningTargetFilter() *ProvisioningTargetFilterApplyConfiguration {
 // If called multiple times, the Kind field is set to the value of the last call.
 func (b *ProvisioningTargetFilterApplyConfiguration) WithKind(value v1alpha1.ProvisioningFilterKind) *ProvisioningTargetFilterApplyConfiguration {
 	b.Kind = &value
+	return b
+}
+
+// WithBy sets the By field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the By field is set to the value of the last call.
+func (b *ProvisioningTargetFilterApplyConfiguration) WithBy(value v1alpha1.ProvisioningFilterBy) *ProvisioningTargetFilterApplyConfiguration {
+	b.By = &value
 	return b
 }
 

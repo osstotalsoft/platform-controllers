@@ -69,6 +69,7 @@ type ProvisioningController struct {
 
 	platformInformer              platformInformersv1.PlatformInformer
 	tenantInformer                platformInformersv1.TenantInformer
+	tenantCategoryInformer        platformInformersv1.TenantCategoryInformer
 	azureDbInformer               provisioningInformersv1.AzureDatabaseInformer
 	azureManagedDbInformer        provisioningInformersv1.AzureManagedDatabaseInformer
 	azurePowerShellScriptInformer provisioningInformersv1.AzurePowerShellScriptInformer
@@ -113,6 +114,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 		platformInformer:              factory.Platform().V1alpha1().Platforms(),
 		tenantInformer:                factory.Platform().V1alpha1().Tenants(),
+		tenantCategoryInformer:        factory.Platform().V1alpha1().TenantCategories(),
 		azureDbInformer:               factory.Provisioning().V1alpha1().AzureDatabases(),
 		azureManagedDbInformer:        factory.Provisioning().V1alpha1().AzureManagedDatabases(),
 		azurePowerShellScriptInformer: factory.Provisioning().V1alpha1().AzurePowerShellScripts(),
@@ -140,6 +142,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 
 	addTenantHandlers(c.tenantInformer, c.enqueueTenant)
 	addPlatformHandlers(c.platformInformer)
+	addTenantCategoryHandlers(c.tenantCategoryInformer, c.enqueueTenantsByCategory)
 
 	addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain)
 	addResourceHandlers[*provisioningv1.HelmReleaseV2]("Helm release v2", c.helmReleaseV2Informer.Informer(), c.enqueueDomain)
@@ -315,12 +318,17 @@ func (c *ProvisioningController) syncHandler(key string) error {
 
 func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain string) error {
 
+	category, err := c.resolveTenantCategory(target)
+	if err != nil {
+		return err
+	}
+
 	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return err
 	}
 	helmReleases = selectItemsInTarget(target.GetPlatformName(), domain, helmReleases, target)
-	helmReleases, err = applyTargetOverrides(helmReleases, target)
+	helmReleases, err = applyTargetOverrides(helmReleases, target, category)
 	if err != nil {
 		return err
 	}
@@ -330,7 +338,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 	helmReleaseV2s = selectItemsInTarget(target.GetPlatformName(), domain, helmReleaseV2s, target)
-	helmReleaseV2s, err = applyTargetOverrides(helmReleaseV2s, target)
+	helmReleaseV2s, err = applyTargetOverrides(helmReleaseV2s, target, category)
 	if err != nil {
 		return err
 	}
@@ -340,7 +348,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 	mssqlDbs = selectItemsInTarget(target.GetPlatformName(), domain, mssqlDbs, target)
-	mssqlDbs, err = applyTargetOverrides(mssqlDbs, target)
+	mssqlDbs, err = applyTargetOverrides(mssqlDbs, target, category)
 	if err != nil {
 		return err
 	}
@@ -350,7 +358,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 	localScripts = selectItemsInTarget(target.GetPlatformName(), domain, localScripts, target)
-	localScripts, err = applyTargetOverrides(localScripts, target)
+	localScripts, err = applyTargetOverrides(localScripts, target, category)
 	if err != nil {
 		return err
 	}
@@ -368,7 +376,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 		azureDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureDbs, target)
-		azureDbs, err = applyTargetOverrides(azureDbs, target)
+		azureDbs, err = applyTargetOverrides(azureDbs, target, category)
 		if err != nil {
 			return err
 		}
@@ -378,7 +386,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 		azureManagedDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureManagedDbs, target)
-		azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target)
+		azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target, category)
 		if err != nil {
 			return err
 		}
@@ -388,7 +396,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 		azurePowerShellScripts = selectItemsInTarget(target.GetPlatformName(), domain, azurePowerShellScripts, target)
-		azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target)
+		azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target, category)
 		if err != nil {
 			return err
 		}
@@ -398,7 +406,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 		azureVirtualMachines = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualMachines, target)
-		azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target)
+		azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target, category)
 		if err != nil {
 			return err
 		}
@@ -408,7 +416,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 		azureVirtualDesktops = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualDesktops, target)
-		azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target)
+		azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target, category)
 		if err != nil {
 			return err
 		}
@@ -418,7 +426,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 			return err
 		}
 		entraUsers = selectItemsInTarget(target.GetPlatformName(), domain, entraUsers, target)
-		entraUsers, err = applyTargetOverrides(entraUsers, target)
+		entraUsers, err = applyTargetOverrides(entraUsers, target, category)
 		if err != nil {
 			return err
 		}
@@ -429,7 +437,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 	minioBuckets = selectItemsInTarget(target.GetPlatformName(), domain, minioBuckets, target)
-	minioBuckets, err = applyTargetOverrides(minioBuckets, target)
+	minioBuckets, err = applyTargetOverrides(minioBuckets, target, category)
 	if err != nil {
 		return err
 	}
@@ -439,7 +447,7 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		return err
 	}
 	keycloakClients = selectItemsInTarget(target.GetPlatformName(), domain, keycloakClients, target)
-	keycloakClients, err = applyTargetOverrides(keycloakClients, target)
+	keycloakClients, err = applyTargetOverrides(keycloakClients, target, category)
 	if err != nil {
 		return err
 	}
@@ -481,6 +489,28 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	}
 
 	return result.Error
+}
+
+// resolveTenantCategory resolves the TenantCategory referenced by target.Spec.CategoryRef (Tenant targets only).
+// An empty CategoryRef resolves to (nil, nil). A non-empty CategoryRef that cannot be found is an error, causing
+// provisioning to fail until the reference is corrected.
+func (c *ProvisioningController) resolveTenantCategory(target ProvisioningTarget) (*platformv1.TenantCategory, error) {
+	return MatchTarget(target,
+		func(tenant *platformv1.Tenant) tuple.T2[*platformv1.TenantCategory, error] {
+			if tenant.Spec.CategoryRef == "" {
+				return tuple.New2[*platformv1.TenantCategory, error](nil, nil)
+			}
+
+			category, err := c.tenantCategoryInformer.Lister().TenantCategories(tenant.GetNamespace()).Get(tenant.Spec.CategoryRef)
+			if err != nil {
+				return tuple.New2[*platformv1.TenantCategory, error](nil, fmt.Errorf("cannot resolve tenant category %q for tenant %q: %w", tenant.Spec.CategoryRef, tenant.GetName(), err))
+			}
+			return tuple.New2[*platformv1.TenantCategory, error](category, nil)
+		},
+		func(*platformv1.Platform) tuple.T2[*platformv1.TenantCategory, error] {
+			return tuple.New2[*platformv1.TenantCategory, error](nil, nil)
+		},
+	).Values()
 }
 
 func (c *ProvisioningController) publishSuccessEvents(target ProvisioningTarget, domain string) {
@@ -628,6 +658,21 @@ func (c *ProvisioningController) enqueuePlatformDomain(platform, domain string) 
 	c.workqueue.Add(encodeKey(platform, "", domain))
 }
 
+// enqueueTenantsByCategory re-enqueues every tenant, in the given namespace, referencing the named TenantCategory,
+// so that changes to a category's provisioningOverrides are picked up without waiting for an unrelated tenant change.
+func (c *ProvisioningController) enqueueTenantsByCategory(namespace, categoryName string) {
+	tenants, err := c.tenantInformer.Lister().Tenants(namespace).List(labels.Everything())
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	for _, tenant := range tenants {
+		if tenant.Spec.CategoryRef == categoryName {
+			c.enqueueTenant(tenant)
+		}
+	}
+}
+
 func encodeKey(platform, tenant, domain string) (key string) {
 	return fmt.Sprintf("%s::%s::%s", platform, tenant, domain)
 }
@@ -653,6 +698,29 @@ func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Platform)
 			klog.V(4).InfoS("Platform deleted", "name", comp.Name)
+		},
+	})
+}
+
+func addTenantCategoryHandlers(informer platformInformersv1.TenantCategoryInformer, handler func(namespace, name string)) {
+	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			comp := obj.(*platformv1.TenantCategory)
+			klog.V(4).InfoS("TenantCategory added", "name", comp.Name, "namespace", comp.Namespace)
+			handler(comp.GetNamespace(), comp.GetName())
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldC := oldObj.(*platformv1.TenantCategory)
+			newC := newObj.(*platformv1.TenantCategory)
+			if !reflect.DeepEqual(oldC.Spec, newC.Spec) {
+				klog.V(4).InfoS("TenantCategory updated", "name", newC.Name, "namespace", newC.Namespace)
+				handler(newC.GetNamespace(), newC.GetName())
+			}
+		},
+		DeleteFunc: func(obj interface{}) {
+			comp := obj.(*platformv1.TenantCategory)
+			klog.V(4).InfoS("TenantCategory deleted", "name", comp.Name, "namespace", comp.Namespace)
+			handler(comp.GetNamespace(), comp.GetName())
 		},
 	})
 }

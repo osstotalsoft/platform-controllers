@@ -31,6 +31,7 @@ type TenantSpecApplyConfiguration struct {
 	Enabled               *bool                                         `json:"enabled,omitempty"`
 	DomainRefs            []string                                      `json:"domainRefs,omitempty"`
 	AdminEmail            *string                                       `json:"adminEmail,omitempty"`
+	CategoryRef           *string                                       `json:"categoryRef,omitempty"`
 	DeletePolicy          *v1alpha1.DeletePolicy                        `json:"deletePolicy,omitempty"`
 	Configs               map[string]string                             `json:"configs,omitempty"`
 	ProvisioningOverrides []ProvisioningResourcePatchApplyConfiguration `json:"provisioningOverrides,omitempty"`
@@ -89,6 +90,14 @@ func (b *TenantSpecApplyConfiguration) WithDomainRefs(values ...string) *TenantS
 // If called multiple times, the AdminEmail field is set to the value of the last call.
 func (b *TenantSpecApplyConfiguration) WithAdminEmail(value string) *TenantSpecApplyConfiguration {
 	b.AdminEmail = &value
+	return b
+}
+
+// WithCategoryRef sets the CategoryRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the CategoryRef field is set to the value of the last call.
+func (b *TenantSpecApplyConfiguration) WithCategoryRef(value string) *TenantSpecApplyConfiguration {
+	b.CategoryRef = &value
 	return b
 }
 

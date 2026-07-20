@@ -20,6 +20,7 @@
             "type": "go",
             "request": "launch",
             "mode": "debug",
+            "console": "integratedTerminal",
             "program": "./cmd/tenant-provisioner",
             "args": [
                 "--v",
@@ -41,6 +42,14 @@
                 //"PULUMI_ACCESS_TOKEN": "PLEASE_ADD_PULUMI_ACCESS_TOKEN",
                 "WORKERS_COUNT": "1"
             },
+        },
+        {
+            "name": "Attach to provisioner (manual dlv dap)",
+            "type": "go",
+            "request": "attach",
+            "mode": "remote",
+            "port": 12345,
+            "host": "127.0.0.1"
         },
         {
             "name": "Run platform controller",

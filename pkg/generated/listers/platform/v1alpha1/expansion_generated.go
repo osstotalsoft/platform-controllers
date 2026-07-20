@@ -45,3 +45,11 @@ type TenantListerExpansion interface{}
 // TenantNamespaceListerExpansion allows custom methods to be added to
 // TenantNamespaceLister.
 type TenantNamespaceListerExpansion interface{}
+
+// TenantCategoryListerExpansion allows custom methods to be added to
+// TenantCategoryLister.
+type TenantCategoryListerExpansion interface{}
+
+// TenantCategoryNamespaceListerExpansion allows custom methods to be added to
+// TenantCategoryNamespaceLister.
+type TenantCategoryNamespaceListerExpansion interface{}

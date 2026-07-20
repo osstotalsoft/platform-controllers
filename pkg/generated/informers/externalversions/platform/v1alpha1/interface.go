@@ -32,6 +32,8 @@ type Interface interface {
 	Services() ServiceInformer
 	// Tenants returns a TenantInformer.
 	Tenants() TenantInformer
+	// TenantCategories returns a TenantCategoryInformer.
+	TenantCategories() TenantCategoryInformer
 }
 
 type version struct {
@@ -63,4 +65,9 @@ func (v *version) Services() ServiceInformer {
 // Tenants returns a TenantInformer.
 func (v *version) Tenants() TenantInformer {
 	return &tenantInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
+}
+
+// TenantCategories returns a TenantCategoryInformer.
+func (v *version) TenantCategories() TenantCategoryInformer {
+	return &tenantCategoryInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }

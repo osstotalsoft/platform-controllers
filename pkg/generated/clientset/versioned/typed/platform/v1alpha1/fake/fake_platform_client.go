@@ -44,6 +44,10 @@ func (c *FakePlatformV1alpha1) Tenants(namespace string) v1alpha1.TenantInterfac
 	return &FakeTenants{c, namespace}
 }
 
+func (c *FakePlatformV1alpha1) TenantCategories(namespace string) v1alpha1.TenantCategoryInterface {
+	return &FakeTenantCategories{c, namespace}
+}
+
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakePlatformV1alpha1) RESTClient() rest.Interface {

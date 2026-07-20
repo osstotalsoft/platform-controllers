@@ -1,6 +1,7 @@
 package provisioning
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"testing"
@@ -248,6 +249,113 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		}
 	})
 
+	t.Run("filter resource by tenant Category (whitelist match)", func(t *testing.T) {
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
+		tenant.Spec.CategoryRef = "CEEAS"
+		azureDb := newAzureDb("db1", "dev", domain)
+		azureDb.Spec.Target.Filter.Kind = provisioningv1.ProvisioningFilterKindWhitelist
+		azureDb.Spec.Target.Filter.By = provisioningv1.ProvisioningFilterByCategory
+		azureDb.Spec.Target.Filter.Values = []string{"CEEAS"}
+
+		objects := []runtime.Object{
+			tenant,
+			azureDb,
+			newTenantCategory("CEEAS", "", "", nil),
+		}
+		c, outputs, _ := runControllerWithDefaultFakes(objects)
+
+		if result := c.processNextWorkItem(1); !result {
+			t.Error("processing failed")
+		}
+
+		if len(*outputs) != 1 {
+			t.Error("expected 1 output, got", len(*outputs))
+			return
+		}
+		if len((*outputs)[0].infra.AzureDbs) != 1 {
+			t.Error("expected one db for tenant in whitelisted category, got", len((*outputs)[0].infra.AzureDbs))
+		}
+	})
+
+	t.Run("filter resource by tenant Category (whitelist no match)", func(t *testing.T) {
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
+		tenant.Spec.CategoryRef = "OTHER"
+		azureDb := newAzureDb("db1", "dev", domain)
+		azureDb.Spec.Target.Filter.Kind = provisioningv1.ProvisioningFilterKindWhitelist
+		azureDb.Spec.Target.Filter.By = provisioningv1.ProvisioningFilterByCategory
+		azureDb.Spec.Target.Filter.Values = []string{"CEEAS"}
+
+		objects := []runtime.Object{
+			tenant,
+			azureDb,
+			newTenantCategory("OTHER", "", "", nil),
+		}
+		c, outputs, _ := runControllerWithDefaultFakes(objects)
+
+		if result := c.processNextWorkItem(1); !result {
+			t.Error("processing failed")
+		}
+
+		if len(*outputs) != 1 {
+			t.Error("expected 1 output, got", len(*outputs))
+			return
+		}
+		if len((*outputs)[0].infra.AzureDbs) != 0 {
+			t.Error("expected zero dbs for tenant not in whitelisted category, got", len((*outputs)[0].infra.AzureDbs))
+		}
+	})
+
+	t.Run("tenant with unresolvable categoryRef fails provisioning", func(t *testing.T) {
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
+		tenant.Spec.CategoryRef = "does-not-exist"
+
+		objects := []runtime.Object{
+			tenant,
+			newAzureDb("db1", "dev", domain),
+		}
+		c, outputs, _ := runControllerWithDefaultFakes(objects)
+
+		if result := c.processNextWorkItem(1); !result {
+			t.Error("processing failed")
+		}
+
+		if len(*outputs) != 0 {
+			t.Error("expected 0 outputs since the categoryRef cannot be resolved, got", len(*outputs))
+		}
+	})
+
+	t.Run("updating a TenantCategory re-enqueues tenants referencing it", func(t *testing.T) {
+		domain := "my-domain"
+		tenant := newTenant("dev1", "dev", domain)
+		tenant.Spec.CategoryRef = "cat1"
+		category := newTenantCategory("cat1", "", "", nil)
+
+		objects := []runtime.Object{tenant, category}
+		c, _, _ := runControllerWithDefaultFakes(objects)
+
+		// drain the initial enqueue triggered by adding the tenant
+		for c.workqueue.Len() > 0 {
+			item, _ := c.workqueue.Get()
+			c.workqueue.Done(item)
+			c.workqueue.Forget(item)
+		}
+
+		updatedCategory := category.DeepCopy()
+		updatedCategory.Spec.Description = "changed"
+		_, err := c.clientset.PlatformV1alpha1().TenantCategories(metav1.NamespaceDefault).Update(context.TODO(), updatedCategory, metav1.UpdateOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		time.Sleep(time.Second)
+
+		if c.workqueue.Len() != 1 {
+			t.Error("expected 1 item enqueued after TenantCategory update, but queue has", c.workqueue.Len())
+		}
+	})
+
 	t.Run("filter resource by Domain", func(t *testing.T) {
 		tenant := newTenant("dev1", "dev", "p1")
 		azureDb := newAzureDb("db1", "dev", "p2")
@@ -306,7 +414,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -345,7 +453,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -388,7 +496,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides([]*provisioningv1.AzureVirtualDesktop{&avd}, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -436,7 +544,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -483,7 +591,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -525,7 +633,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides(hrs, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides(hrs, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -536,6 +644,209 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 		assert.Equal(t, "releaseNameAfter0", result[0].Spec.Release.ReleaseName)
 		assert.Same(t, hrs[1], result[1])
 		assert.Equal(t, "releaseNameBefore1", result[1].Spec.Release.ReleaseName)
+	})
+
+	t.Run("apply category-map overrides", func(t *testing.T) {
+		tenantName := "tenant1"
+		categoryName := "CEEAS"
+		overrides := map[string]any{
+			"restoreFrom": map[string]any{
+				"backupFileName": "fromCategoryMap",
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		db := provisioningv1.AzureManagedDatabase{
+			Spec: provisioningv1.AzureManagedDatabaseSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					PlatformRef: "platform",
+					CategoryOverrides: map[string]*v1.JSON{
+						categoryName: {Raw: overridesBytes},
+					},
+				},
+				RestoreFrom: provisioningv1.AzureManagedDatabaseRestoreSpec{
+					BackupFileName: "beforeBackupFileName",
+				},
+			},
+		}
+
+		tenant := newTenant(tenantName, "platform", "domain")
+		tenant.Spec.CategoryRef = categoryName
+
+		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, nil)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Len(t, result, 1)
+		assert.Equal(t, "fromCategoryMap", result[0].Spec.RestoreFrom.BackupFileName)
+	})
+
+	t.Run("normalize missing TypeMeta on LocalScript", func(t *testing.T) {
+		script := provisioningv1.LocalScript{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "script1",
+				Namespace: metav1.NamespaceDefault,
+			},
+			Spec: provisioningv1.LocalScriptSpec{
+				CreateScriptContent: "Write-Host 'Hello'",
+				DeleteScriptContent: "Write-Host 'Bye'",
+				Shell:               provisioningv1.LocalScriptShellPwsh,
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					PlatformRef: "platform",
+					DomainRef:   "domain",
+					Target: provisioningv1.ProvisioningTarget{
+						Category: provisioningv1.ProvisioningTargetCategoryTenant,
+					},
+				},
+			},
+		}
+
+		result, err := applyTargetOverrides([]*provisioningv1.LocalScript{&script}, newTenant("tenant1", "platform", "domain"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(result) != 1 {
+			t.Fatalf("expected 1 result, got %d", len(result))
+		}
+
+		gvk := result[0].GetObjectKind().GroupVersionKind()
+		assert.Equal(t, provisioningv1.SchemeGroupVersion.String(), gvk.GroupVersion().String())
+		assert.Equal(t, "LocalScript", gvk.Kind)
+	})
+
+	t.Run("apply TenantCategory overrides", func(t *testing.T) {
+		tenantName := "tenant1"
+		categoryName := "CEEAS"
+		overrides := map[string]any{
+			"restoreFrom": map[string]any{
+				"backupFileName": "fromCategory",
+			},
+		}
+		overridesBytes, _ := json.Marshal(overrides)
+
+		db := provisioningv1.AzureManagedDatabase{
+			TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String(), Kind: "AzureManagedDatabase"},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "db1",
+				Namespace: metav1.NamespaceDefault,
+			},
+			Spec: provisioningv1.AzureManagedDatabaseSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					PlatformRef: "platform",
+				},
+				RestoreFrom: provisioningv1.AzureManagedDatabaseRestoreSpec{
+					BackupFileName: "beforeBackupFileName",
+				},
+			},
+		}
+
+		tenant := newTenant(tenantName, "platform", "domain")
+		tenant.Spec.CategoryRef = categoryName
+
+		category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", overridesBytes)
+
+		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, category)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Len(t, result, 1)
+		assert.Equal(t, "fromCategory", result[0].Spec.RestoreFrom.BackupFileName)
+	})
+
+	t.Run("category-map, TenantCategory, tenant name and tenant-spec overrides precedence", func(t *testing.T) {
+		tenantName := "tenant1"
+		categoryName := "CEEAS"
+
+		categoryMapOverrideBytes, _ := json.Marshal(map[string]any{
+			"restoreFrom": map[string]any{"backupFileName": "fromCategoryMap"},
+		})
+		categoryOverrideBytes, _ := json.Marshal(map[string]any{
+			"restoreFrom": map[string]any{"backupFileName": "fromCategory"},
+		})
+		tenantNameOverrideBytes, _ := json.Marshal(map[string]any{
+			"restoreFrom": map[string]any{"backupFileName": "fromTenantName"},
+		})
+		tenantSpecOverrideBytes, _ := json.Marshal(map[string]any{
+			"restoreFrom": map[string]any{"backupFileName": "fromTenantSpec"},
+		})
+
+		newDb := func() provisioningv1.AzureManagedDatabase {
+			return provisioningv1.AzureManagedDatabase{
+				TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String(), Kind: "AzureManagedDatabase"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "db1",
+					Namespace: metav1.NamespaceDefault,
+				},
+				Spec: provisioningv1.AzureManagedDatabaseSpec{
+					ProvisioningMeta: provisioningv1.ProvisioningMeta{
+						PlatformRef: "platform",
+						CategoryOverrides: map[string]*v1.JSON{
+							categoryName: {Raw: categoryMapOverrideBytes},
+						},
+						TenantOverrides: map[string]*v1.JSON{
+							tenantName: {Raw: tenantNameOverrideBytes},
+						},
+					},
+					RestoreFrom: provisioningv1.AzureManagedDatabaseRestoreSpec{
+						BackupFileName: "original",
+					},
+				},
+			}
+		}
+
+		tenant := newTenant(tenantName, "platform", "domain")
+		tenant.Spec.CategoryRef = categoryName
+		tenant.ObjectMeta.Namespace = metav1.NamespaceDefault
+
+		t.Run("TenantCategory override wins over category-map override", func(t *testing.T) {
+			db := newDb()
+			db.Spec.TenantOverrides = nil // isolate from the tenant-name-glob tier for this assertion
+			category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", categoryOverrideBytes)
+			result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, category)
+			if err != nil {
+				t.Error(err)
+			}
+			assert.Len(t, result, 1)
+			assert.Equal(t, "fromCategory", result[0].Spec.RestoreFrom.BackupFileName)
+		})
+
+		t.Run("tenant name override wins over TenantCategory and category-map overrides", func(t *testing.T) {
+			db := newDb()
+			category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", categoryOverrideBytes)
+			result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, category)
+			if err != nil {
+				t.Error(err)
+			}
+			assert.Len(t, result, 1)
+			assert.Equal(t, "fromTenantName", result[0].Spec.RestoreFrom.BackupFileName)
+		})
+
+		t.Run("tenant-specific ProvisioningOverrides wins over all other overrides", func(t *testing.T) {
+			db := newDb()
+			category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", categoryOverrideBytes)
+			tenantWithSpecOverride := tenant.DeepCopy()
+			tenantWithSpecOverride.Spec.ProvisioningOverrides = []platformv1.ProvisioningResourcePatch{
+				{
+					Target: platformv1.ProvisioningResourcePatchTarget{
+						Kind:       "AzureManagedDatabase",
+						APIVersion: provisioningv1.SchemeGroupVersion.String(),
+						Name:       "db1",
+						Namespace:  metav1.NamespaceDefault,
+					},
+					Spec: &v1.JSON{Raw: tenantSpecOverrideBytes},
+				},
+			}
+
+			result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenantWithSpecOverride, category)
+			if err != nil {
+				t.Error(err)
+			}
+			assert.Len(t, result, 1)
+			assert.Equal(t, "fromTenantSpec", result[0].Spec.RestoreFrom.BackupFileName)
+		})
 	})
 
 	t.Run("apply wildcard tenant overrides", func(t *testing.T) {
@@ -561,7 +872,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 			},
 		}
 
-		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"))
+		result, err := applyTargetOverrides([]*provisioningv1.HelmRelease{&hr}, newTenant(tenantName, "platform", "domain"), nil)
 		if err != nil {
 			t.Error(err)
 		}
@@ -585,6 +896,30 @@ func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
 			DomainRefs:  domains,
 		},
 	}
+}
+
+func newTenantCategory(name, patchKind, patchName string, overridesBytes []byte) *platformv1.TenantCategory {
+	category := &platformv1.TenantCategory{
+		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: metav1.NamespaceDefault,
+		},
+	}
+	if overridesBytes != nil {
+		category.Spec.ProvisioningOverrides = []platformv1.ProvisioningResourcePatch{
+			{
+				Target: platformv1.ProvisioningResourcePatchTarget{
+					Kind:       patchKind,
+					APIVersion: provisioningv1.SchemeGroupVersion.String(),
+					Name:       patchName,
+					Namespace:  metav1.NamespaceDefault,
+				},
+				Spec: &v1.JSON{Raw: overridesBytes},
+			},
+		}
+	}
+	return category
 }
 
 func newAzureDb(name, platform, domain string) *provisioningv1.AzureDatabase {
