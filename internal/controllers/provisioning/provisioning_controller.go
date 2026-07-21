@@ -501,7 +501,7 @@ func (c *ProvisioningController) resolveTenantCategory(target ProvisioningTarget
 				return tuple.New2[*platformv1.TenantCategory, error](nil, nil)
 			}
 
-			category, err := c.tenantCategoryInformer.Lister().TenantCategories(tenant.GetNamespace()).Get(tenant.Spec.CategoryRef)
+			category, err := c.findTenantCategory(tenant.Spec.PlatformRef, tenant.Spec.CategoryRef)
 			if err != nil {
 				return tuple.New2[*platformv1.TenantCategory, error](nil, fmt.Errorf("cannot resolve tenant category %q for tenant %q: %w", tenant.Spec.CategoryRef, tenant.GetName(), err))
 			}
@@ -511,6 +511,21 @@ func (c *ProvisioningController) resolveTenantCategory(target ProvisioningTarget
 			return tuple.New2[*platformv1.TenantCategory, error](nil, nil)
 		},
 	).Values()
+}
+
+// findTenantCategory finds the TenantCategory named categoryName whose Spec.PlatformRef matches platform.
+func (c *ProvisioningController) findTenantCategory(platform, categoryName string) (*platformv1.TenantCategory, error) {
+	categories, err := c.tenantCategoryInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+
+	for _, category := range categories {
+		if category.Name == categoryName && category.Spec.PlatformRef == platform {
+			return category, nil
+		}
+	}
+	return nil, errors.NewNotFound(platformv1.Resource("tenantcategory"), categoryName)
 }
 
 func (c *ProvisioningController) publishSuccessEvents(target ProvisioningTarget, domain string) {
@@ -658,16 +673,17 @@ func (c *ProvisioningController) enqueuePlatformDomain(platform, domain string) 
 	c.workqueue.Add(encodeKey(platform, "", domain))
 }
 
-// enqueueTenantsByCategory re-enqueues every tenant, in the given namespace, referencing the named TenantCategory,
-// so that changes to a category's provisioningOverrides are picked up without waiting for an unrelated tenant change.
-func (c *ProvisioningController) enqueueTenantsByCategory(namespace, categoryName string) {
-	tenants, err := c.tenantInformer.Lister().Tenants(namespace).List(labels.Everything())
+// enqueueTenantsByCategory re-enqueues every tenant, belonging to the given platform, referencing the named
+// TenantCategory, so that changes to a category's provisioningOverrides are picked up without waiting for an
+// unrelated tenant change.
+func (c *ProvisioningController) enqueueTenantsByCategory(platform, categoryName string) {
+	tenants, err := c.tenantInformer.Lister().List(labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(err)
 		return
 	}
 	for _, tenant := range tenants {
-		if tenant.Spec.CategoryRef == categoryName {
+		if tenant.Spec.PlatformRef == platform && tenant.Spec.CategoryRef == categoryName {
 			c.enqueueTenant(tenant)
 		}
 	}
@@ -702,25 +718,25 @@ func addPlatformHandlers(informer platformInformersv1.PlatformInformer) {
 	})
 }
 
-func addTenantCategoryHandlers(informer platformInformersv1.TenantCategoryInformer, handler func(namespace, name string)) {
+func addTenantCategoryHandlers(informer platformInformersv1.TenantCategoryInformer, handler func(platform, name string)) {
 	informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.TenantCategory)
-			klog.V(4).InfoS("TenantCategory added", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.GetNamespace(), comp.GetName())
+			category := obj.(*platformv1.TenantCategory)
+			klog.V(4).InfoS("TenantCategory added", "name", category.Name, "platform", category.Spec.PlatformRef)
+			handler(category.Spec.PlatformRef, category.GetName())
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			oldC := oldObj.(*platformv1.TenantCategory)
 			newC := newObj.(*platformv1.TenantCategory)
 			if !reflect.DeepEqual(oldC.Spec, newC.Spec) {
-				klog.V(4).InfoS("TenantCategory updated", "name", newC.Name, "namespace", newC.Namespace)
-				handler(newC.GetNamespace(), newC.GetName())
+				klog.V(4).InfoS("TenantCategory updated", "name", newC.Name, "platform", newC.Spec.PlatformRef)
+				handler(newC.Spec.PlatformRef, newC.GetName())
 			}
 		},
 		DeleteFunc: func(obj interface{}) {
-			comp := obj.(*platformv1.TenantCategory)
-			klog.V(4).InfoS("TenantCategory deleted", "name", comp.Name, "namespace", comp.Namespace)
-			handler(comp.GetNamespace(), comp.GetName())
+			category := obj.(*platformv1.TenantCategory)
+			klog.V(4).InfoS("TenantCategory deleted", "name", category.Name, "platform", category.Spec.PlatformRef)
+			handler(category.Spec.PlatformRef, category.GetName())
 		},
 	})
 }

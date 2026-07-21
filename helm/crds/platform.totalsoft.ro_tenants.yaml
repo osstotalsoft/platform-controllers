@@ -30,6 +30,9 @@ spec:
     - jsonPath: .spec.platformRef
       name: Platform
       type: string
+    - jsonPath: .spec.categoryRef
+      name: Category
+      type: string
     - jsonPath: .status.lastResyncTime
       name: LastResync
       type: date

@@ -6,6 +6,7 @@ import (
 
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:printcolumn:name="Platform",type=string,JSONPath=`.spec.platformRef`
 
 // TenantCategory describes a classification that tenants can optionally reference
 // (e.g. country, business typology, tenant group).
@@ -20,6 +21,11 @@ type TenantCategory struct {
 
 // TenantCategorySpec is the spec for a tenant category.
 type TenantCategorySpec struct {
+	// PlatformRef is the target platform. A TenantCategory is only resolvable by tenants
+	// belonging to the same platform.
+	// +required
+	PlatformRef string `json:"platformRef"`
+
 	// +optional
 	Description string `json:"description,omitempty"`
 

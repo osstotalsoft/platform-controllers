@@ -60,9 +60,9 @@ spec:
 
 Definition can be found [here](./helm/crds/platform.totalsoft.ro_tenantcategories.yaml)
 
-A `TenantCategory` is an optional classification (country, business typology, tenant group, etc.) that a `Tenant` can reference by name via `spec.categoryRef`. It lives in the same namespace as the tenants that reference it. Like a `Tenant`, it can declare its own `provisioningOverrides` (see [Overrides](#overrides)), applied to every tenant referencing it.
+A `TenantCategory` is an optional classification (country, business typology, tenant group, etc.) that a `Tenant` can reference by name via `spec.categoryRef`. A category is resolved by matching its `spec.platformRef` against the tenant's own `spec.platformRef` — a tenant can only reference a `TenantCategory` belonging to the same platform, regardless of which namespace either resource lives in. Like a `Tenant`, it can declare its own `provisioningOverrides` (see [Overrides](#overrides)), applied to every tenant referencing it.
 
-> _Note_ If a tenant's `categoryRef` does not resolve to an existing `TenantCategory`, provisioning for that tenant fails until the reference is corrected. Updating a `TenantCategory` automatically re-triggers provisioning for every tenant referencing it.
+> _Note_ If a tenant's `categoryRef` does not resolve to an existing `TenantCategory` on the same platform, provisioning for that tenant fails until the reference is corrected. Updating a `TenantCategory` automatically re-triggers provisioning for every tenant of that platform referencing it.
 
 Example:
 
@@ -73,6 +73,7 @@ metadata:
   name: CEEAS
   namespace: qa
 spec:
+  platformRef: charismaonline.qa
   description: Central and Eastern Europe, Austria, Switzerland
 ```
 
@@ -83,6 +84,7 @@ metadata:
   name: tenant1
   namespace: qa
 spec:
+  platformRef: charismaonline.qa
   categoryRef: CEEAS
   ...
 ```
@@ -176,6 +178,7 @@ metadata:
   name: CEEAS
   namespace: qa
 spec:
+  platformRef: charismaonline.qa
   provisioningOverrides:
     - target:
         kind: AzureDatabase

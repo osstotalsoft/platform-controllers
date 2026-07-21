@@ -14,7 +14,11 @@ spec:
     singular: tenantcategory
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.platformRef
+      name: Platform
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: |-
@@ -42,6 +46,11 @@ spec:
             description: TenantCategorySpec is the spec for a tenant category.
             properties:
               description:
+                type: string
+              platformRef:
+                description: |-
+                  PlatformRef is the target platform. A TenantCategory is only resolvable by tenants
+                  belonging to the same platform.
                 type: string
               provisioningOverrides:
                 description: |-
@@ -81,9 +90,12 @@ spec:
                   - target
                   type: object
                 type: array
+            required:
+            - platformRef
             type: object
         required:
         - spec
         type: object
     served: true
     storage: true
+    subresources: {}

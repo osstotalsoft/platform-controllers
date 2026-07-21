@@ -261,7 +261,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		objects := []runtime.Object{
 			tenant,
 			azureDb,
-			newTenantCategory("CEEAS", "", "", nil),
+			newTenantCategory("CEEAS", "dev", "", "", nil),
 		}
 		c, outputs, _ := runControllerWithDefaultFakes(objects)
 
@@ -290,7 +290,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		objects := []runtime.Object{
 			tenant,
 			azureDb,
-			newTenantCategory("OTHER", "", "", nil),
+			newTenantCategory("OTHER", "dev", "", "", nil),
 		}
 		c, outputs, _ := runControllerWithDefaultFakes(objects)
 
@@ -331,7 +331,7 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		domain := "my-domain"
 		tenant := newTenant("dev1", "dev", domain)
 		tenant.Spec.CategoryRef = "cat1"
-		category := newTenantCategory("cat1", "", "", nil)
+		category := newTenantCategory("cat1", "dev", "", "", nil)
 
 		objects := []runtime.Object{tenant, category}
 		c, _, _ := runControllerWithDefaultFakes(objects)
@@ -745,7 +745,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 		tenant := newTenant(tenantName, "platform", "domain")
 		tenant.Spec.CategoryRef = categoryName
 
-		category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", overridesBytes)
+		category := newTenantCategory(categoryName, "platform", "AzureManagedDatabase", "db1",overridesBytes)
 
 		result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, category)
 		if err != nil {
@@ -804,7 +804,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 		t.Run("TenantCategory override wins over category-map override", func(t *testing.T) {
 			db := newDb()
 			db.Spec.TenantOverrides = nil // isolate from the tenant-name-glob tier for this assertion
-			category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", categoryOverrideBytes)
+			category := newTenantCategory(categoryName, "platform", "AzureManagedDatabase", "db1",categoryOverrideBytes)
 			result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, category)
 			if err != nil {
 				t.Error(err)
@@ -815,7 +815,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 
 		t.Run("tenant name override wins over TenantCategory and category-map overrides", func(t *testing.T) {
 			db := newDb()
-			category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", categoryOverrideBytes)
+			category := newTenantCategory(categoryName, "platform", "AzureManagedDatabase", "db1",categoryOverrideBytes)
 			result, err := applyTargetOverrides([]*provisioningv1.AzureManagedDatabase{&db}, tenant, category)
 			if err != nil {
 				t.Error(err)
@@ -826,7 +826,7 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 
 		t.Run("tenant-specific ProvisioningOverrides wins over all other overrides", func(t *testing.T) {
 			db := newDb()
-			category := newTenantCategory(categoryName, "AzureManagedDatabase", "db1", categoryOverrideBytes)
+			category := newTenantCategory(categoryName, "platform", "AzureManagedDatabase", "db1",categoryOverrideBytes)
 			tenantWithSpecOverride := tenant.DeepCopy()
 			tenantWithSpecOverride.Spec.ProvisioningOverrides = []platformv1.ProvisioningResourcePatch{
 				{
@@ -898,12 +898,15 @@ func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
 	}
 }
 
-func newTenantCategory(name, patchKind, patchName string, overridesBytes []byte) *platformv1.TenantCategory {
+func newTenantCategory(name, platform, patchKind, patchName string, overridesBytes []byte) *platformv1.TenantCategory {
 	category := &platformv1.TenantCategory{
 		TypeMeta: metav1.TypeMeta{APIVersion: provisioningv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceDefault,
+		},
+		Spec: platformv1.TenantCategorySpec{
+			PlatformRef: platform,
 		},
 	}
 	if overridesBytes != nil {

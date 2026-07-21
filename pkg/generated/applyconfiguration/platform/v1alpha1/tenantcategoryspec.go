@@ -21,6 +21,7 @@ package v1alpha1
 // TenantCategorySpecApplyConfiguration represents an declarative configuration of the TenantCategorySpec type for use
 // with apply.
 type TenantCategorySpecApplyConfiguration struct {
+	PlatformRef           *string                                       `json:"platformRef,omitempty"`
 	Description           *string                                       `json:"description,omitempty"`
 	ProvisioningOverrides []ProvisioningResourcePatchApplyConfiguration `json:"provisioningOverrides,omitempty"`
 }
@@ -29,6 +30,14 @@ type TenantCategorySpecApplyConfiguration struct {
 // apply.
 func TenantCategorySpec() *TenantCategorySpecApplyConfiguration {
 	return &TenantCategorySpecApplyConfiguration{}
+}
+
+// WithPlatformRef sets the PlatformRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PlatformRef field is set to the value of the last call.
+func (b *TenantCategorySpecApplyConfiguration) WithPlatformRef(value string) *TenantCategorySpecApplyConfiguration {
+	b.PlatformRef = &value
+	return b
 }
 
 // WithDescription sets the Description field in the declarative configuration to the given value

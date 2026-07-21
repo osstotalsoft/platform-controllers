@@ -626,6 +626,7 @@ func (c *PlatformController) genPlatformTenantsCfgMap(platform *platformv1.Platf
 		}
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__TenantId", tenant.Name)] = tenant.Spec.Id
 		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Enabled", tenant.Name)] = strconv.FormatBool(tenant.Spec.Enabled)
+		tenantData[fmt.Sprintf("MultiTenancy__Tenants__%s__Category", tenant.Name)] = tenant.Spec.CategoryRef
 	}
 
 	return &corev1.ConfigMap{
