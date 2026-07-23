@@ -31,6 +31,30 @@ type KeycloakClientSpec struct {
 	// Associated tenant name.
 	Organization string `json:"organization,omitempty"`
 
+	// RootUrl is the root URL appended to relative URLs.
+	// +optional
+	RootUrl string `json:"rootUrl,omitempty"`
+
+	// BaseUrl is the default URL used when the auth server needs to redirect or link back to the client.
+	// +optional
+	BaseUrl string `json:"baseUrl,omitempty"`
+
+	// RedirectUris is the list of valid redirect URIs after login.
+	// +optional
+	RedirectUris []string `json:"redirectUris,omitempty"`
+
+	// PostLogoutRedirectUris is the list of valid redirect URIs after logout.
+	// +optional
+	PostLogoutRedirectUris []string `json:"postLogoutRedirectUris,omitempty"`
+
+	// PkceCodeChallengeMethod is the PKCE code challenge method.
+	// +optional
+	PkceCodeChallengeMethod string `json:"pkceCodeChallengeMethod,omitempty"`
+
+	// WebOrigins is the list of allowed CORS origins.
+	// +optional
+	WebOrigins []string `json:"webOrigins,omitempty"`
+
 	// Enabled indicates if the client is enabled.
 	Enabled bool `json:"enabled"`
 
@@ -51,6 +75,14 @@ type KeycloakClientSpec struct {
 
 	// DirectAccessGrantsEnabled enables direct access grants (resource owner password).
 	DirectAccessGrantsEnabled bool `json:"directAccessGrantsEnabled"`
+
+	// FrontchannelLogout enables front-channel logout.
+	// +optional
+	FrontchannelLogout bool `json:"frontchannelLogout,omitempty"`
+
+	// FrontchannelLogoutUrl The URL Keycloak calls to perform front-channel logout. It is only applicable when FrontchannelLogoutEnabled is true.
+	// +optional
+	FrontchannelLogoutUrl string `json:"frontchannelLogoutUrl,omitempty"`
 
 	// Protocol e.g. "openid-connect"
 	Protocol string `json:"protocol,omitempty"`

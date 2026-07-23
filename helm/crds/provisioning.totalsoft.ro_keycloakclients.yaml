@@ -47,6 +47,10 @@ spec:
             type: object
           spec:
             properties:
+              baseUrl:
+                description: BaseUrl is the default URL used when the auth server
+                  needs to redirect or link back to the client.
+                type: string
               categoryOverrides:
                 additionalProperties:
                   x-kubernetes-preserve-unknown-fields: true
@@ -157,6 +161,14 @@ spec:
                   - domain
                   type: object
                 type: array
+              frontchannelLogout:
+                description: FrontchannelLogout enables front-channel logout.
+                type: boolean
+              frontchannelLogoutUrl:
+                description: FrontchannelLogoutUrl The URL Keycloak calls to perform
+                  front-channel logout. It is only applicable when FrontchannelLogoutEnabled
+                  is true.
+                type: string
               fullScopeAllowed:
                 description: FullScopeAllowed allows full scope.
                 type: boolean
@@ -171,9 +183,18 @@ spec:
               organization:
                 description: Associated tenant name.
                 type: string
+              pkceCodeChallengeMethod:
+                description: PkceCodeChallengeMethod is the PKCE code challenge method.
+                type: string
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
+              postLogoutRedirectUris:
+                description: PostLogoutRedirectUris is the list of valid redirect
+                  URIs after logout.
+                items:
+                  type: string
+                type: array
               protocol:
                 description: Protocol e.g. "openid-connect"
                 type: string
@@ -208,6 +229,15 @@ spec:
                 type: boolean
               realm:
                 description: Associated realm.
+                type: string
+              redirectUris:
+                description: RedirectUris is the list of valid redirect URIs after
+                  login.
+                items:
+                  type: string
+                type: array
+              rootUrl:
+                description: RootUrl is the root URL appended to relative URLs.
                 type: string
               serviceAccountsEnabled:
                 description: ServiceAccountsEnabled enables service accounts.
@@ -268,6 +298,11 @@ spec:
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
                 type: object
+              webOrigins:
+                description: WebOrigins is the list of allowed CORS origins.
+                items:
+                  type: string
+                type: array
             required:
             - clientId
             - clientName
