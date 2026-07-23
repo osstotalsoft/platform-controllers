@@ -29,6 +29,12 @@ type KeycloakClientSpecApplyConfiguration struct {
 	ClientId                           *string                                       `json:"clientId,omitempty"`
 	Realm                              *string                                       `json:"realm,omitempty"`
 	Organization                       *string                                       `json:"organization,omitempty"`
+	RootUrl                            *string                                       `json:"rootUrl,omitempty"`
+	BaseUrl                            *string                                       `json:"baseUrl,omitempty"`
+	RedirectUris                       []string                                      `json:"redirectUris,omitempty"`
+	PostLogoutRedirectUris             []string                                      `json:"postLogoutRedirectUris,omitempty"`
+	PkceCodeChallengeMethod            *string                                       `json:"pkceCodeChallengeMethod,omitempty"`
+	WebOrigins                         []string                                      `json:"webOrigins,omitempty"`
 	Enabled                            *bool                                         `json:"enabled,omitempty"`
 	ConsentRequired                    *bool                                         `json:"consentRequired,omitempty"`
 	PublicClient                       *bool                                         `json:"publicClient,omitempty"`
@@ -36,6 +42,8 @@ type KeycloakClientSpecApplyConfiguration struct {
 	StandardFlowEnabled                *bool                                         `json:"standardFlowEnabled,omitempty"`
 	ImplicitFlowEnabled                *bool                                         `json:"implicitFlowEnabled,omitempty"`
 	DirectAccessGrantsEnabled          *bool                                         `json:"directAccessGrantsEnabled,omitempty"`
+	FrontchannelLogout                 *bool                                         `json:"frontchannelLogout,omitempty"`
+	FrontchannelLogoutUrl              *string                                       `json:"frontchannelLogoutUrl,omitempty"`
 	Protocol                           *string                                       `json:"protocol,omitempty"`
 	FullScopeAllowed                   *bool                                         `json:"fullScopeAllowed,omitempty"`
 	ProtocolMappers                    []ProtocolMapperApplyConfiguration            `json:"protocolMappers,omitempty"`
@@ -80,6 +88,60 @@ func (b *KeycloakClientSpecApplyConfiguration) WithRealm(value string) *Keycloak
 // If called multiple times, the Organization field is set to the value of the last call.
 func (b *KeycloakClientSpecApplyConfiguration) WithOrganization(value string) *KeycloakClientSpecApplyConfiguration {
 	b.Organization = &value
+	return b
+}
+
+// WithRootUrl sets the RootUrl field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the RootUrl field is set to the value of the last call.
+func (b *KeycloakClientSpecApplyConfiguration) WithRootUrl(value string) *KeycloakClientSpecApplyConfiguration {
+	b.RootUrl = &value
+	return b
+}
+
+// WithBaseUrl sets the BaseUrl field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the BaseUrl field is set to the value of the last call.
+func (b *KeycloakClientSpecApplyConfiguration) WithBaseUrl(value string) *KeycloakClientSpecApplyConfiguration {
+	b.BaseUrl = &value
+	return b
+}
+
+// WithRedirectUris adds the given value to the RedirectUris field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the RedirectUris field.
+func (b *KeycloakClientSpecApplyConfiguration) WithRedirectUris(values ...string) *KeycloakClientSpecApplyConfiguration {
+	for i := range values {
+		b.RedirectUris = append(b.RedirectUris, values[i])
+	}
+	return b
+}
+
+// WithPostLogoutRedirectUris adds the given value to the PostLogoutRedirectUris field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the PostLogoutRedirectUris field.
+func (b *KeycloakClientSpecApplyConfiguration) WithPostLogoutRedirectUris(values ...string) *KeycloakClientSpecApplyConfiguration {
+	for i := range values {
+		b.PostLogoutRedirectUris = append(b.PostLogoutRedirectUris, values[i])
+	}
+	return b
+}
+
+// WithPkceCodeChallengeMethod sets the PkceCodeChallengeMethod field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the PkceCodeChallengeMethod field is set to the value of the last call.
+func (b *KeycloakClientSpecApplyConfiguration) WithPkceCodeChallengeMethod(value string) *KeycloakClientSpecApplyConfiguration {
+	b.PkceCodeChallengeMethod = &value
+	return b
+}
+
+// WithWebOrigins adds the given value to the WebOrigins field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the WebOrigins field.
+func (b *KeycloakClientSpecApplyConfiguration) WithWebOrigins(values ...string) *KeycloakClientSpecApplyConfiguration {
+	for i := range values {
+		b.WebOrigins = append(b.WebOrigins, values[i])
+	}
 	return b
 }
 
@@ -136,6 +198,22 @@ func (b *KeycloakClientSpecApplyConfiguration) WithImplicitFlowEnabled(value boo
 // If called multiple times, the DirectAccessGrantsEnabled field is set to the value of the last call.
 func (b *KeycloakClientSpecApplyConfiguration) WithDirectAccessGrantsEnabled(value bool) *KeycloakClientSpecApplyConfiguration {
 	b.DirectAccessGrantsEnabled = &value
+	return b
+}
+
+// WithFrontchannelLogout sets the FrontchannelLogout field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FrontchannelLogout field is set to the value of the last call.
+func (b *KeycloakClientSpecApplyConfiguration) WithFrontchannelLogout(value bool) *KeycloakClientSpecApplyConfiguration {
+	b.FrontchannelLogout = &value
+	return b
+}
+
+// WithFrontchannelLogoutUrl sets the FrontchannelLogoutUrl field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the FrontchannelLogoutUrl field is set to the value of the last call.
+func (b *KeycloakClientSpecApplyConfiguration) WithFrontchannelLogoutUrl(value string) *KeycloakClientSpecApplyConfiguration {
+	b.FrontchannelLogoutUrl = &value
 	return b
 }
 

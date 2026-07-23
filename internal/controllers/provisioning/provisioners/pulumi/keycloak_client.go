@@ -50,7 +50,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		func(platform *platformv1.Platform) string { return spec.ClientName },
 	)
 
-	client, err := openid.NewClient(ctx, keycloakClient.Name, &openid.ClientArgs{
+	clientArgs := &openid.ClientArgs{
 		RealmId:                   pulumi.String(realm.Id),
 		ClientId:                  pulumi.String(clientId),
 		Name:                      pulumi.String(clientName),
@@ -61,8 +61,39 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		StandardFlowEnabled:       pulumi.Bool(spec.StandardFlowEnabled),
 		ImplicitFlowEnabled:       pulumi.Bool(spec.ImplicitFlowEnabled),
 		DirectAccessGrantsEnabled: pulumi.Bool(spec.DirectAccessGrantsEnabled),
+		FrontchannelLogoutEnabled: pulumi.Bool(spec.FrontchannelLogout),
+		FrontchannelLogoutUrl:     pulumi.String(spec.FrontchannelLogoutUrl),
 		FullScopeAllowed:          pulumi.Bool(spec.FullScopeAllowed),
-	}, pulumi.DependsOn(dependencies))
+		RootUrl:                   pulumi.String(spec.RootUrl),
+		BaseUrl:                   pulumi.String(spec.BaseUrl),
+		PkceCodeChallengeMethod:   pulumi.String(spec.PkceCodeChallengeMethod),
+	}
+
+	if len(spec.PostLogoutRedirectUris) > 0 {
+		redirectUris := make(pulumi.StringArray, len(spec.PostLogoutRedirectUris))
+		for i, u := range spec.PostLogoutRedirectUris {
+			redirectUris[i] = pulumi.String(u)
+		}
+		clientArgs.ValidPostLogoutRedirectUris = redirectUris
+	}
+
+	if len(spec.RedirectUris) > 0 {
+		redirectUris := make(pulumi.StringArray, len(spec.RedirectUris))
+		for i, u := range spec.RedirectUris {
+			redirectUris[i] = pulumi.String(u)
+		}
+		clientArgs.ValidRedirectUris = redirectUris
+	}
+
+	if len(spec.WebOrigins) > 0 {
+		webOrigins := make(pulumi.StringArray, len(spec.WebOrigins))
+		for i, o := range spec.WebOrigins {
+			webOrigins[i] = pulumi.String(o)
+		}
+		clientArgs.WebOrigins = webOrigins
+	}
+
+	client, err := openid.NewClient(ctx, keycloakClient.Name, clientArgs, pulumi.DependsOn(dependencies))
 	if err != nil {
 		return nil, err
 	}
