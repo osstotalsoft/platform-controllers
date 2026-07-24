@@ -47,7 +47,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", spec.ClientId, tenant.GetName())
 		},
-		func(platform *platformv1.Platform) string { return spec.ClientName },
+		func(platform *platformv1.Platform) string { return spec.ClientId },
 	)
 
 	clientArgs := &openid.ClientArgs{
