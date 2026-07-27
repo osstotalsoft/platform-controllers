@@ -239,6 +239,12 @@ spec:
               rootUrl:
                 description: RootUrl is the root URL appended to relative URLs.
                 type: string
+              serviceAccountRealmRoles:
+                description: ServiceAccountRealmRoles is the list of realm roles assigned
+                  to the service account.
+                items:
+                  type: string
+                type: array
               serviceAccountsEnabled:
                 description: ServiceAccountsEnabled enables service accounts.
                 type: boolean
