@@ -91,13 +91,20 @@ type KeycloakClientSpec struct {
 	FullScopeAllowed bool `json:"fullScopeAllowed"`
 
 	// ProtocolMappers defines protocol mapper configurations.
+	// +optional
 	ProtocolMappers []ProtocolMapper `json:"protocolMappers,omitempty"`
 
 	// DefaultClientScopes is the list of default client scopes.
+	// +optional
 	DefaultClientScopes []string `json:"defaultClientScopes,omitempty"`
 
 	// OptionalClientScopes is the list of optional client scopes.
+	// +optional
 	OptionalClientScopes []string `json:"optionalClientScopes,omitempty"`
+
+	// ServiceAccountRealmRoles is the list of realm roles assigned to the service account.
+	// +optional
+	ServiceAccountRealmRoles []string `json:"serviceAccountRealmRoles,omitempty"`
 
 	// Export provisioning values spec.
 	// +optional

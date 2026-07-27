@@ -49,6 +49,7 @@ type KeycloakClientSpecApplyConfiguration struct {
 	ProtocolMappers                    []ProtocolMapperApplyConfiguration            `json:"protocolMappers,omitempty"`
 	DefaultClientScopes                []string                                      `json:"defaultClientScopes,omitempty"`
 	OptionalClientScopes               []string                                      `json:"optionalClientScopes,omitempty"`
+	ServiceAccountRealmRoles           []string                                      `json:"serviceAccountRealmRoles,omitempty"`
 	Exports                            []KeycloakClientExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -262,6 +263,16 @@ func (b *KeycloakClientSpecApplyConfiguration) WithDefaultClientScopes(values ..
 func (b *KeycloakClientSpecApplyConfiguration) WithOptionalClientScopes(values ...string) *KeycloakClientSpecApplyConfiguration {
 	for i := range values {
 		b.OptionalClientScopes = append(b.OptionalClientScopes, values[i])
+	}
+	return b
+}
+
+// WithServiceAccountRealmRoles adds the given value to the ServiceAccountRealmRoles field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ServiceAccountRealmRoles field.
+func (b *KeycloakClientSpecApplyConfiguration) WithServiceAccountRealmRoles(values ...string) *KeycloakClientSpecApplyConfiguration {
+	for i := range values {
+		b.ServiceAccountRealmRoles = append(b.ServiceAccountRealmRoles, values[i])
 	}
 	return b
 }

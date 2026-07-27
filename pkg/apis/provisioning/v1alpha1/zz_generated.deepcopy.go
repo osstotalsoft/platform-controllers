@@ -1127,6 +1127,11 @@ func (in *KeycloakClientSpec) DeepCopyInto(out *KeycloakClientSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.ServiceAccountRealmRoles != nil {
+		in, out := &in.ServiceAccountRealmRoles, &out.ServiceAccountRealmRoles
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Exports != nil {
 		in, out := &in.Exports, &out.Exports
 		*out = make([]KeycloakClientExportsSpec, len(*in))
