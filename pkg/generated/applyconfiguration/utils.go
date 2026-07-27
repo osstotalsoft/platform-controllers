@@ -181,6 +181,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.ProvisioningTargetApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ProvisioningTargetFilter"):
 		return &applyconfigurationprovisioningv1alpha1.ProvisioningTargetFilterApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ServiceAccountClientRole"):
+		return &applyconfigurationprovisioningv1alpha1.ServiceAccountClientRoleApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("SqlServerSpec"):
 		return &applyconfigurationprovisioningv1alpha1.SqlServerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ValueExport"):

@@ -106,10 +106,25 @@ type KeycloakClientSpec struct {
 	// +optional
 	ServiceAccountRealmRoles []string `json:"serviceAccountRealmRoles,omitempty"`
 
+	// ServiceAccountClientRoles is the list of client roles assigned to the service account.
+	// Each entry references the client that provides the role (by its clientId) and the role name.
+	// +optional
+	ServiceAccountClientRoles []ServiceAccountClientRole `json:"serviceAccountClientRoles,omitempty"`
+
 	// Export provisioning values spec.
 	// +optional
 	Exports          []KeycloakClientExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
+}
+
+// ServiceAccountClientRole represents a single client role assigned to the service account.
+type ServiceAccountClientRole struct {
+	// ClientId is the client id (not the internal UUID) of the client that provides the role,
+	// e.g. "realm-management".
+	ClientId string `json:"clientId"`
+
+	// Role is the name of the client role assigned to the service account.
+	Role string `json:"role"`
 }
 
 // ProtocolMapper represents a Keycloak protocol mapper configuration.

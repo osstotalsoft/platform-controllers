@@ -50,6 +50,7 @@ type KeycloakClientSpecApplyConfiguration struct {
 	DefaultClientScopes                []string                                      `json:"defaultClientScopes,omitempty"`
 	OptionalClientScopes               []string                                      `json:"optionalClientScopes,omitempty"`
 	ServiceAccountRealmRoles           []string                                      `json:"serviceAccountRealmRoles,omitempty"`
+	ServiceAccountClientRoles          []ServiceAccountClientRoleApplyConfiguration  `json:"serviceAccountClientRoles,omitempty"`
 	Exports                            []KeycloakClientExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -273,6 +274,19 @@ func (b *KeycloakClientSpecApplyConfiguration) WithOptionalClientScopes(values .
 func (b *KeycloakClientSpecApplyConfiguration) WithServiceAccountRealmRoles(values ...string) *KeycloakClientSpecApplyConfiguration {
 	for i := range values {
 		b.ServiceAccountRealmRoles = append(b.ServiceAccountRealmRoles, values[i])
+	}
+	return b
+}
+
+// WithServiceAccountClientRoles adds the given value to the ServiceAccountClientRoles field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ServiceAccountClientRoles field.
+func (b *KeycloakClientSpecApplyConfiguration) WithServiceAccountClientRoles(values ...*ServiceAccountClientRoleApplyConfiguration) *KeycloakClientSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithServiceAccountClientRoles")
+		}
+		b.ServiceAccountClientRoles = append(b.ServiceAccountClientRoles, *values[i])
 	}
 	return b
 }

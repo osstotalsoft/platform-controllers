@@ -239,6 +239,28 @@ spec:
               rootUrl:
                 description: RootUrl is the root URL appended to relative URLs.
                 type: string
+              serviceAccountClientRoles:
+                description: |-
+                  ServiceAccountClientRoles is the list of client roles assigned to the service account.
+                  Each entry references the client that provides the role (by its clientId) and the role name.
+                items:
+                  description: ServiceAccountClientRole represents a single client
+                    role assigned to the service account.
+                  properties:
+                    clientId:
+                      description: |-
+                        ClientId is the client id (not the internal UUID) of the client that provides the role,
+                        e.g. "realm-management".
+                      type: string
+                    role:
+                      description: Role is the name of the client role assigned to
+                        the service account.
+                      type: string
+                  required:
+                  - clientId
+                  - role
+                  type: object
+                type: array
               serviceAccountRealmRoles:
                 description: ServiceAccountRealmRoles is the list of realm roles assigned
                   to the service account.

@@ -99,8 +99,7 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 	}
 
 	// The service account user only exists when service accounts are enabled on the client.
-	// Looking it up otherwise would fail the Keycloak invoke at runtime.
-	if spec.ServiceAccountsEnabled && len(spec.ServiceAccountRealmRoles) > 0 {
+	if spec.ServiceAccountsEnabled {
 		// Get the service account user associated with this client
 		saUser := openid.GetClientServiceAccountUserOutput(ctx, openid.GetClientServiceAccountUserOutputArgs{
 			RealmId:  pulumi.String(realm.Id),
@@ -113,6 +112,25 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 					RealmId:              pulumi.String(realm.Id),
 					ServiceAccountUserId: saUser.Id(),
 					Role:                 pulumi.String(role),
+				}, pulumi.Parent(client))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		for _, role := range spec.ServiceAccountClientRoles {
+			// resolve the internal UUID of the client that PROVIDES the roles
+			roleClient := openid.LookupClientOutput(ctx, openid.LookupClientOutputArgs{
+				RealmId:  pulumi.String(realm.Id),
+				ClientId: pulumi.String(role.ClientId),
+			}, nil)
+			_, err = openid.NewClientServiceAccountRole(ctx,
+				fmt.Sprintf("%s-%s-%s-service-account-client-role", keycloakClient.Name, role.ClientId, role.Role),
+				&openid.ClientServiceAccountRoleArgs{
+					RealmId:              pulumi.String(realm.Id),
+					ClientId:             roleClient.Id(),
+					ServiceAccountUserId: saUser.Id(),
+					Role:                 pulumi.String(role.Role),
 				}, pulumi.Parent(client))
 			if err != nil {
 				return nil, err
