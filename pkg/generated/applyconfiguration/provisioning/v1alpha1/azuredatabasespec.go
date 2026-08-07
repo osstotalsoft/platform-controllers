@@ -30,6 +30,8 @@ type AzureDatabaseSpecApplyConfiguration struct {
 	Sku                                *string                                      `json:"sku,omitempty"`
 	SourceDatabaseId                   *string                                      `json:"sourceDatabaseId,omitempty"`
 	ImportDatabaseId                   *string                                      `json:"importDatabaseId,omitempty"`
+	User                               *DatabaseUserSpecApplyConfiguration          `json:"user,omitempty"`
+	ManagedIdentity                    *ManagedIdentitySpecApplyConfiguration       `json:"managedIdentity,omitempty"`
 	Exports                            []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -77,6 +79,22 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithSourceDatabaseId(value string)
 // If called multiple times, the ImportDatabaseId field is set to the value of the last call.
 func (b *AzureDatabaseSpecApplyConfiguration) WithImportDatabaseId(value string) *AzureDatabaseSpecApplyConfiguration {
 	b.ImportDatabaseId = &value
+	return b
+}
+
+// WithUser sets the User field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the User field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithUser(value *DatabaseUserSpecApplyConfiguration) *AzureDatabaseSpecApplyConfiguration {
+	b.User = value
+	return b
+}
+
+// WithManagedIdentity sets the ManagedIdentity field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ManagedIdentity field is set to the value of the last call.
+func (b *AzureDatabaseSpecApplyConfiguration) WithManagedIdentity(value *ManagedIdentitySpecApplyConfiguration) *AzureDatabaseSpecApplyConfiguration {
+	b.ManagedIdentity = value
 	return b
 }
 

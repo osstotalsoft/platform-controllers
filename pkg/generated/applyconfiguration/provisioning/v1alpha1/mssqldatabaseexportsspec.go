@@ -21,8 +21,10 @@ package v1alpha1
 // MsSqlDatabaseExportsSpecApplyConfiguration represents an declarative configuration of the MsSqlDatabaseExportsSpec type for use
 // with apply.
 type MsSqlDatabaseExportsSpecApplyConfiguration struct {
-	Domain *string                        `json:"domain,omitempty"`
-	DbName *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	Domain   *string                        `json:"domain,omitempty"`
+	DbName   *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	Username *ValueExportApplyConfiguration `json:"username,omitempty"`
+	Password *ValueExportApplyConfiguration `json:"password,omitempty"`
 }
 
 // MsSqlDatabaseExportsSpecApplyConfiguration constructs an declarative configuration of the MsSqlDatabaseExportsSpec type for use with
@@ -44,5 +46,21 @@ func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithDomain(value string) *M
 // If called multiple times, the DbName field is set to the value of the last call.
 func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithDbName(value *ValueExportApplyConfiguration) *MsSqlDatabaseExportsSpecApplyConfiguration {
 	b.DbName = value
+	return b
+}
+
+// WithUsername sets the Username field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Username field is set to the value of the last call.
+func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithUsername(value *ValueExportApplyConfiguration) *MsSqlDatabaseExportsSpecApplyConfiguration {
+	b.Username = value
+	return b
+}
+
+// WithPassword sets the Password field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Password field is set to the value of the last call.
+func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithPassword(value *ValueExportApplyConfiguration) *MsSqlDatabaseExportsSpecApplyConfiguration {
+	b.Password = value
 	return b
 }

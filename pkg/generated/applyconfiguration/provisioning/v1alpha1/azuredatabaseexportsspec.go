@@ -21,8 +21,12 @@ package v1alpha1
 // AzureDatabaseExportsSpecApplyConfiguration represents an declarative configuration of the AzureDatabaseExportsSpec type for use
 // with apply.
 type AzureDatabaseExportsSpecApplyConfiguration struct {
-	Domain *string                        `json:"domain,omitempty"`
-	DbName *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	Domain              *string                        `json:"domain,omitempty"`
+	DbName              *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	Username            *ValueExportApplyConfiguration `json:"username,omitempty"`
+	Password            *ValueExportApplyConfiguration `json:"password,omitempty"`
+	IdentityClientId    *ValueExportApplyConfiguration `json:"identityClientId,omitempty"`
+	IdentityPrincipalId *ValueExportApplyConfiguration `json:"identityPrincipalId,omitempty"`
 }
 
 // AzureDatabaseExportsSpecApplyConfiguration constructs an declarative configuration of the AzureDatabaseExportsSpec type for use with
@@ -44,5 +48,37 @@ func (b *AzureDatabaseExportsSpecApplyConfiguration) WithDomain(value string) *A
 // If called multiple times, the DbName field is set to the value of the last call.
 func (b *AzureDatabaseExportsSpecApplyConfiguration) WithDbName(value *ValueExportApplyConfiguration) *AzureDatabaseExportsSpecApplyConfiguration {
 	b.DbName = value
+	return b
+}
+
+// WithUsername sets the Username field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Username field is set to the value of the last call.
+func (b *AzureDatabaseExportsSpecApplyConfiguration) WithUsername(value *ValueExportApplyConfiguration) *AzureDatabaseExportsSpecApplyConfiguration {
+	b.Username = value
+	return b
+}
+
+// WithPassword sets the Password field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Password field is set to the value of the last call.
+func (b *AzureDatabaseExportsSpecApplyConfiguration) WithPassword(value *ValueExportApplyConfiguration) *AzureDatabaseExportsSpecApplyConfiguration {
+	b.Password = value
+	return b
+}
+
+// WithIdentityClientId sets the IdentityClientId field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IdentityClientId field is set to the value of the last call.
+func (b *AzureDatabaseExportsSpecApplyConfiguration) WithIdentityClientId(value *ValueExportApplyConfiguration) *AzureDatabaseExportsSpecApplyConfiguration {
+	b.IdentityClientId = value
+	return b
+}
+
+// WithIdentityPrincipalId sets the IdentityPrincipalId field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IdentityPrincipalId field is set to the value of the last call.
+func (b *AzureDatabaseExportsSpecApplyConfiguration) WithIdentityPrincipalId(value *ValueExportApplyConfiguration) *AzureDatabaseExportsSpecApplyConfiguration {
+	b.IdentityPrincipalId = value
 	return b
 }

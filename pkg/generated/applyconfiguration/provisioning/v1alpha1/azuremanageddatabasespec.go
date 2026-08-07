@@ -29,6 +29,9 @@ type AzureManagedDatabaseSpecApplyConfiguration struct {
 	ManagedInstance                    *AzureManagedInstanceSpecApplyConfiguration         `json:"managedInstance,omitempty"`
 	RestoreFrom                        *AzureManagedDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
 	ImportDatabaseId                   *string                                             `json:"importDatabaseId,omitempty"`
+	User                               *DatabaseUserSpecApplyConfiguration                 `json:"user,omitempty"`
+	ContainedUser                      *bool                                               `json:"containedUser,omitempty"`
+	ManagedIdentity                    *ManagedIdentitySpecApplyConfiguration              `json:"managedIdentity,omitempty"`
 	Exports                            []AzureManagedDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -68,6 +71,30 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithRestoreFrom(value *Azur
 // If called multiple times, the ImportDatabaseId field is set to the value of the last call.
 func (b *AzureManagedDatabaseSpecApplyConfiguration) WithImportDatabaseId(value string) *AzureManagedDatabaseSpecApplyConfiguration {
 	b.ImportDatabaseId = &value
+	return b
+}
+
+// WithUser sets the User field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the User field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithUser(value *DatabaseUserSpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.User = value
+	return b
+}
+
+// WithContainedUser sets the ContainedUser field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ContainedUser field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithContainedUser(value bool) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.ContainedUser = &value
+	return b
+}
+
+// WithManagedIdentity sets the ManagedIdentity field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the ManagedIdentity field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithManagedIdentity(value *ManagedIdentitySpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.ManagedIdentity = value
 	return b
 }
 

@@ -30,6 +30,7 @@ type MsSqlDatabaseSpecApplyConfiguration struct {
 	RestoreFrom                        *MsSqlDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
 	ImportDatabaseId                   *string                                      `json:"importDatabaseId,omitempty"`
 	OwnerLoginName                     *string                                      `json:"ownerLoginName,omitempty"`
+	User                               *DatabaseUserSpecApplyConfiguration          `json:"user,omitempty"`
 	Exports                            []MsSqlDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -77,6 +78,14 @@ func (b *MsSqlDatabaseSpecApplyConfiguration) WithImportDatabaseId(value string)
 // If called multiple times, the OwnerLoginName field is set to the value of the last call.
 func (b *MsSqlDatabaseSpecApplyConfiguration) WithOwnerLoginName(value string) *MsSqlDatabaseSpecApplyConfiguration {
 	b.OwnerLoginName = &value
+	return b
+}
+
+// WithUser sets the User field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the User field is set to the value of the last call.
+func (b *MsSqlDatabaseSpecApplyConfiguration) WithUser(value *DatabaseUserSpecApplyConfiguration) *MsSqlDatabaseSpecApplyConfiguration {
+	b.User = value
 	return b
 }
 
