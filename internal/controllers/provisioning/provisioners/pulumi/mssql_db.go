@@ -127,7 +127,7 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 			userDeps = append(userDeps, restoreScript)
 		}
 		username, password, err = deployLoginUser(ctx, provider, mssqlDb.Name, db.ID().ToStringOutput(),
-			mssqlDb.Spec.User, dbName, userDeps)
+			mssqlDb.Spec.User, dbName, userDeps, pulumiRetainOnDelete)
 		if err != nil {
 			return nil, err
 		}
