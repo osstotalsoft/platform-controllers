@@ -31,6 +31,12 @@ type DatabaseUserSpec struct {
     // Database role(s) granted to this user (e.g. db_owner, db_datareader). No roles are granted if omitted.
     // +optional
     Roles []string `json:"roles,omitempty"`
+    // Deploy as a contained database user (password-based, no server-level login) instead of a
+    // server login + mapped database user. Defaults to false (login-based).
+    // Ignored on AzureDatabase, which has no server-login concept and is always contained.
+    // +optional
+    // +kubebuilder:default:=false
+    Contained bool `json:"contained,omitempty"`
 }
 
 // ManagedIdentitySpec describes an optional Entra (Azure AD) user-assigned managed identity
@@ -66,14 +72,17 @@ The password for `DatabaseUserSpec` is never part of the spec — it is always a
 - SQL-auth path: single idempotent `mssql.Script` per database — `CREATE USER [name] WITH PASSWORD='<generated>'` + one `ALTER ROLE [role] ADD MEMBER [name]` per configured role.
 - Managed-identity path (see below): typed `AzureadServicePrincipal` + `DatabaseRoleMember`, no script.
 
-### AzureManagedDatabase (sqlmi) — login + db user
+### AzureManagedDatabase (sqlmi) — login + db user, or contained
 
-- SQL-auth path: `mssql.NewSqlLogin` (server-level, generated password) → `mssql.NewSqlUser{DatabaseId, LoginId, Name}` → `mssql.NewDatabaseRoleMember` per role. Fully typed — SQL MI is a real instance so server logins behave the same as on-prem.
-- Managed-identity path: same as azuresql.
+- `Contained: false` (default) — SQL-auth path: `mssql.NewSqlLogin` (server-level, generated password) → `mssql.NewSqlUser{DatabaseId, LoginId, Name}` → `mssql.NewDatabaseRoleMember` per role. Fully typed — SQL MI is a real instance so server logins behave the same as on-prem.
+- `Contained: true` — SQL MI has contained database authentication enabled by default, so this is the same idempotent `mssql.Script` as `AzureDatabase` (`CREATE USER [name] WITH PASSWORD='<generated>'` + `ALTER ROLE` per role) — no `SqlLogin` created, no extra prerequisite needed.
+- Managed-identity path: same as azuresql, and independent of `Contained` (a managed identity is always wired in as a contained AAD user regardless of the SQL-auth user's mode).
 
-### MsSqlDatabase (on-prem) — login + db user
+### MsSqlDatabase (on-prem) — login + db user, or contained
 
-- New `User` field is **distinct** from the existing admin `sqlServer.sqlAuth` (which remains the provisioning-time admin credential). Same typed `SqlLogin` → `SqlUser` → `DatabaseRoleMember` chain as sqlmi, reusing the `mssql.Provider` already built from the existing admin `sqlAuth` — no new connection.
+- New `User` field is **distinct** from the existing admin `sqlServer.sqlAuth` (which remains the provisioning-time admin credential). Reuses the `mssql.Provider` already built from the existing admin `sqlAuth` — no new connection.
+- `Contained: false` (default) — same typed `SqlLogin` → `SqlUser` → `DatabaseRoleMember` chain as sqlmi.
+- `Contained: true` — on-prem SQL Server does **not** have contained database authentication on by default (unlike Azure SQL DB/MI), so the script first enables it idempotently (`sp_configure 'contained database authentication', 1; RECONFIGURE;` at the instance level, `ALTER DATABASE ... SET CONTAINMENT = PARTIAL` at the database level — both no-ops if already enabled), then `CREATE USER ... WITH PASSWORD` + role grants, same script shape as azuresql/sqlmi-contained. This requires the existing admin `sqlAuth` login to have `sysadmin` (needed already for `sp_configure`); if it doesn't, the script fails at apply time with a clear SQL error — no separate prerequisite is introduced by this design, it surfaces as an ordinary Pulumi apply error.
 
 ## Entra managed identity (azuresql & sqlmi only)
 
@@ -106,4 +115,4 @@ A consumer combines `dbName` + `username`/`password` (or `identityClientId`) int
 
 ## Open questions
 
-- None outstanding — all prior open points (password source, export shape, MsSql user scope, managed-identity DB wiring, AAD Admin prerequisite, role configurability) were resolved during design review; see decisions above.
+- None outstanding — all prior open points (password source, export shape, MsSql user scope, managed-identity DB wiring, AAD Admin prerequisite, role configurability, contained-vs-login user mode) were resolved during design review; see decisions above.
