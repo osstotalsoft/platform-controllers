@@ -2,7 +2,6 @@ package pulumi
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql/v2"
@@ -94,14 +93,8 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	var username string
 	var password, identityClientId, identityPrincipalId pulumi.StringOutput
 	if azureDb.Spec.User != nil || azureDb.Spec.ManagedIdentity != nil {
-		provider, err := mssql.NewProvider(ctx, "mssql-provider", &mssql.ProviderArgs{
-			Hostname: pulumi.String(fmt.Sprintf("%s.database.windows.net", azureDb.Spec.SqlServer.ServerName)),
-			AzureAuth: &mssql.ProviderAzureAuthArgs{
-				ClientId:     pulumi.String(os.Getenv("AZURE_CLIENT_ID")),
-				ClientSecret: pulumi.String(os.Getenv("AZURE_CLIENT_SECRET")),
-				TenantId:     pulumi.String(os.Getenv("AZURE_TENANT_ID")),
-			},
-		})
+		provider, err := newMssqlAzureAuthProvider(ctx, azureDb.Name,
+			fmt.Sprintf("%s.database.windows.net", azureDb.Spec.SqlServer.ServerName))
 		if err != nil {
 			return nil, err
 		}
@@ -113,7 +106,7 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 
 		if azureDb.Spec.User != nil {
 			username, password, err = deployContainedUser(ctx, provider, azureDb.Name, databaseId,
-				azureDb.Spec.User, dbName, []pulumi.Resource{db})
+				azureDb.Spec.User, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}
@@ -121,7 +114,7 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 
 		if azureDb.Spec.ManagedIdentity != nil {
 			identityClientId, identityPrincipalId, err = deployManagedIdentity(ctx, provider, azureDb.Name, databaseId,
-				azureDb.Spec.ManagedIdentity, dbName, []pulumi.Resource{db})
+				azureDb.Spec.ManagedIdentity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}
