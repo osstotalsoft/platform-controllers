@@ -1,6 +1,6 @@
 # Extend DB provisioning manifests with an optional user (+ Entra managed identity)
 
-**Status:** Draft — awaiting review
+**Status:** Approved
 **Branch:** `RDINC-5722-Platform-provisioner---extend-db-resources-with-optional-user`
 **Scope:** `pkg/apis/provisioning/v1alpha1/*`, `internal/controllers/provisioning/provisioners/pulumi/*`, generated CRDs/clientset, `README.md`
 
@@ -119,7 +119,7 @@ A consumer combines `dbName` + `username`/`password` (or `identityClientId`) int
 
 ## Testing & docs impact
 
-- New/updated Pulumi-mocks-based unit tests (`pulumi.WithMocks`, following `mssql_db_test.go`/`entra_user_test.go`) for each of the three `deploy*` functions covering: no `User`/`ManagedIdentity` set (unchanged behavior), `User` set, and (azuresql/sqlmi) `ManagedIdentity` set.
+- New/updated Pulumi-mocks-based unit tests (`pulumi.WithMocks`, following `mssql_db_test.go`/`entra_user_test.go`) for each of the three `deploy*` functions covering: no `User`/`ManagedIdentity` set (unchanged behavior), `User` set, (sqlmi) `ContainedUser` true and false, and (azuresql/sqlmi) `ManagedIdentity` set.
 - Regenerate CRD YAMLs (`helm/crds/provisioning.totalsoft.ro_*.yaml`) and generated clientset/deepcopy/applyconfiguration via `controller-gen` (existing codegen tooling — not run by hand).
 - Update `README.md` examples for `AzureDatabase`, `AzureManagedDatabase`, `MsSqlDatabase` with the new `user`/`managedIdentity` fields.
 
