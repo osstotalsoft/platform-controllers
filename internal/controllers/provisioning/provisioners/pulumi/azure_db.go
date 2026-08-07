@@ -2,10 +2,12 @@ package pulumi
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	mssql "github.com/pulumiverse/pulumi-mssql/sdk/go/mssql"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
@@ -89,9 +91,55 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	}
 	ctx.Export("azureDbName", db.Name)
 
+	var username string
+	var password, identityClientId, identityPrincipalId pulumi.StringOutput
+	if azureDb.Spec.User != nil || azureDb.Spec.ManagedIdentity != nil {
+		provider, err := mssql.NewProvider(ctx, "mssql-provider", &mssql.ProviderArgs{
+			Hostname: pulumi.String(fmt.Sprintf("%s.database.windows.net", azureDb.Spec.SqlServer.ServerName)),
+			AzureAuth: &mssql.ProviderAzureAuthArgs{
+				ClientId:     pulumi.String(os.Getenv("AZURE_CLIENT_ID")),
+				ClientSecret: pulumi.String(os.Getenv("AZURE_CLIENT_SECRET")),
+				TenantId:     pulumi.String(os.Getenv("AZURE_TENANT_ID")),
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		dbLookup := mssql.LookupDatabaseOutput(ctx, mssql.LookupDatabaseOutputArgs{
+			Name: db.Name,
+		}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{db}))
+		databaseId := dbLookup.ApplyT(func(r mssql.LookupDatabaseResult) string { return r.Id }).(pulumi.StringOutput)
+
+		if azureDb.Spec.User != nil {
+			username, password, err = deployContainedUser(ctx, provider, azureDb.Name, databaseId,
+				azureDb.Spec.User, dbName, []pulumi.Resource{db})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if azureDb.Spec.ManagedIdentity != nil {
+			identityClientId, identityPrincipalId, err = deployManagedIdentity(ctx, provider, azureDb.Name, databaseId,
+				azureDb.Spec.ManagedIdentity, dbName, []pulumi.Resource{db})
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	for _, exp := range azureDb.Spec.Exports {
+		values := map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}}
+		if azureDb.Spec.User != nil {
+			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(username)}
+			values["password"] = exportTemplateWithValue{exp.Password, password}
+		}
+		if azureDb.Spec.ManagedIdentity != nil {
+			values["identityClientId"] = exportTemplateWithValue{exp.IdentityClientId, identityClientId}
+			values["identityPrincipalId"] = exportTemplateWithValue{exp.IdentityPrincipalId, identityPrincipalId}
+		}
 		err = valueExporter(newExportContext(ctx, exp.Domain, azureDb.Name, azureDb.ObjectMeta, gvk),
-			map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}})
+			values)
 		if err != nil {
 			return nil, err
 		}
