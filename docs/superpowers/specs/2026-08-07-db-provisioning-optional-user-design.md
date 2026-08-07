@@ -31,12 +31,6 @@ type DatabaseUserSpec struct {
     // Database role(s) granted to this user (e.g. db_owner, db_datareader). No roles are granted if omitted.
     // +optional
     Roles []string `json:"roles,omitempty"`
-    // Deploy as a contained database user (password-based, no server-level login) instead of a
-    // server login + mapped database user. Defaults to false (login-based).
-    // Ignored on AzureDatabase, which has no server-login concept and is always contained.
-    // +optional
-    // +kubebuilder:default:=false
-    Contained bool `json:"contained,omitempty"`
 }
 
 // ManagedIdentitySpec describes an optional Entra (Azure AD) user-assigned managed identity
@@ -64,8 +58,8 @@ The password for `DatabaseUserSpec` is never part of the spec — it is always a
 | Resource | New field(s) | Notes |
 |---|---|---|
 | `AzureDatabaseSpec` | `User *DatabaseUserSpec`, `ManagedIdentity *ManagedIdentitySpec` | Both optional |
-| `AzureManagedDatabaseSpec` | `User *DatabaseUserSpec`, `ManagedIdentity *ManagedIdentitySpec` | Both optional |
-| `MsSqlDatabaseSpec` | `User *DatabaseUserSpec` | No managed-identity option (on-prem, no AAD) |
+| `AzureManagedDatabaseSpec` | `User *DatabaseUserSpec`, `ContainedUser bool`, `ManagedIdentity *ManagedIdentitySpec` | `ContainedUser` is sqlmi-specific, top-level (sibling of `user`), default `false`; ignored if `user` is not set |
+| `MsSqlDatabaseSpec` | `User *DatabaseUserSpec` | No managed-identity option (on-prem, no AAD); no contained option (login+user only) |
 
 ### AzureDatabase (azuresql) — contained user
 
@@ -74,15 +68,31 @@ The password for `DatabaseUserSpec` is never part of the spec — it is always a
 
 ### AzureManagedDatabase (sqlmi) — login + db user, or contained
 
-- `Contained: false` (default) — SQL-auth path: `mssql.NewSqlLogin` (server-level, generated password) → `mssql.NewSqlUser{DatabaseId, LoginId, Name}` → `mssql.NewDatabaseRoleMember` per role. Fully typed — SQL MI is a real instance so server logins behave the same as on-prem.
-- `Contained: true` — SQL MI has contained database authentication enabled by default, so this is the same idempotent `mssql.Script` as `AzureDatabase` (`CREATE USER [name] WITH PASSWORD='<generated>'` + `ALTER ROLE` per role) — no `SqlLogin` created, no extra prerequisite needed.
-- Managed-identity path: same as azuresql, and independent of `Contained` (a managed identity is always wired in as a contained AAD user regardless of the SQL-auth user's mode).
+`AzureManagedDatabaseSpec` gets a top-level `ContainedUser bool` field (sibling of `user`, not part of the shared `DatabaseUserSpec` — this option is sqlmi-specific), defaulting to `false`:
 
-### MsSqlDatabase (on-prem) — login + db user, or contained
+```go
+type AzureManagedDatabaseSpec struct {
+    // ... existing fields ...
+    // +optional
+    User *DatabaseUserSpec `json:"user,omitempty"`
+    // Deploy `user` as a contained database user (password-based, no server-level login) instead
+    // of a server login + mapped database user. Ignored if `user` is not set.
+    // +optional
+    // +kubebuilder:default:=false
+    ContainedUser bool `json:"containedUser,omitempty"`
+    // +optional
+    ManagedIdentity *ManagedIdentitySpec `json:"managedIdentity,omitempty"`
+}
+```
+
+- `ContainedUser: false` (default) — SQL-auth path: `mssql.NewSqlLogin` (server-level, generated password) → `mssql.NewSqlUser{DatabaseId, LoginId, Name}` → `mssql.NewDatabaseRoleMember` per role. Fully typed — SQL MI is a real instance so server logins behave the same as on-prem.
+- `ContainedUser: true` — SQL MI has contained database authentication enabled by default, so this is the same idempotent `mssql.Script` as `AzureDatabase` (`CREATE USER [name] WITH PASSWORD='<generated>'` + `ALTER ROLE` per role) — no `SqlLogin` created, no extra prerequisite needed.
+- Managed-identity path: same as azuresql, and independent of `ContainedUser` (a managed identity is always wired in as a contained AAD user regardless of the SQL-auth user's mode).
+
+### MsSqlDatabase (on-prem) — login + db user
 
 - New `User` field is **distinct** from the existing admin `sqlServer.sqlAuth` (which remains the provisioning-time admin credential). Reuses the `mssql.Provider` already built from the existing admin `sqlAuth` — no new connection.
-- `Contained: false` (default) — same typed `SqlLogin` → `SqlUser` → `DatabaseRoleMember` chain as sqlmi.
-- `Contained: true` — on-prem SQL Server does **not** have contained database authentication on by default (unlike Azure SQL DB/MI), so the script first enables it idempotently (`sp_configure 'contained database authentication', 1; RECONFIGURE;` at the instance level, `ALTER DATABASE ... SET CONTAINMENT = PARTIAL` at the database level — both no-ops if already enabled), then `CREATE USER ... WITH PASSWORD` + role grants, same script shape as azuresql/sqlmi-contained. This requires the existing admin `sqlAuth` login to have `sysadmin` (needed already for `sp_configure`); if it doesn't, the script fails at apply time with a clear SQL error — no separate prerequisite is introduced by this design, it surfaces as an ordinary Pulumi apply error.
+- Same typed `SqlLogin` → `SqlUser` → `DatabaseRoleMember` chain as sqlmi's non-contained path. No contained-user option for `MsSqlDatabase` (on-prem SQL Server doesn't have contained-database authentication on by default, and enabling it isn't in scope here).
 
 ## Entra managed identity (azuresql & sqlmi only)
 
