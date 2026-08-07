@@ -2,6 +2,8 @@ package pulumi
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 
 	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -97,22 +99,63 @@ func deployContainedUser(ctx *pulumi.Context, provider *mssql.Provider, resource
 		return "", pulumi.StringOutput{}, err
 	}
 
+	// Sort roles so the desired/actual state strings are order-independent (a spec that lists the
+	// same roles in a different order must not be seen as a change).
+	sortedRoles := append([]string{}, userSpec.Roles...)
+	sort.Strings(sortedRoles)
+
+	// desiredState mirrors what readScript computes from the DB: "Absent" if the user doesn't
+	// exist, otherwise "Present" optionally followed by a sorted, comma-joined list of the roles
+	// the user currently belongs to. Unlike a plain "Present"/"Absent" flag, this ties the tracked
+	// state to the actual role membership, so adding/removing a role in userSpec.Roles changes the
+	// desired value and is detected as a mismatch against readScript's output on the next apply,
+	// which triggers updateScript to reconcile it (mirroring the ownerLoginName/set-db-owner
+	// pattern in mssql_db.go, where the tracked state IS the configuration that matters).
+	desiredState := "Present"
+	if len(sortedRoles) > 0 {
+		desiredState = "Present:" + strings.Join(sortedRoles, ",")
+	}
+
+	// readScript reports "Absent" if the contained user doesn't exist, otherwise "Present" plus
+	// the sorted, comma-joined list of roles currently granted to it (STRING_AGG ... WITHIN GROUP
+	// is available on both Azure SQL Database and Azure SQL Managed Instance). The LEFT JOINs plus
+	// GROUP BY on the user's principal_id ensure a row is still produced (with an empty role list)
+	// when the user exists but has no role memberships.
+	readScript := fmt.Sprintf(`
+SELECT ISNULL(
+	(SELECT 'Present' + ISNULL(':' + STRING_AGG(r.name, ',') WITHIN GROUP (ORDER BY r.name), '')
+	 FROM sys.database_principals u
+	 LEFT JOIN sys.database_role_members drm ON drm.member_principal_id = u.principal_id
+	 LEFT JOIN sys.database_principals r ON r.principal_id = drm.role_principal_id
+	 WHERE u.name = '%s'
+	 GROUP BY u.principal_id),
+	'Absent') AS [UserStatus]`, username)
+
+	// Each ALTER ROLE statement is itself guarded by a membership check, so updateScript is safe to
+	// re-run both when creating the user for the first time and when reconciling roles onto an
+	// already-existing user (the only case that changes UserStatus without CREATE USER running).
 	roleGrants := ""
-	for _, role := range userSpec.Roles {
-		roleGrants += fmt.Sprintf("ALTER ROLE [%s] ADD MEMBER [%s];\n", role, username)
+	for _, role := range sortedRoles {
+		roleGrants += fmt.Sprintf(`IF NOT EXISTS (
+	SELECT 1 FROM sys.database_role_members drm
+	JOIN sys.database_principals r ON r.principal_id = drm.role_principal_id
+	JOIN sys.database_principals m ON m.principal_id = drm.member_principal_id
+	WHERE r.name = '%s' AND m.name = '%s')
+	ALTER ROLE [%s] ADD MEMBER [%s];
+`, role, username, role, username)
 	}
 
 	script, err := mssql.NewScript(ctx, fmt.Sprintf("%s-contained-user", resourceNamePrefix), &mssql.ScriptArgs{
 		DatabaseId: databaseId,
-		ReadScript: pulumi.String(fmt.Sprintf(
-			"SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '%s') THEN 'Present' ELSE 'Absent' END AS [UserStatus]",
-			username)),
+		ReadScript: pulumi.String(readScript),
 		UpdateScript: password.ApplyT(func(p string) string {
-			return fmt.Sprintf("CREATE USER [%s] WITH PASSWORD = '%s';\n%s", username, p, roleGrants)
+			return fmt.Sprintf(
+				"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '%s')\n\tCREATE USER [%s] WITH PASSWORD = '%s';\n%s",
+				username, username, p, roleGrants)
 		}).(pulumi.StringOutput),
 		DeleteScript: pulumi.String(fmt.Sprintf("DROP USER IF EXISTS [%s];", username)),
 		State: pulumi.StringMap{
-			"UserStatus": pulumi.String("Present"),
+			"UserStatus": pulumi.String(desiredState),
 		},
 	}, pulumi.Provider(provider), pulumi.DependsOn(dependencies))
 	if err != nil {
