@@ -33,6 +33,12 @@ type AzureDatabaseSpec struct {
 	// eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
 	// +optional
 	ImportDatabaseId string `json:"importDatabaseId,omitempty"`
+	// Optional app-facing database user (contained, password-based — AzureDatabase has no server-login concept).
+	// +optional
+	User *DatabaseUserSpec `json:"user,omitempty"`
+	// Optional Entra (Azure AD) user-assigned managed identity, wired in as a contained AAD database user.
+	// +optional
+	ManagedIdentity *ManagedIdentitySpec `json:"managedIdentity,omitempty"`
 	// +optional
 	Exports          []AzureDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
@@ -56,6 +62,14 @@ type AzureDatabaseExportsSpec struct {
 	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
+	// +optional
+	Username ValueExport `json:"username,omitempty"`
+	// +optional
+	Password ValueExport `json:"password,omitempty"`
+	// +optional
+	IdentityClientId ValueExport `json:"identityClientId,omitempty"`
+	// +optional
+	IdentityPrincipalId ValueExport `json:"identityPrincipalId,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
