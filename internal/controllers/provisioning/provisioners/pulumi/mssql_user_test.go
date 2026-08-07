@@ -16,14 +16,19 @@ import (
 // independently.
 type scriptCaptureMocks struct {
 	resourceInputs map[string]resource.PropertyMap
+	registerRPCs   map[string]pulumi.MockResourceArgs
 }
 
 func newScriptCaptureMocks() *scriptCaptureMocks {
-	return &scriptCaptureMocks{resourceInputs: map[string]resource.PropertyMap{}}
+	return &scriptCaptureMocks{
+		resourceInputs: map[string]resource.PropertyMap{},
+		registerRPCs:   map[string]pulumi.MockResourceArgs{},
+	}
 }
 
 func (m *scriptCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
 	m.resourceInputs[args.Name] = args.Inputs
+	m.registerRPCs[args.Name] = args
 	return args.Name + "_id", args.Inputs, nil
 }
 
@@ -31,23 +36,38 @@ func (m *scriptCaptureMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMa
 	return args.Args, nil
 }
 
+// retainOnDelete reports the RetainOnDelete flag the engine received for the resource registered
+// under name (false if the resource wasn't captured or the flag wasn't set).
+func (m *scriptCaptureMocks) retainOnDelete(name string) bool {
+	args, ok := m.registerRPCs[name]
+	if !ok || args.RegisterRPC == nil {
+		return false
+	}
+	return args.RegisterRPC.GetRetainOnDelete()
+}
+
+func newTestProvider(t *testing.T, ctx *pulumi.Context, name string) *mssql.Provider {
+	provider, err := mssql.NewProvider(ctx, name, &mssql.ProviderArgs{
+		Hostname: pulumi.String("localhost"),
+		Port:     pulumi.Int(1433),
+		SqlAuth: &mssql.ProviderSqlAuthArgs{
+			Username: pulumi.String("admin"),
+			Password: pulumi.String("password"),
+		},
+	})
+	assert.NoError(t, err)
+	return provider
+}
+
 func TestDeployLoginUser(t *testing.T) {
 	t.Run("creates login, user and role grants", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			provider, err := mssql.NewProvider(ctx, "test-provider", &mssql.ProviderArgs{
-				Hostname: pulumi.String("localhost"),
-				Port:     pulumi.Int(1433),
-				SqlAuth: &mssql.ProviderSqlAuthArgs{
-					Username: pulumi.String("admin"),
-					Password: pulumi.String("password"),
-				},
-			})
-			assert.NoError(t, err)
+			provider := newTestProvider(t, ctx, "test-provider")
 
 			username, password, err := deployLoginUser(ctx, provider, "my-db",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
-				"my-db", []pulumi.Resource{})
+				"my-db", []pulumi.Resource{}, false)
 			assert.NoError(t, err)
 			assert.Equal(t, "my-db", username)
 			assert.NotNil(t, password)
@@ -58,51 +78,87 @@ func TestDeployLoginUser(t *testing.T) {
 
 	t.Run("explicit name overrides default", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			provider, err := mssql.NewProvider(ctx, "test-provider", &mssql.ProviderArgs{
-				Hostname: pulumi.String("localhost"),
-				Port:     pulumi.Int(1433),
-				SqlAuth: &mssql.ProviderSqlAuthArgs{
-					Username: pulumi.String("admin"),
-					Password: pulumi.String("password"),
-				},
-			})
-			assert.NoError(t, err)
+			provider := newTestProvider(t, ctx, "test-provider")
 
 			username, _, err := deployLoginUser(ctx, provider, "my-db-2",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Name: "custom-user"},
-				"my-db-2", []pulumi.Resource{})
+				"my-db-2", []pulumi.Resource{}, false)
 			assert.NoError(t, err)
 			assert.Equal(t, "custom-user", username)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)
 	})
+
+	t.Run("retainOnDelete propagates to login, user and role-grant resources", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider-retain")
+
+			_, _, err := deployLoginUser(ctx, provider, "retain-db",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
+				"retain-db", []pulumi.Resource{}, true)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.True(t, capture.retainOnDelete("retain-db-login"))
+		assert.True(t, capture.retainOnDelete("retain-db-user"))
+		assert.True(t, capture.retainOnDelete("retain-db-role-db_owner"))
+	})
+
+	t.Run("retainOnDelete false leaves resources non-retained", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider-noretain")
+
+			_, _, err := deployLoginUser(ctx, provider, "noretain-db",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
+				"noretain-db", []pulumi.Resource{}, false)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.False(t, capture.retainOnDelete("noretain-db-login"))
+		assert.False(t, capture.retainOnDelete("noretain-db-user"))
+		assert.False(t, capture.retainOnDelete("noretain-db-role-db_owner"))
+	})
 }
 
 func TestDeployContainedUser(t *testing.T) {
 	t.Run("creates contained user with role grants", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			provider, err := mssql.NewProvider(ctx, "test-provider-2", &mssql.ProviderArgs{
-				Hostname: pulumi.String("localhost"),
-				Port:     pulumi.Int(1433),
-				SqlAuth: &mssql.ProviderSqlAuthArgs{
-					Username: pulumi.String("admin"),
-					Password: pulumi.String("password"),
-				},
-			})
-			assert.NoError(t, err)
+			provider := newTestProvider(t, ctx, "test-provider-2")
 
 			username, password, err := deployContainedUser(ctx, provider, "contained-db",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
-				"contained-db", []pulumi.Resource{})
+				"contained-db", []pulumi.Resource{}, false)
 			assert.NoError(t, err)
 			assert.Equal(t, "contained-db", username)
 			assert.NotNil(t, password)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)
+	})
+
+	t.Run("retainOnDelete propagates to the contained-user Script", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider-2-retain")
+
+			_, _, err := deployContainedUser(ctx, provider, "contained-db-retain",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
+				"contained-db-retain", []pulumi.Resource{}, true)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.True(t, capture.retainOnDelete("contained-db-retain-contained-user"))
 	})
 }
 
@@ -126,28 +182,20 @@ func TestDeployContainedUserTracksRoleMembershipNotJustPresence(t *testing.T) {
 	capture := newScriptCaptureMocks()
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-		provider, err := mssql.NewProvider(ctx, "test-provider-4", &mssql.ProviderArgs{
-			Hostname: pulumi.String("localhost"),
-			Port:     pulumi.Int(1433),
-			SqlAuth: &mssql.ProviderSqlAuthArgs{
-				Username: pulumi.String("admin"),
-				Password: pulumi.String("password"),
-			},
-		})
-		assert.NoError(t, err)
+		provider := newTestProvider(t, ctx, "test-provider-4")
 
 		// "Apply 1": user provisioned with a single role.
-		_, _, err = deployContainedUser(ctx, provider, "contained-db-v1",
+		_, _, err := deployContainedUser(ctx, provider, "contained-db-v1",
 			pulumi.String("1").ToStringOutput(),
 			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader"}},
-			"contained-db", []pulumi.Resource{})
+			"contained-db", []pulumi.Resource{}, false)
 		assert.NoError(t, err)
 
 		// "Apply 2": same logical user (same defaultName), but a role was added to the spec.
 		_, _, err = deployContainedUser(ctx, provider, "contained-db-v2",
 			pulumi.String("1").ToStringOutput(),
 			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datawriter", "db_datareader"}},
-			"contained-db", []pulumi.Resource{})
+			"contained-db", []pulumi.Resource{}, false)
 		assert.NoError(t, err)
 		return nil
 	}, pulumi.WithMocks("project", "stack", capture))
@@ -165,29 +213,87 @@ func TestDeployContainedUserTracksRoleMembershipNotJustPresence(t *testing.T) {
 	assert.NotEqual(t, v1State, v2State,
 		"adding a role must change the tracked desired State so a later apply's ReadScript/State comparison detects the drift")
 
-	// readScript's shape must not itself depend on the role list (only on username) — it derives
-	// the actual role membership from the database at apply time.
-	assert.Equal(t, v1Inputs["readScript"].StringValue(), v2Inputs["readScript"].StringValue())
-
 	v2Update := v2Inputs["updateScript"].StringValue()
 	assert.Contains(t, v2Update, "ALTER ROLE [db_datawriter] ADD MEMBER [contained-db];")
 	assert.Contains(t, v2Update, "ALTER ROLE [db_datareader] ADD MEMBER [contained-db];")
 	assert.Contains(t, v2Update, "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'contained-db')",
 		"CREATE USER must be idempotency-guarded so updateScript is safe to re-run against an already-existing user")
+
+	// readScript's shape depends on the managed role set (see
+	// TestDeployContainedUserRoleRemovalConverges below) — for the same-role-count check here, just
+	// confirm the readScript actually restricts aggregation to the roles each deployment manages.
+	assert.Contains(t, v1Inputs["readScript"].StringValue(), "r.name IN ('db_datareader')")
+	assert.Contains(t, v2Inputs["readScript"].StringValue(), "r.name IN ('db_datareader','db_datawriter')")
+}
+
+// TestDeployContainedUserRoleRemovalConverges proves the fix for the idempotency gap where
+// updateScript only ever emits guarded "ALTER ROLE ... ADD MEMBER" statements and never "DROP
+// MEMBER" for a role removed from userSpec.Roles (or granted out-of-band). Without a fix, readScript
+// would keep reporting the actual (superset) role membership forever, permanently mismatching the
+// narrower desired State and forcing UpdateScript to re-run on every single apply without ever
+// converging.
+//
+// The fix taken here is option (b) from the review: readScript's role-membership aggregation is
+// scoped to exactly the roles this deployment manages (userSpec.Roles at the time of THIS apply),
+// via a "r.name IN (...)" filter in the join — so a role that is no longer desired (or was never
+// managed to begin with) is excluded from the aggregate and can never cause read/desired drift. This
+// intentionally means role *removal* is not enforced against the database: the role membership
+// itself is left untouched, only its tracking stops. That limitation is what this test asserts.
+func TestDeployContainedUserRoleRemovalConverges(t *testing.T) {
+	capture := newScriptCaptureMocks()
+
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		provider := newTestProvider(t, ctx, "test-provider-5")
+
+		// "Apply 1": user provisioned with two roles.
+		_, _, err := deployContainedUser(ctx, provider, "contained-db-removal-v1",
+			pulumi.String("1").ToStringOutput(),
+			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader", "db_datawriter"}},
+			"contained-db-removal", []pulumi.Resource{}, false)
+		assert.NoError(t, err)
+
+		// "Apply 2": same logical user, but db_datawriter was removed from the spec. In the real
+		// database (not simulated by these mocks — NewResource never executes ReadScript/
+		// UpdateScript), db_datawriter membership granted by apply 1 is still actually present,
+		// since no DROP MEMBER is ever emitted.
+		_, _, err = deployContainedUser(ctx, provider, "contained-db-removal-v2",
+			pulumi.String("1").ToStringOutput(),
+			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader"}},
+			"contained-db-removal", []pulumi.Resource{}, false)
+		assert.NoError(t, err)
+		return nil
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	v2Inputs := capture.resourceInputs["contained-db-removal-v2-contained-user"]
+	v2State := v2Inputs["state"].ObjectValue()["UserStatus"].StringValue()
+	v2Read := v2Inputs["readScript"].StringValue()
+	v2Update := v2Inputs["updateScript"].StringValue()
+
+	// Desired State no longer mentions the removed role.
+	assert.Equal(t, "Present:db_datareader", v2State)
+
+	// readScript's role filter is scoped to ONLY the roles still being managed — db_datawriter is
+	// excluded, so even though it is (per the scenario) still actually granted in the real database,
+	// readScript will never surface it, and therefore will report exactly "Present:db_datareader" —
+	// matching v2State exactly. This is what makes the Script converge (no drift) despite the
+	// database still holding the stale db_datawriter grant.
+	assert.Contains(t, v2Read, "r.name IN ('db_datareader')")
+	assert.NotContains(t, v2Read, "db_datawriter",
+		"readScript must not aggregate a role that is no longer in userSpec.Roles, or the removed role would cause permanent read/desired drift")
+
+	// updateScript never attempts to DROP the removed role's membership — role removal is not
+	// enforced against the database by this path, only its tracking stops (the documented
+	// limitation).
+	assert.NotContains(t, v2Update, "DROP MEMBER",
+		"deployContainedUser does not enforce role removal — this asserts the documented limitation, not a requirement to add DROP MEMBER")
+	assert.NotContains(t, v2Update, "db_datawriter")
 }
 
 func TestDeployManagedIdentity(t *testing.T) {
 	t.Run("creates identity, wires it in, grants roles", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			provider, err := mssql.NewProvider(ctx, "test-provider-3", &mssql.ProviderArgs{
-				Hostname: pulumi.String("localhost"),
-				Port:     pulumi.Int(1433),
-				SqlAuth: &mssql.ProviderSqlAuthArgs{
-					Username: pulumi.String("admin"),
-					Password: pulumi.String("password"),
-				},
-			})
-			assert.NoError(t, err)
+			provider := newTestProvider(t, ctx, "test-provider-3")
 
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, "my-db-identity",
 				pulumi.String("1").ToStringOutput(),
@@ -196,12 +302,34 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db", []pulumi.Resource{})
+				"my-db", []pulumi.Resource{}, false)
 			assert.NoError(t, err)
 			assert.NotNil(t, clientId)
 			assert.NotNil(t, principalId)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)
+	})
+
+	t.Run("retainOnDelete propagates to identity, service-principal-user and role-grant resources", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider-3-retain")
+
+			_, _, err := deployManagedIdentity(ctx, provider, "my-db-identity-retain",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.ManagedIdentitySpec{
+					ResourceGroupName: "my-rg",
+					Location:          "westeurope",
+					Roles:             []string{"db_owner"},
+				},
+				"my-db-retain", []pulumi.Resource{}, true)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.True(t, capture.retainOnDelete("my-db-identity-retain-identity"))
+		assert.True(t, capture.retainOnDelete("my-db-identity-retain-identity-user"))
+		assert.True(t, capture.retainOnDelete("my-db-identity-retain-identity-role-db_owner"))
 	})
 }
