@@ -105,6 +105,54 @@ spec:
                       description: The domain or bounded-context in which this database
                         will be used.
                       type: string
+                    password:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    username:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
                   required:
                   - domain
                   type: object
@@ -217,6 +265,21 @@ spec:
                 description: |-
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
+                type: object
+              user:
+                description: Optional app-facing database user, distinct from the
+                  admin sqlAuth credential used for provisioning.
+                properties:
+                  name:
+                    description: Login/user name. Defaults to the provisioned database
+                      name if omitted.
+                    type: string
+                  roles:
+                    description: Database role(s) granted to this user (e.g. db_owner,
+                      db_datareader). No roles are granted if omitted.
+                    items:
+                      type: string
+                    type: array
                 type: object
             required:
             - dbName

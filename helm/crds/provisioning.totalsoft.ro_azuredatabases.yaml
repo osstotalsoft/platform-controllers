@@ -105,6 +105,102 @@ spec:
                       description: The domain or bounded-context in which this database
                         will be used.
                       type: string
+                    identityClientId:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    identityPrincipalId:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    password:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    username:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
                   required:
                   - domain
                   type: object
@@ -114,6 +210,30 @@ spec:
                   Existing database to be used instead of creating a new one
                   eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
                 type: string
+              managedIdentity:
+                description: Optional Entra (Azure AD) user-assigned managed identity,
+                  wired in as a contained AAD database user.
+                properties:
+                  location:
+                    description: Azure region.
+                    type: string
+                  name:
+                    description: Identity name. Defaults to the provisioned database
+                      name if omitted.
+                    type: string
+                  resourceGroupName:
+                    description: Resource group the managed identity is created in.
+                    type: string
+                  roles:
+                    description: Database role(s) granted to this identity. No roles
+                      are granted if omitted.
+                    items:
+                      type: string
+                    type: array
+                required:
+                - location
+                - resourceGroupName
+                type: object
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
@@ -191,6 +311,21 @@ spec:
                 description: |-
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
+                type: object
+              user:
+                description: Optional app-facing database user (contained, password-based
+                  — AzureDatabase has no server-login concept).
+                properties:
+                  name:
+                    description: Login/user name. Defaults to the provisioned database
+                      name if omitted.
+                    type: string
+                  roles:
+                    description: Database role(s) granted to this user (e.g. db_owner,
+                      db_datareader). No roles are granted if omitted.
+                    items:
+                      type: string
+                    type: array
                 type: object
             required:
             - dbName
