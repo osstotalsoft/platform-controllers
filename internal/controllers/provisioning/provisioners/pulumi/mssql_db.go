@@ -119,11 +119,29 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 		}
 	}
 
+	var username string
+	var password pulumi.StringOutput
+	if mssqlDb.Spec.User != nil {
+		userDeps := []pulumi.Resource{db}
+		if restoreScript != nil {
+			userDeps = append(userDeps, restoreScript)
+		}
+		username, password, err = deployLoginUser(ctx, provider, mssqlDb.Name, db.ID().ToStringOutput(),
+			mssqlDb.Spec.User, dbName, userDeps)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	ctx.Export("mssqlDbName", db.Name)
 
 	for _, exp := range mssqlDb.Spec.Exports {
-		err = valueExporter(newExportContext(ctx, exp.Domain, mssqlDb.Name, mssqlDb.ObjectMeta, gvk),
-			map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}})
+		values := map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}}
+		if mssqlDb.Spec.User != nil {
+			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(username)}
+			values["password"] = exportTemplateWithValue{exp.Password, password}
+		}
+		err = valueExporter(newExportContext(ctx, exp.Domain, mssqlDb.Name, mssqlDb.ObjectMeta, gvk), values)
 		if err != nil {
 			return nil, err
 		}

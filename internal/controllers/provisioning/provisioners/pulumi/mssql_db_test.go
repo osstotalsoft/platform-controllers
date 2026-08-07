@@ -42,4 +42,39 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)
 	})
+
+	t.Run("msSqlDatabase spec with user", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant2", platform)
+		mssqlDb := &provisioningv1.MsSqlDatabase{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "my-db-with-user",
+			},
+			Spec: provisioningv1.MsSqlDatabaseSpec{
+				DbName: "my-db-with-user",
+				SqlServer: provisioningv1.MsSqlServerSpec{
+					HostName: "localhost",
+					Port:     1433,
+					SqlAuth: provisioningv1.MsSqlServerAuth{
+						Username: "admin",
+						Password: "password",
+					},
+				},
+				User: &provisioningv1.DatabaseUserSpec{
+					Roles: []string{"db_owner"},
+				},
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					DomainRef: "example-domain",
+				},
+			},
+		}
+
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", mocks(0)))
+		assert.NoError(t, err)
+	})
 }
