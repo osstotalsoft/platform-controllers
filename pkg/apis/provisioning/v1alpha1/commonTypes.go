@@ -105,3 +105,29 @@ type ProvisioningResourceIdendtifier struct {
 }
 
 type ProvisioningResourceKind string
+
+// DatabaseUserSpec describes an optional app-facing database user. The password is never part of
+// the spec — it is always auto-generated and exported alongside the username.
+type DatabaseUserSpec struct {
+	// Login/user name. Defaults to the provisioned database name if omitted.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// Database role(s) granted to this user (e.g. db_owner, db_datareader). No roles are granted if omitted.
+	// +optional
+	Roles []string `json:"roles,omitempty"`
+}
+
+// ManagedIdentitySpec describes an optional Entra (Azure AD) user-assigned managed identity wired
+// in as a contained database user. Only applicable to Azure-native database kinds.
+type ManagedIdentitySpec struct {
+	// Identity name. Defaults to the provisioned database name if omitted.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// Resource group the managed identity is created in.
+	ResourceGroupName string `json:"resourceGroupName"`
+	// Azure region.
+	Location string `json:"location"`
+	// Database role(s) granted to this identity. No roles are granted if omitted.
+	// +optional
+	Roles []string `json:"roles,omitempty"`
+}
