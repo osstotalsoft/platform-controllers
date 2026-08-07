@@ -32,6 +32,9 @@ type MsSqlDatabaseSpec struct {
 	// Login name to be set as the database owner
 	// +optional
 	OwnerLoginName string `json:"ownerLoginName,omitempty"`
+	// Optional app-facing database user, distinct from the admin sqlAuth credential used for provisioning.
+	// +optional
+	User *DatabaseUserSpec `json:"user,omitempty"`
 	// +optional
 	Exports          []MsSqlDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
@@ -70,6 +73,10 @@ type MsSqlDatabaseExportsSpec struct {
 	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
+	// +optional
+	Username ValueExport `json:"username,omitempty"`
+	// +optional
+	Password ValueExport `json:"password,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
