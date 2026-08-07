@@ -250,11 +250,26 @@ kind: AzureDatabase
 spec:
   dbName: origination_db
   domainRef: origination
+  user:
+    roles:
+      - db_owner
+    # name: origination_app_user   # optional, defaults to the provisioned database name
+  managedIdentity:
+    resourceGroupName: SQL_RG
+    location: westeurope
+    roles:
+      - db_owner
   exports:
     - domain: origination
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
+      username:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+      password:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   platformRef: charismaonline.qa
   sourceDatabaseId: /subscriptions/XXXXXX-b8a5-4967-a05a-2fa3c4295710/resourceGroups/SQLMI_RG/providers/Microsoft.Sql/servers/r7ddbsrv/databases/insurance_db
   sqlServer:
@@ -277,11 +292,27 @@ kind: AzureManagedDatabase
 spec:
   dbName: origination_db
   domainRef: origination
+  containedUser: false # set to true to deploy a contained user instead of a server login
+  user:
+    roles:
+      - db_owner
+    # name: origination_app_user   # optional, defaults to the provisioned database name
+  managedIdentity:
+    resourceGroupName: SQL_RG
+    location: westeurope
+    roles:
+      - db_owner
   exports:
     - domain: origination
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
+      username:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+      password:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
@@ -667,11 +698,21 @@ metadata:
 spec:
   dbName: test
   domainRef: domain1
+  user:
+    roles:
+      - db_owner
+    # name: origination_app_user   # optional, defaults to the provisioned database name
   exports:
     - dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Test_Database__Database
       domain: domain1
+      username:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+      password:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   platformRef: provisioning.test
   restoreFrom:
     backupFilePath: C:\tmp\test-db\mydb.bak
