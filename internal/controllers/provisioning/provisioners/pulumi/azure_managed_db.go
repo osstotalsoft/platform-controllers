@@ -2,7 +2,6 @@ package pulumi
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	azureSql "github.com/pulumi/pulumi-azure-native-sdk/sql/v2"
@@ -61,14 +60,28 @@ func deployAzureManagedDb(
 	var username string
 	var password, identityClientId, identityPrincipalId pulumi.StringOutput
 	if azureDb.Spec.User != nil || azureDb.Spec.ManagedIdentity != nil {
-		provider, err := mssql.NewProvider(ctx, "mssql-provider", &mssql.ProviderArgs{
-			Hostname: pulumi.String(fmt.Sprintf("%s.%s.database.windows.net", azureDb.Spec.ManagedInstance.Name, azureDb.Spec.ManagedInstance.ResourceGroup)),
-			AzureAuth: &mssql.ProviderAzureAuthArgs{
-				ClientId:     pulumi.String(os.Getenv("AZURE_CLIENT_ID")),
-				ClientSecret: pulumi.String(os.Getenv("AZURE_CLIENT_SECRET")),
-				TenantId:     pulumi.String(os.Getenv("AZURE_TENANT_ID")),
-			},
+		// The managed instance's real T-SQL endpoint FQDN is
+		// "<mi-name>.<dnsZone>.database.windows.net", where dnsZone is an Azure-generated
+		// virtual-cluster identifier that is NOT the resource group — it cannot be constructed from
+		// spec fields alone, so it's resolved via LookupManagedInstance (mirroring how
+		// azureSql.LookupServer resolves the logical-server FQDN in azure_db.go). Port is left at the
+		// mssql provider's default (1433): this repo has no public-vs-private MI endpoint toggle
+		// (AzureManagedInstanceSpec carries no such field, unlike e.g. AzureVirtualMachine/
+		// AzureVirtualDesktop, which reference an explicit VNet subnet) and every other resource that
+		// talks to Azure SQL in this repo assumes private/VNet connectivity, where the MI's regular
+		// 1433 endpoint (not the public 3342 one) applies.
+		mi, err := azureSql.LookupManagedInstance(ctx, &azureSql.LookupManagedInstanceArgs{
+			ManagedInstanceName: azureDb.Spec.ManagedInstance.Name,
+			ResourceGroupName:   azureDb.Spec.ManagedInstance.ResourceGroup,
 		})
+		if err != nil {
+			return nil, err
+		}
+		if mi == nil {
+			return nil, fmt.Errorf("managedInstance %s not found", azureDb.Spec.ManagedInstance.Name)
+		}
+
+		provider, err := newMssqlAzureAuthProvider(ctx, azureDb.Name, mi.FullyQualifiedDomainName)
 		if err != nil {
 			return nil, err
 		}
@@ -81,10 +94,10 @@ func deployAzureManagedDb(
 		if azureDb.Spec.User != nil {
 			if azureDb.Spec.ContainedUser {
 				username, password, err = deployContainedUser(ctx, provider, azureDb.Name, databaseId,
-					azureDb.Spec.User, dbName, []pulumi.Resource{db})
+					azureDb.Spec.User, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			} else {
 				username, password, err = deployLoginUser(ctx, provider, azureDb.Name, databaseId,
-					azureDb.Spec.User, dbName, []pulumi.Resource{db})
+					azureDb.Spec.User, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			}
 			if err != nil {
 				return nil, err
@@ -93,7 +106,7 @@ func deployAzureManagedDb(
 
 		if azureDb.Spec.ManagedIdentity != nil {
 			identityClientId, identityPrincipalId, err = deployManagedIdentity(ctx, provider, azureDb.Name, databaseId,
-				azureDb.Spec.ManagedIdentity, dbName, []pulumi.Resource{db})
+				azureDb.Spec.ManagedIdentity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}
