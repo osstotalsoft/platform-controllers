@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
+	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sSchema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -25,6 +26,25 @@ const (
 	PlatformLabel   = "platform.totalsoft.ro/platform"
 	EnvVaultEnabled = "VAULT_ENABLED"
 )
+
+// newRandomPassword generates a random password suitable for a SQL login/user or Entra user.
+func newRandomPassword(ctx *pulumi.Context, name string) (pulumi.StringOutput, error) {
+	randomPassword, err := random.NewRandomPassword(ctx, fmt.Sprintf("%s-password", name), &random.RandomPasswordArgs{
+		Length:     pulumi.Int(10),
+		Upper:      pulumi.Bool(true),
+		MinUpper:   pulumi.Int(1),
+		Lower:      pulumi.Bool(true),
+		MinLower:   pulumi.Int(1),
+		Numeric:    pulumi.Bool(true),
+		MinNumeric: pulumi.Int(1),
+		Special:    pulumi.Bool(true),
+		MinSpecial: pulumi.Int(1),
+	})
+	if err != nil {
+		return pulumi.StringOutput{}, err
+	}
+	return randomPassword.Result, nil
+}
 
 type ValueExporterFunc func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error
 
