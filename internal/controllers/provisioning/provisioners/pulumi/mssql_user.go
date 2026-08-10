@@ -31,10 +31,13 @@ func resolveName(name, defaultName string) string {
 //
 // Auth mode mirrors how pulumi.go's createOrSelectStack already switches the azure-native/azuread
 // providers between Workload Identity and client-secret modes (see EnvAzureUseWorkloadIdentity):
-//   - Workload Identity enabled: pulumi-mssql's AzureAuth block only supports client-secret
-//     credentials, so it is left unset entirely. The provider then falls back to its default Azure
-//     credential chain (see github.com/microsoft/go-mssqldb's azuread driver), which does support
-//     Workload Identity federation.
+//   - Workload Identity enabled: pulumi-mssql's Provider selects AAD authentication mode based on
+//     whether the AzureAuth block is present at all — not on what's inside it (all three of
+//     ProviderAzureAuthArgs' fields are optional). So AzureAuth is set to an empty, non-nil
+//     &mssql.ProviderAzureAuthArgs{}: its mere presence is what makes the provider fall back to its
+//     default Azure credential chain (see github.com/microsoft/go-mssqldb's azuread driver), which
+//     does support Workload Identity federation. Leaving AzureAuth nil/omitted would mean neither
+//     azureAuth nor sqlAuth is set, and the provider would have no auth mode selected at all.
 //   - Workload Identity disabled: the ambient AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID
 //     service-principal env vars (already relied upon elsewhere for the AAD Admin service principal)
 //     are required and wired into AzureAuth. Fails fast with a clear error — instead of silently
@@ -68,8 +71,13 @@ func newMssqlAzureAuthProvider(ctx *pulumi.Context, resourceNamePrefix string, h
 			ClientSecret: pulumi.String(clientSecret),
 			TenantId:     pulumi.String(tenantId),
 		}
+	} else {
+		// Workload Identity: set AzureAuth to an empty, non-nil struct. The provider selects AAD
+		// auth mode based on the block's presence, not its contents (see the doc comment above), so
+		// this — not a nil/omitted AzureAuth — is what triggers its default Azure credential chain
+		// fallback.
+		providerArgs.AzureAuth = &mssql.ProviderAzureAuthArgs{}
 	}
-	// else: leave AzureAuth unset — see the fallback-to-default-credential-chain note above.
 
 	return mssql.NewProvider(ctx, fmt.Sprintf("%s-mssql-provider", resourceNamePrefix), providerArgs)
 }

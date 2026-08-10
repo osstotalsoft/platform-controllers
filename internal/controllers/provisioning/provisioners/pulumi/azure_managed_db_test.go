@@ -232,7 +232,7 @@ func TestDeployAzureManagedDb(t *testing.T) {
 		assert.Contains(t, err.Error(), "AZURE_CLIENT_ID")
 	})
 
-	t.Run("workload identity mode omits AzureAuth and does not require SP creds", func(t *testing.T) {
+	t.Run("workload identity mode sets an empty AzureAuth and does not require SP creds", func(t *testing.T) {
 		t.Setenv("AZURE_USE_WORKLOAD_IDENTITY", "true")
 		t.Setenv("AZURE_CLIENT_ID", "")
 		t.Setenv("AZURE_CLIENT_SECRET", "")
@@ -251,7 +251,17 @@ func TestDeployAzureManagedDb(t *testing.T) {
 
 		providers := capture.byType["pulumi:providers:mssql"]
 		assert.Len(t, providers, 1)
-		_, hasAzureAuth := providers[0].Inputs["azureAuth"]
-		assert.False(t, hasAzureAuth, "AzureAuth must be omitted under Workload Identity so the provider falls back to the default Azure credential chain")
+		// The pulumi-mssql provider selects AAD auth mode based on whether the azureAuth block is
+		// present at all, not on what's inside it (see newMssqlAzureAuthProvider's doc comment) — so
+		// under Workload Identity, azureAuth must be present but empty (no clientId/clientSecret/
+		// tenantId), which is what triggers the provider's own default Azure credential chain
+		// fallback.
+		azureAuthVal, hasAzureAuth := providers[0].Inputs["azureAuth"]
+		assert.True(t, hasAzureAuth, "AzureAuth must be present (though empty) under Workload Identity so the provider selects AAD auth mode and falls back to the default Azure credential chain")
+		assert.True(t, azureAuthVal.IsObject(), "azureAuth must be an object value")
+		azureAuthObj := azureAuthVal.ObjectValue()
+		for _, key := range []string{"clientId", "clientSecret", "tenantId"} {
+			assert.NotContains(t, azureAuthObj, resource.PropertyKey(key), "azureAuth must have no credential fields set under Workload Identity")
+		}
 	})
 }
