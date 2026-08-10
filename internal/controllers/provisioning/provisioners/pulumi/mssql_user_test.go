@@ -450,6 +450,21 @@ func TestDeployDatabasePermissionGrants(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, capture.retainOnDelete("retain-db-permission-EXECUTE"))
 	})
+
+	t.Run("sanitizes multi-word permission names for the Pulumi resource name, not the actual GRANT", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deployDatabasePermissionGrants(ctx, provider, "my-db-multiword",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				[]string{"VIEW DEFINITION"}, []pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		inputs, ok := capture.resourceInputs["my-db-multiword-permission-VIEW-DEFINITION"]
+		assert.True(t, ok, "expected a resource named with hyphens in place of the space")
+		assert.Equal(t, "VIEW DEFINITION", inputs["permission"].StringValue(), "the actual GRANT permission string must stay unsanitized")
+	})
 }
 
 func TestDeploySchemaPermissionGrants(t *testing.T) {
@@ -467,6 +482,9 @@ func TestDeploySchemaPermissionGrants(t *testing.T) {
 
 	t.Run("grants each named permission on each named schema", func(t *testing.T) {
 		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty("1/1"),
+		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			provider := newTestProvider(t, ctx, "test-provider")
 			return deploySchemaPermissionGrants(ctx, provider, "my-db",
@@ -483,6 +501,9 @@ func TestDeploySchemaPermissionGrants(t *testing.T) {
 
 	t.Run("grants multiple permissions across multiple schemas", func(t *testing.T) {
 		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty("1/1"),
+		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			provider := newTestProvider(t, ctx, "test-provider")
 			return deploySchemaPermissionGrants(ctx, provider, "my-db-2",
@@ -497,7 +518,10 @@ func TestDeploySchemaPermissionGrants(t *testing.T) {
 	})
 
 	t.Run("retainOnDelete propagates", func(t *testing.T) {
-		capture := newScriptCaptureMocks()
+		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty("1/1"),
+		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			provider := newTestProvider(t, ctx, "test-provider")
 			return deploySchemaPermissionGrants(ctx, provider, "retain-db",
@@ -507,4 +531,48 @@ func TestDeploySchemaPermissionGrants(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, capture.retainOnDelete("retain-db-schema-dbo-permission-EXECUTE"))
 	})
+
+	t.Run("clear error when the schema doesn't exist", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty(""),
+		})
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deploySchemaPermissionGrants(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				map[string][]string{"nonexistent_schema": {"EXECUTE"}}, []pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, `schema "nonexistent_schema" not found`)
+	})
+}
+
+// orderingCheckMocks wraps resourceCaptureMocks to additionally assert, on the getSqlUser invoke,
+// that the contained-user Script has already been registered by the time the invoke fires — the
+// regression this guards against is the lookup racing ahead of user creation (see gateOn's doc
+// comment in mssql_user.go for why the invoke-level DependsOn option can't be relied on for this).
+type orderingCheckMocks struct {
+	*resourceCaptureMocks
+	t *testing.T
+}
+
+func (m *orderingCheckMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
+	if args.Token == "mssql:index/getSqlUser:getSqlUser" {
+		assert.True(m.t, m.hasAnyTypeWithPrefix("mssql:index/script:Script"),
+			"getSqlUser was invoked before the contained-user Script was registered — the lookup is racing ahead of user creation")
+	}
+	return m.resourceCaptureMocks.Call(args)
+}
+
+func TestDeployContainedUserPermissionLookupWaitsForScript(t *testing.T) {
+	mocks := &orderingCheckMocks{resourceCaptureMocks: newResourceCaptureMocks(), t: t}
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		provider := newTestProvider(t, ctx, "test-provider")
+		_, _, err := deployContainedUser(ctx, provider, "my-db",
+			pulumi.String("1").ToStringOutput(),
+			&provisioningv1.DatabaseUserSpec{Name: "app1", Permissions: []string{"EXECUTE"}},
+			"app1", []pulumi.Resource{}, false)
+		return err
+	}, pulumi.WithMocks("project", "stack", mocks))
+	assert.NoError(t, err)
 }

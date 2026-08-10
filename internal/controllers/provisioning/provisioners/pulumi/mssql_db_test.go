@@ -92,6 +92,9 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 		}
 
 		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty("1/1"),
+		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
 			assert.NoError(t, err)

@@ -82,6 +82,37 @@ func newMssqlAzureAuthProvider(ctx *pulumi.Context, resourceNamePrefix string, h
 	return mssql.NewProvider(ctx, fmt.Sprintf("%s-mssql-provider", resourceNamePrefix), providerArgs)
 }
 
+// gateOn returns value unchanged, except that the returned Output additionally only resolves once
+// every resource in gates has been created (or already exists). Needed because invoke-form lookups
+// in this SDK version — mssql.LookupSqlUserOutput, mssql.LookupSchemaOutput, and likely others —
+// wrap a *synchronous* Invoke call whose DependsOn option is silently discarded (confirmed in
+// pulumi/sdk/v3's Context.InvokePackage, which explicitly ignores DependsOn "for direct invokes").
+// The only way to sequence such an invoke behind a resource's creation is to make one of that
+// resource's own Outputs a genuine data dependency of the invoke's args — gates' URNs serve that
+// purpose here, since every pulumi.Resource has one and a resource's URN only resolves once the
+// resource itself has been registered.
+func gateOn(value pulumi.StringInput, gates []pulumi.Resource) pulumi.StringOutput {
+	if len(gates) == 0 {
+		return value.ToStringOutput()
+	}
+	inputs := make([]interface{}, 0, len(gates)+1)
+	inputs = append(inputs, value.ToStringOutput())
+	for _, g := range gates {
+		inputs = append(inputs, g.URN())
+	}
+	return pulumi.All(inputs...).ApplyT(func(v []interface{}) string {
+		return v[0].(string)
+	}).(pulumi.StringOutput)
+}
+
+// sanitizePulumiName replaces spaces with hyphens so a multi-word SQL permission or schema name
+// (e.g. "VIEW DEFINITION") stays a single, legible token in the Pulumi resource name/URN. Only
+// affects the Pulumi resource name — the actual GRANT statement still uses the original,
+// unmodified string (passed separately as the resource's Permission/Name argument).
+func sanitizePulumiName(s string) string {
+	return strings.ReplaceAll(s, " ", "-")
+}
+
 // deployDatabaseRoleGrants grants each named role, inside the database identified by databaseId,
 // to the principal whose provider-assigned resource ID is memberId (already in the
 // "<databaseId>/<principalId>" composite form the mssql provider expects — e.g. a SqlUser's or
@@ -118,7 +149,7 @@ func deployDatabasePermissionGrants(ctx *pulumi.Context, provider *mssql.Provide
 	dependencies []pulumi.Resource, retainOnDelete bool) error {
 
 	for _, permission := range permissions {
-		_, err := mssql.NewDatabasePermission(ctx, fmt.Sprintf("%s-permission-%s", resourceNamePrefix, permission), &mssql.DatabasePermissionArgs{
+		_, err := mssql.NewDatabasePermission(ctx, fmt.Sprintf("%s-permission-%s", resourceNamePrefix, sanitizePulumiName(permission)), &mssql.DatabasePermissionArgs{
 			PrincipalId: memberId,
 			Permission:  pulumi.String(permission),
 		}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
@@ -138,15 +169,22 @@ func deploySchemaPermissionGrants(ctx *pulumi.Context, provider *mssql.Provider,
 	databaseId pulumi.StringInput, memberId pulumi.StringInput, schemaPermissions map[string][]string,
 	dependencies []pulumi.Resource, retainOnDelete bool) error {
 
+	gatedDatabaseId := gateOn(databaseId, dependencies)
+
 	for schema, permissions := range schemaPermissions {
 		schemaLookup := mssql.LookupSchemaOutput(ctx, mssql.LookupSchemaOutputArgs{
-			DatabaseId: databaseId.ToStringOutput().ToStringPtrOutput(),
+			DatabaseId: gatedDatabaseId.ToStringPtrOutput(),
 			Name:       pulumi.StringPtr(schema),
 		}, pulumi.Provider(provider))
-		schemaId := schemaLookup.ApplyT(func(r mssql.LookupSchemaResult) string { return r.Id }).(pulumi.StringOutput)
+		schemaId := schemaLookup.ApplyT(func(r mssql.LookupSchemaResult) (string, error) {
+			if r.Id == "" {
+				return "", fmt.Errorf("schema %q not found in database", schema)
+			}
+			return r.Id, nil
+		}).(pulumi.StringOutput)
 
 		for _, permission := range permissions {
-			_, err := mssql.NewSchemaPermission(ctx, fmt.Sprintf("%s-schema-%s-permission-%s", resourceNamePrefix, schema, permission), &mssql.SchemaPermissionArgs{
+			_, err := mssql.NewSchemaPermission(ctx, fmt.Sprintf("%s-schema-%s-permission-%s", resourceNamePrefix, sanitizePulumiName(schema), sanitizePulumiName(permission)), &mssql.SchemaPermissionArgs{
 				SchemaId:    schemaId,
 				PrincipalId: memberId,
 				Permission:  pulumi.String(permission),
@@ -328,10 +366,11 @@ SELECT ISNULL(
 	}
 
 	if len(userSpec.Permissions) > 0 || len(userSpec.SchemaPermissions) > 0 {
+		gatedDatabaseId := gateOn(databaseId, []pulumi.Resource{script})
 		memberIdLookup := mssql.LookupSqlUserOutput(ctx, mssql.LookupSqlUserOutputArgs{
-			DatabaseId: databaseId.ToStringOutput().ToStringPtrOutput(),
+			DatabaseId: gatedDatabaseId.ToStringPtrOutput(),
 			Name:       pulumi.String(username),
-		}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{script}))
+		}, pulumi.Provider(provider))
 		memberId := memberIdLookup.ApplyT(func(r mssql.LookupSqlUserResult) string { return r.Id }).(pulumi.StringOutput)
 
 		err = deployDatabasePermissionGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.Permissions,

@@ -80,6 +80,9 @@ func TestDeployAzureManagedDb(t *testing.T) {
 			},
 		}
 		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty("1/1"),
+		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			db, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, ctx)
 			assert.NoError(t, err)
