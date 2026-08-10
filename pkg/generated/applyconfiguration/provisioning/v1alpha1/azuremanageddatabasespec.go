@@ -29,9 +29,9 @@ type AzureManagedDatabaseSpecApplyConfiguration struct {
 	ManagedInstance                    *AzureManagedInstanceSpecApplyConfiguration         `json:"managedInstance,omitempty"`
 	RestoreFrom                        *AzureManagedDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
 	ImportDatabaseId                   *string                                             `json:"importDatabaseId,omitempty"`
-	User                               *DatabaseUserSpecApplyConfiguration                 `json:"user,omitempty"`
+	Users                              []DatabaseUserSpecApplyConfiguration                `json:"users,omitempty"`
 	ContainedUser                      *bool                                               `json:"containedUser,omitempty"`
-	ManagedIdentity                    *ManagedIdentitySpecApplyConfiguration              `json:"managedIdentity,omitempty"`
+	ManagedIdentities                  []ManagedIdentitySpecApplyConfiguration             `json:"managedIdentities,omitempty"`
 	Exports                            []AzureManagedDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -74,11 +74,16 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithImportDatabaseId(value 
 	return b
 }
 
-// WithUser sets the User field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the User field is set to the value of the last call.
-func (b *AzureManagedDatabaseSpecApplyConfiguration) WithUser(value *DatabaseUserSpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
-	b.User = value
+// WithUsers adds the given value to the Users field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Users field.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithUsers(values ...*DatabaseUserSpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithUsers")
+		}
+		b.Users = append(b.Users, *values[i])
+	}
 	return b
 }
 
@@ -90,11 +95,16 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithContainedUser(value boo
 	return b
 }
 
-// WithManagedIdentity sets the ManagedIdentity field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ManagedIdentity field is set to the value of the last call.
-func (b *AzureManagedDatabaseSpecApplyConfiguration) WithManagedIdentity(value *ManagedIdentitySpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
-	b.ManagedIdentity = value
+// WithManagedIdentities adds the given value to the ManagedIdentities field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ManagedIdentities field.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithManagedIdentities(values ...*ManagedIdentitySpecApplyConfiguration) *AzureManagedDatabaseSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithManagedIdentities")
+		}
+		b.ManagedIdentities = append(b.ManagedIdentities, *values[i])
+	}
 	return b
 }
 

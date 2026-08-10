@@ -247,15 +247,19 @@ func (in *AzureManagedDatabaseSpec) DeepCopyInto(out *AzureManagedDatabaseSpec) 
 	*out = *in
 	out.ManagedInstance = in.ManagedInstance
 	out.RestoreFrom = in.RestoreFrom
-	if in.User != nil {
-		in, out := &in.User, &out.User
-		*out = new(DatabaseUserSpec)
-		(*in).DeepCopyInto(*out)
+	if in.Users != nil {
+		in, out := &in.Users, &out.Users
+		*out = make([]DatabaseUserSpec, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
-	if in.ManagedIdentity != nil {
-		in, out := &in.ManagedIdentity, &out.ManagedIdentity
-		*out = new(ManagedIdentitySpec)
-		(*in).DeepCopyInto(*out)
+	if in.ManagedIdentities != nil {
+		in, out := &in.ManagedIdentities, &out.ManagedIdentities
+		*out = make([]ManagedIdentitySpec, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.Exports != nil {
 		in, out := &in.Exports, &out.Exports

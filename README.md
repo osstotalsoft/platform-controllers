@@ -294,21 +294,23 @@ kind: AzureManagedDatabase
 spec:
   dbName: origination_db
   domainRef: origination
-  containedUser: false # set to true to deploy a contained user instead of a server login
-  user:
-    roles:
-      - db_owner
-    # name: origination_app_user   # optional, defaults to the provisioned database name
-  managedIdentity:
-    resourceGroupName: SQL_RG
-    location: westeurope
-    roles:
-      - db_owner
+  containedUser: false # set to true to deploy every users[] entry as a contained user instead of a server login
+  users:
+    - name: origination_app_user
+      roles:
+        - db_owner
+  managedIdentities:
+    - name: origination_app_identity
+      resourceGroupName: SQL_RG
+      location: westeurope
+      roles:
+        - db_owner
   exports:
     - domain: origination
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
+      userRef: origination_app_user # optional here since users has exactly one entry
       username:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
