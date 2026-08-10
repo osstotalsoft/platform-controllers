@@ -333,3 +333,71 @@ func TestDeployManagedIdentity(t *testing.T) {
 		assert.True(t, capture.retainOnDelete("my-db-identity-retain-identity-role-db_owner"))
 	})
 }
+
+func TestValidateUniqueNames(t *testing.T) {
+	t.Run("empty list is valid", func(t *testing.T) {
+		err := validateUniqueNames([]provisioningv1.DatabaseUserSpec{}, "users")
+		assert.NoError(t, err)
+	})
+
+	t.Run("unique names are valid", func(t *testing.T) {
+		err := validateUniqueNames([]provisioningv1.DatabaseUserSpec{
+			{Name: "app1"},
+			{Name: "app2"},
+		}, "users")
+		assert.NoError(t, err)
+	})
+
+	t.Run("empty name is rejected", func(t *testing.T) {
+		err := validateUniqueNames([]provisioningv1.DatabaseUserSpec{{Name: ""}}, "users")
+		assert.ErrorContains(t, err, "spec.users[].name is required")
+	})
+
+	t.Run("duplicate name is rejected", func(t *testing.T) {
+		err := validateUniqueNames([]provisioningv1.DatabaseUserSpec{
+			{Name: "app1"},
+			{Name: "app1"},
+		}, "users")
+		assert.ErrorContains(t, err, `spec.users[].name "app1" is duplicated`)
+	})
+
+	t.Run("works against ManagedIdentitySpec too", func(t *testing.T) {
+		err := validateUniqueNames([]provisioningv1.ManagedIdentitySpec{
+			{Name: "id1"},
+			{Name: "id1"},
+		}, "managedIdentities")
+		assert.ErrorContains(t, err, `spec.managedIdentities[].name "id1" is duplicated`)
+	})
+}
+
+func TestResolveRef(t *testing.T) {
+	byName := map[string]string{"app1": "value1"}
+
+	t.Run("empty ref defaults to the sole entry", func(t *testing.T) {
+		v, err := resolveRef(byName, "", "myDomain", "userRef", "users")
+		assert.NoError(t, err)
+		assert.Equal(t, "value1", v)
+	})
+
+	t.Run("explicit ref resolves by name", func(t *testing.T) {
+		v, err := resolveRef(byName, "app1", "myDomain", "userRef", "users")
+		assert.NoError(t, err)
+		assert.Equal(t, "value1", v)
+	})
+
+	t.Run("unknown ref is an error", func(t *testing.T) {
+		_, err := resolveRef(byName, "nope", "myDomain", "userRef", "users")
+		assert.ErrorContains(t, err, `userRef "nope" does not match any spec.users[].name`)
+	})
+
+	t.Run("empty ref is ambiguous with more than one entry", func(t *testing.T) {
+		multi := map[string]string{"app1": "value1", "app2": "value2"}
+		_, err := resolveRef(multi, "", "myDomain", "userRef", "users")
+		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
+	})
+
+	t.Run("empty ref is an error with zero entries", func(t *testing.T) {
+		_, err := resolveRef(map[string]string{}, "", "myDomain", "userRef", "users")
+		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
+	})
+}

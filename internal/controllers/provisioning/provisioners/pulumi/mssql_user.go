@@ -295,3 +295,70 @@ func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resour
 
 	return identity.ClientId, identity.PrincipalId, nil
 }
+
+// deployedUser holds the credentials deployContainedUser/deployLoginUser produced for one
+// spec.users[] entry, keyed by name in the caller's usersByName map so exports[].userRef can look
+// up whose username/password to export.
+type deployedUser struct {
+	username string
+	password pulumi.StringOutput
+}
+
+// deployedIdentity holds the identity deployManagedIdentity produced for one
+// spec.managedIdentities[] entry, keyed by name the same way deployedUser is.
+type deployedIdentity struct {
+	clientId    pulumi.StringOutput
+	principalId pulumi.StringOutput
+}
+
+// named is satisfied by any spec element that carries a Name — DatabaseUserSpec and
+// ManagedIdentitySpec both implement it (see commonTypes.go), letting validateUniqueNames work
+// against either spec.users or spec.managedIdentities without duplicating the loop.
+type named interface {
+	GetName() string
+}
+
+// validateUniqueNames returns an error if any entry in items has an empty Name, or if any Name
+// repeats. This is a defensive backstop behind the CRD's `+listType=map`/`+listMapKey=name` markers
+// (see azureDatabaseTypes.go et al.), which already reject duplicate names for anything applied
+// through the Kubernetes API server — this covers the remaining path of specs built directly in Go
+// (tests, or any other in-process caller that skips the API server). listKind names the failing spec
+// field (e.g. "users", "managedIdentities") in the error message.
+func validateUniqueNames[T named](items []T, listKind string) error {
+	seen := make(map[string]bool, len(items))
+	for _, item := range items {
+		name := item.GetName()
+		if name == "" {
+			return fmt.Errorf("spec.%s[].name is required", listKind)
+		}
+		if seen[name] {
+			return fmt.Errorf("spec.%s[].name %q is duplicated", listKind, name)
+		}
+		seen[name] = true
+	}
+	return nil
+}
+
+// resolveRef resolves ref (an exports[].userRef or exports[].identityRef value) against byName, a
+// map of already-deployed spec.users/spec.managedIdentities entries keyed by name. An empty ref
+// defaults to byName's sole entry when it has exactly one — so a single-entry list doesn't need a
+// ref on every export — and is ambiguous (an error) when byName has zero or more than one entry.
+// domain identifies the failing exports[] entry, and refKind/listKind name the failing spec fields
+// (e.g. "userRef"/"users"), in the returned error's message.
+func resolveRef[T any](byName map[string]T, ref, domain, refKind, listKind string) (T, error) {
+	if ref == "" {
+		if len(byName) == 1 {
+			for _, v := range byName {
+				return v, nil
+			}
+		}
+		var zero T
+		return zero, fmt.Errorf("exports[domain=%s]: %s is required when spec.%s does not have exactly one entry", domain, refKind, listKind)
+	}
+	v, ok := byName[ref]
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("exports[domain=%s]: %s %q does not match any spec.%s[].name", domain, refKind, ref, listKind)
+	}
+	return v, nil
+}

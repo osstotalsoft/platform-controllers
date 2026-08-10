@@ -106,23 +106,27 @@ type ProvisioningResourceIdendtifier struct {
 
 type ProvisioningResourceKind string
 
-// DatabaseUserSpec describes an optional app-facing database user. The password is never part of
-// the spec — it is always auto-generated and exported alongside the username.
+// DatabaseUserSpec describes an app-facing database user. The password is never part of the spec —
+// it is always auto-generated and exported alongside the username.
 type DatabaseUserSpec struct {
-	// Login/user name. Defaults to the provisioned database name if omitted.
-	// +optional
-	Name string `json:"name,omitempty"`
+	// Login/user name. Must be unique within the owning resource's users list.
+	// +required
+	Name string `json:"name"`
 	// Database role(s) granted to this user (e.g. db_owner, db_datareader). No roles are granted if omitted.
 	// +optional
 	Roles []string `json:"roles,omitempty"`
 }
 
-// ManagedIdentitySpec describes an optional Entra (Azure AD) user-assigned managed identity wired
-// in as a contained database user. Only applicable to Azure-native database kinds.
+// GetName returns the user's name, satisfying the resolveRef/validateUniqueNames helpers' named[T]
+// constraint (internal/controllers/provisioning/provisioners/pulumi/mssql_user.go).
+func (u DatabaseUserSpec) GetName() string { return u.Name }
+
+// ManagedIdentitySpec describes an Entra (Azure AD) user-assigned managed identity wired in as a
+// contained database user. Only applicable to Azure-native database kinds.
 type ManagedIdentitySpec struct {
-	// Identity name. Defaults to the provisioned database name if omitted.
-	// +optional
-	Name string `json:"name,omitempty"`
+	// Identity name. Must be unique within the owning resource's managedIdentities list.
+	// +required
+	Name string `json:"name"`
 	// Resource group the managed identity is created in.
 	ResourceGroupName string `json:"resourceGroupName"`
 	// Azure region.
@@ -131,3 +135,7 @@ type ManagedIdentitySpec struct {
 	// +optional
 	Roles []string `json:"roles,omitempty"`
 }
+
+// GetName returns the managed identity's name, satisfying the resolveRef/validateUniqueNames
+// helpers' named[T] constraint (internal/controllers/provisioning/provisioners/pulumi/mssql_user.go).
+func (m ManagedIdentitySpec) GetName() string { return m.Name }
