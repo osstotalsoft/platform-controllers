@@ -57,10 +57,8 @@ func (in *AzureDatabase) DeepCopyObject() runtime.Object {
 func (in *AzureDatabaseExportsSpec) DeepCopyInto(out *AzureDatabaseExportsSpec) {
 	*out = *in
 	out.DbName = in.DbName
-	out.UserRef = in.UserRef
 	out.Username = in.Username
 	out.Password = in.Password
-	out.IdentityRef = in.IdentityRef
 	out.IdentityClientId = in.IdentityClientId
 	out.IdentityPrincipalId = in.IdentityPrincipalId
 	return
