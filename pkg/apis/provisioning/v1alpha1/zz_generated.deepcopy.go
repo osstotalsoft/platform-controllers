@@ -1578,10 +1578,12 @@ func (in *MsSqlDatabaseSpec) DeepCopyInto(out *MsSqlDatabaseSpec) {
 	*out = *in
 	out.SqlServer = in.SqlServer
 	out.RestoreFrom = in.RestoreFrom
-	if in.User != nil {
-		in, out := &in.User, &out.User
-		*out = new(DatabaseUserSpec)
-		(*in).DeepCopyInto(*out)
+	if in.Users != nil {
+		in, out := &in.Users, &out.Users
+		*out = make([]DatabaseUserSpec, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.Exports != nil {
 		in, out := &in.Exports, &out.Exports

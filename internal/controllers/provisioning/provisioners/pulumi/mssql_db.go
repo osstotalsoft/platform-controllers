@@ -119,17 +119,24 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 		}
 	}
 
-	var username string
-	var password pulumi.StringOutput
-	if mssqlDb.Spec.User != nil {
+	if err := validateUniqueNames(mssqlDb.Spec.Users, "users"); err != nil {
+		return nil, err
+	}
+
+	usersByName := map[string]deployedUser{}
+	if len(mssqlDb.Spec.Users) > 0 {
 		userDeps := []pulumi.Resource{db}
 		if restoreScript != nil {
 			userDeps = append(userDeps, restoreScript)
 		}
-		username, password, err = deployLoginUser(ctx, provider, mssqlDb.Name, db.ID().ToStringOutput(),
-			mssqlDb.Spec.User, dbName, userDeps, pulumiRetainOnDelete)
-		if err != nil {
-			return nil, err
+		for i := range mssqlDb.Spec.Users {
+			user := mssqlDb.Spec.Users[i]
+			username, password, err := deployLoginUser(ctx, provider, fmt.Sprintf("%s-%s", mssqlDb.Name, user.Name), db.ID().ToStringOutput(),
+				&user, user.Name, userDeps, pulumiRetainOnDelete)
+			if err != nil {
+				return nil, err
+			}
+			usersByName[user.Name] = deployedUser{username: username, password: password}
 		}
 	}
 
@@ -137,10 +144,16 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 
 	for _, exp := range mssqlDb.Spec.Exports {
 		values := map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}}
-		if mssqlDb.Spec.User != nil {
-			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(username)}
-			values["password"] = exportTemplateWithValue{exp.Password, password}
+
+		if exp.UserRef != "" || exp.Username != (provisioningv1.ValueExport{}) || exp.Password != (provisioningv1.ValueExport{}) {
+			user, err := resolveRef(usersByName, exp.UserRef, exp.Domain, "userRef", "users")
+			if err != nil {
+				return nil, err
+			}
+			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(user.username)}
+			values["password"] = exportTemplateWithValue{exp.Password, user.password}
 		}
+
 		err = valueExporter(newExportContext(ctx, exp.Domain, mssqlDb.Name, mssqlDb.ObjectMeta, gvk), values)
 		if err != nil {
 			return nil, err

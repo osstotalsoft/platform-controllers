@@ -30,7 +30,7 @@ type MsSqlDatabaseSpecApplyConfiguration struct {
 	RestoreFrom                        *MsSqlDatabaseRestoreSpecApplyConfiguration  `json:"restoreFrom,omitempty"`
 	ImportDatabaseId                   *string                                      `json:"importDatabaseId,omitempty"`
 	OwnerLoginName                     *string                                      `json:"ownerLoginName,omitempty"`
-	User                               *DatabaseUserSpecApplyConfiguration          `json:"user,omitempty"`
+	Users                              []DatabaseUserSpecApplyConfiguration         `json:"users,omitempty"`
 	Exports                            []MsSqlDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -81,11 +81,16 @@ func (b *MsSqlDatabaseSpecApplyConfiguration) WithOwnerLoginName(value string) *
 	return b
 }
 
-// WithUser sets the User field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the User field is set to the value of the last call.
-func (b *MsSqlDatabaseSpecApplyConfiguration) WithUser(value *DatabaseUserSpecApplyConfiguration) *MsSqlDatabaseSpecApplyConfiguration {
-	b.User = value
+// WithUsers adds the given value to the Users field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Users field.
+func (b *MsSqlDatabaseSpecApplyConfiguration) WithUsers(values ...*DatabaseUserSpecApplyConfiguration) *MsSqlDatabaseSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithUsers")
+		}
+		b.Users = append(b.Users, *values[i])
+	}
 	return b
 }
 

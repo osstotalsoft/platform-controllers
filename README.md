@@ -702,15 +702,16 @@ metadata:
 spec:
   dbName: test
   domainRef: domain1
-  user:
-    roles:
-      - db_owner
-    # name: origination_app_user   # optional, defaults to the provisioned database name
+  users:
+    - name: test_app_user
+      roles:
+        - db_owner
   exports:
     - dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Test_Database__Database
       domain: domain1
+      userRef: test_app_user # optional here since users has exactly one entry
       username:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username

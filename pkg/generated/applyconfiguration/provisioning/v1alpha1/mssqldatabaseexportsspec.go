@@ -23,6 +23,7 @@ package v1alpha1
 type MsSqlDatabaseExportsSpecApplyConfiguration struct {
 	Domain   *string                        `json:"domain,omitempty"`
 	DbName   *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	UserRef  *string                        `json:"userRef,omitempty"`
 	Username *ValueExportApplyConfiguration `json:"username,omitempty"`
 	Password *ValueExportApplyConfiguration `json:"password,omitempty"`
 }
@@ -46,6 +47,14 @@ func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithDomain(value string) *M
 // If called multiple times, the DbName field is set to the value of the last call.
 func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithDbName(value *ValueExportApplyConfiguration) *MsSqlDatabaseExportsSpecApplyConfiguration {
 	b.DbName = value
+	return b
+}
+
+// WithUserRef sets the UserRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the UserRef field is set to the value of the last call.
+func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithUserRef(value string) *MsSqlDatabaseExportsSpecApplyConfiguration {
+	b.UserRef = &value
 	return b
 }
 
