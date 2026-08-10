@@ -115,6 +115,16 @@ type DatabaseUserSpec struct {
 	// Database role(s) granted to this user (e.g. db_owner, db_datareader). No roles are granted if omitted.
 	// +optional
 	Roles []string `json:"roles,omitempty"`
+	// Database-level SQL permission(s) granted directly to this user (e.g. EXECUTE, SELECT),
+	// distinct from Roles — granted via GRANT ... TO, not by adding the user to an existing role.
+	// Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+	// invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+	// +optional
+	Permissions []string `json:"permissions,omitempty"`
+	// Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+	// user — narrower blast radius than Permissions, which applies to every schema in the database.
+	// +optional
+	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
 }
 
 // GetName returns the user's name, satisfying the resolveRef/validateUniqueNames helpers' named[T]
@@ -134,6 +144,16 @@ type ManagedIdentitySpec struct {
 	// Database role(s) granted to this identity. No roles are granted if omitted.
 	// +optional
 	Roles []string `json:"roles,omitempty"`
+	// Database-level SQL permission(s) granted directly to this identity (e.g. EXECUTE, SELECT),
+	// distinct from Roles — granted via GRANT ... TO, not by adding the identity to an existing role.
+	// Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+	// invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+	// +optional
+	Permissions []string `json:"permissions,omitempty"`
+	// Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+	// identity — narrower blast radius than Permissions, which applies to every schema in the database.
+	// +optional
+	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
 }
 
 // GetName returns the managed identity's name, satisfying the resolveRef/validateUniqueNames

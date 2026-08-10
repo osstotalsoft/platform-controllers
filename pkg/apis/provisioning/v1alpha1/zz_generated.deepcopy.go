@@ -742,6 +742,26 @@ func (in *DatabaseUserSpec) DeepCopyInto(out *DatabaseUserSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.Permissions != nil {
+		in, out := &in.Permissions, &out.Permissions
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.SchemaPermissions != nil {
+		in, out := &in.SchemaPermissions, &out.SchemaPermissions
+		*out = make(map[string][]string, len(*in))
+		for key, val := range *in {
+			var outVal []string
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = make([]string, len(*in))
+				copy(*out, *in)
+			}
+			(*out)[key] = outVal
+		}
+	}
 	return
 }
 
@@ -1342,6 +1362,26 @@ func (in *ManagedIdentitySpec) DeepCopyInto(out *ManagedIdentitySpec) {
 		in, out := &in.Roles, &out.Roles
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.Permissions != nil {
+		in, out := &in.Permissions, &out.Permissions
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.SchemaPermissions != nil {
+		in, out := &in.SchemaPermissions, &out.SchemaPermissions
+		*out = make(map[string][]string, len(*in))
+		for key, val := range *in {
+			var outVal []string
+			if val == nil {
+				(*out)[key] = nil
+			} else {
+				in, out := &val, &outVal
+				*out = make([]string, len(*in))
+				copy(*out, *in)
+			}
+			(*out)[key] = outVal
+		}
 	}
 	return
 }

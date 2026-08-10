@@ -21,10 +21,12 @@ package v1alpha1
 // ManagedIdentitySpecApplyConfiguration represents an declarative configuration of the ManagedIdentitySpec type for use
 // with apply.
 type ManagedIdentitySpecApplyConfiguration struct {
-	Name              *string  `json:"name,omitempty"`
-	ResourceGroupName *string  `json:"resourceGroupName,omitempty"`
-	Location          *string  `json:"location,omitempty"`
-	Roles             []string `json:"roles,omitempty"`
+	Name              *string             `json:"name,omitempty"`
+	ResourceGroupName *string             `json:"resourceGroupName,omitempty"`
+	Location          *string             `json:"location,omitempty"`
+	Roles             []string            `json:"roles,omitempty"`
+	Permissions       []string            `json:"permissions,omitempty"`
+	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
 }
 
 // ManagedIdentitySpecApplyConfiguration constructs an declarative configuration of the ManagedIdentitySpec type for use with
@@ -63,6 +65,30 @@ func (b *ManagedIdentitySpecApplyConfiguration) WithLocation(value string) *Mana
 func (b *ManagedIdentitySpecApplyConfiguration) WithRoles(values ...string) *ManagedIdentitySpecApplyConfiguration {
 	for i := range values {
 		b.Roles = append(b.Roles, values[i])
+	}
+	return b
+}
+
+// WithPermissions adds the given value to the Permissions field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Permissions field.
+func (b *ManagedIdentitySpecApplyConfiguration) WithPermissions(values ...string) *ManagedIdentitySpecApplyConfiguration {
+	for i := range values {
+		b.Permissions = append(b.Permissions, values[i])
+	}
+	return b
+}
+
+// WithSchemaPermissions puts the entries into the SchemaPermissions field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, the entries provided by each call will be put on the SchemaPermissions field,
+// overwriting an existing map entries in SchemaPermissions field with the same key.
+func (b *ManagedIdentitySpecApplyConfiguration) WithSchemaPermissions(entries map[string][]string) *ManagedIdentitySpecApplyConfiguration {
+	if b.SchemaPermissions == nil && len(entries) > 0 {
+		b.SchemaPermissions = make(map[string][]string, len(entries))
+	}
+	for k, v := range entries {
+		b.SchemaPermissions[k] = v
 	}
 	return b
 }

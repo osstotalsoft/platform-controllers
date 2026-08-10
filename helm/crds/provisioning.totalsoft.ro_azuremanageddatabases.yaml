@@ -246,6 +246,15 @@ spec:
                       description: Identity name. Must be unique within the owning
                         resource's managedIdentities list.
                       type: string
+                    permissions:
+                      description: |-
+                        Database-level SQL permission(s) granted directly to this identity (e.g. EXECUTE, SELECT),
+                        distinct from Roles — granted via GRANT ... TO, not by adding the identity to an existing role.
+                        Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+                        invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+                      items:
+                        type: string
+                      type: array
                     resourceGroupName:
                       description: Resource group the managed identity is created
                         in.
@@ -256,6 +265,15 @@ spec:
                       items:
                         type: string
                       type: array
+                    schemaPermissions:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+                        identity — narrower blast radius than Permissions, which applies to every schema in the database.
+                      type: object
                   required:
                   - location
                   - name
@@ -370,12 +388,30 @@ spec:
                       description: Login/user name. Must be unique within the owning
                         resource's users list.
                       type: string
+                    permissions:
+                      description: |-
+                        Database-level SQL permission(s) granted directly to this user (e.g. EXECUTE, SELECT),
+                        distinct from Roles — granted via GRANT ... TO, not by adding the user to an existing role.
+                        Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+                        invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+                      items:
+                        type: string
+                      type: array
                     roles:
                       description: Database role(s) granted to this user (e.g. db_owner,
                         db_datareader). No roles are granted if omitted.
                       items:
                         type: string
                       type: array
+                    schemaPermissions:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+                        user — narrower blast radius than Permissions, which applies to every schema in the database.
+                      type: object
                   required:
                   - name
                   type: object
