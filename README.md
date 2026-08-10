@@ -254,6 +254,11 @@ spec:
     - name: origination_app_user
       roles:
         - db_owner
+      permissions:
+        - EXECUTE
+      schemaPermissions:
+        dbo:
+          - EXECUTE
   managedIdentities:
     - name: origination_app_identity
       resourceGroupName: SQL_RG
@@ -299,6 +304,11 @@ spec:
     - name: origination_app_user
       roles:
         - db_owner
+      permissions:
+        - EXECUTE
+      schemaPermissions:
+        dbo:
+          - EXECUTE
   managedIdentities:
     - name: origination_app_identity
       resourceGroupName: SQL_RG
@@ -706,6 +716,11 @@ spec:
     - name: test_app_user
       roles:
         - db_owner
+      permissions:
+        - EXECUTE
+      schemaPermissions:
+        dbo:
+          - EXECUTE
   exports:
     - dbName:
         toConfigMap:

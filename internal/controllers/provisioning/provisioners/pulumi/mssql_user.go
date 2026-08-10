@@ -108,6 +108,57 @@ func deployDatabaseRoleGrants(ctx *pulumi.Context, provider *mssql.Provider, res
 	return nil
 }
 
+// deployDatabasePermissionGrants grants each named database-level permission (e.g. "EXECUTE",
+// "SELECT") to the principal identified by memberId (same "<databaseId>/<principalId>" composite
+// form deployDatabaseRoleGrants's memberId uses), via mssql.DatabasePermission — a real typed
+// resource, so unlike role membership (which only ever adds, never removes), removing a permission
+// from the spec correctly revokes it on the next apply. No-op if permissions is empty.
+func deployDatabasePermissionGrants(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
+	databaseId pulumi.StringInput, memberId pulumi.StringInput, permissions []string,
+	dependencies []pulumi.Resource, retainOnDelete bool) error {
+
+	for _, permission := range permissions {
+		_, err := mssql.NewDatabasePermission(ctx, fmt.Sprintf("%s-permission-%s", resourceNamePrefix, permission), &mssql.DatabasePermissionArgs{
+			PrincipalId: memberId,
+			Permission:  pulumi.String(permission),
+		}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// deploySchemaPermissionGrants grants each named schema-scoped permission to the principal
+// identified by memberId, via mssql.SchemaPermission — narrower blast radius than
+// deployDatabasePermissionGrants, since it only applies within the named schema. schemaPermissions
+// is keyed by schema name (e.g. "dbo"); each schema is resolved via mssql.LookupSchemaOutput before
+// any grant is registered for it. No-op if schemaPermissions is empty.
+func deploySchemaPermissionGrants(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
+	databaseId pulumi.StringInput, memberId pulumi.StringInput, schemaPermissions map[string][]string,
+	dependencies []pulumi.Resource, retainOnDelete bool) error {
+
+	for schema, permissions := range schemaPermissions {
+		schemaLookup := mssql.LookupSchemaOutput(ctx, mssql.LookupSchemaOutputArgs{
+			DatabaseId: databaseId.ToStringOutput().ToStringPtrOutput(),
+			Name:       pulumi.StringPtr(schema),
+		}, pulumi.Provider(provider))
+		schemaId := schemaLookup.ApplyT(func(r mssql.LookupSchemaResult) string { return r.Id }).(pulumi.StringOutput)
+
+		for _, permission := range permissions {
+			_, err := mssql.NewSchemaPermission(ctx, fmt.Sprintf("%s-schema-%s-permission-%s", resourceNamePrefix, schema, permission), &mssql.SchemaPermissionArgs{
+				SchemaId:    schemaId,
+				PrincipalId: memberId,
+				Permission:  pulumi.String(permission),
+			}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // deployLoginUser creates a server-level SqlLogin (generated password) plus a database-scoped
 // SqlUser mapped to it, and grants userSpec.Roles. Used when a server login is available (sqlmi,
 // on-prem MsSqlDatabase).
@@ -147,7 +198,18 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 		return "", pulumi.StringOutput{}, err
 	}
 
-	err = deployDatabaseRoleGrants(ctx, provider, resourceNamePrefix, databaseId, user.ID().ToStringOutput(), userSpec.Roles,
+	memberId := user.ID().ToStringOutput()
+	err = deployDatabaseRoleGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.Roles,
+		append(dependencies, user), retainOnDelete)
+	if err != nil {
+		return "", pulumi.StringOutput{}, err
+	}
+	err = deployDatabasePermissionGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.Permissions,
+		append(dependencies, user), retainOnDelete)
+	if err != nil {
+		return "", pulumi.StringOutput{}, err
+	}
+	err = deploySchemaPermissionGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.SchemaPermissions,
 		append(dependencies, user), retainOnDelete)
 	if err != nil {
 		return "", pulumi.StringOutput{}, err
@@ -264,7 +326,25 @@ SELECT ISNULL(
 	if err != nil {
 		return "", pulumi.StringOutput{}, err
 	}
-	_ = script
+
+	if len(userSpec.Permissions) > 0 || len(userSpec.SchemaPermissions) > 0 {
+		memberIdLookup := mssql.LookupSqlUserOutput(ctx, mssql.LookupSqlUserOutputArgs{
+			DatabaseId: databaseId.ToStringOutput().ToStringPtrOutput(),
+			Name:       pulumi.String(username),
+		}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{script}))
+		memberId := memberIdLookup.ApplyT(func(r mssql.LookupSqlUserResult) string { return r.Id }).(pulumi.StringOutput)
+
+		err = deployDatabasePermissionGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.Permissions,
+			append(dependencies, script), retainOnDelete)
+		if err != nil {
+			return "", pulumi.StringOutput{}, err
+		}
+		err = deploySchemaPermissionGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.SchemaPermissions,
+			append(dependencies, script), retainOnDelete)
+		if err != nil {
+			return "", pulumi.StringOutput{}, err
+		}
+	}
 
 	return username, password, nil
 }
@@ -303,8 +383,19 @@ func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resour
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
-	err = deployDatabaseRoleGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, principal.ID().ToStringOutput(),
+	memberId := principal.ID().ToStringOutput()
+	err = deployDatabaseRoleGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, memberId,
 		identitySpec.Roles, append(dependencies, principal), retainOnDelete)
+	if err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+	err = deployDatabasePermissionGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, memberId,
+		identitySpec.Permissions, append(dependencies, principal), retainOnDelete)
+	if err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+	err = deploySchemaPermissionGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, memberId,
+		identitySpec.SchemaPermissions, append(dependencies, principal), retainOnDelete)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}

@@ -404,3 +404,107 @@ func TestResolveRef(t *testing.T) {
 		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
 	})
 }
+
+func TestDeployDatabasePermissionGrants(t *testing.T) {
+	t.Run("no permissions is a no-op", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deployDatabasePermissionGrants(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				nil, []pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/databasePermission:DatabasePermission"))
+	})
+
+	t.Run("grants each named permission", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deployDatabasePermissionGrants(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				[]string{"EXECUTE", "SELECT"}, []pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		grants := capture.byType["mssql:index/databasePermission:DatabasePermission"]
+		assert.Len(t, grants, 2)
+		permissions := map[string]bool{}
+		for _, g := range grants {
+			permissions[g.Inputs["permission"].StringValue()] = true
+			assert.Equal(t, "1/2", g.Inputs["principalId"].StringValue())
+		}
+		assert.True(t, permissions["EXECUTE"])
+		assert.True(t, permissions["SELECT"])
+	})
+
+	t.Run("retainOnDelete propagates", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deployDatabasePermissionGrants(ctx, provider, "retain-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				[]string{"EXECUTE"}, []pulumi.Resource{}, true)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		assert.True(t, capture.retainOnDelete("retain-db-permission-EXECUTE"))
+	})
+}
+
+func TestDeploySchemaPermissionGrants(t *testing.T) {
+	t.Run("no schema permissions is a no-op", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deploySchemaPermissionGrants(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				nil, []pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/schemaPermission:SchemaPermission"))
+	})
+
+	t.Run("grants each named permission on each named schema", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deploySchemaPermissionGrants(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				map[string][]string{"dbo": {"EXECUTE"}}, []pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		grants := capture.byType["mssql:index/schemaPermission:SchemaPermission"]
+		assert.Len(t, grants, 1)
+		assert.Equal(t, "EXECUTE", grants[0].Inputs["permission"].StringValue())
+		assert.Equal(t, "1/2", grants[0].Inputs["principalId"].StringValue())
+	})
+
+	t.Run("grants multiple permissions across multiple schemas", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deploySchemaPermissionGrants(ctx, provider, "my-db-2",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				map[string][]string{"dbo": {"EXECUTE", "SELECT"}, "reporting": {"SELECT"}},
+				[]pulumi.Resource{}, false)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		grants := capture.byType["mssql:index/schemaPermission:SchemaPermission"]
+		assert.Len(t, grants, 3)
+	})
+
+	t.Run("retainOnDelete propagates", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			return deploySchemaPermissionGrants(ctx, provider, "retain-db",
+				pulumi.String("1").ToStringOutput(), pulumi.String("1/2").ToStringOutput(),
+				map[string][]string{"dbo": {"EXECUTE"}}, []pulumi.Resource{}, true)
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		assert.True(t, capture.retainOnDelete("retain-db-schema-dbo-permission-EXECUTE"))
+	})
+}

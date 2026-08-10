@@ -78,6 +78,32 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/databaseRoleMember:DatabaseRoleMember"))
 	})
 
+	t.Run("grants permissions and schema permissions to a user", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant-permissions", platform)
+		mssqlDb := newMsSqlDb("my-db-permissions")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{
+				Name:              "origination_app",
+				Roles:             []string{"db_owner"},
+				Permissions:       []string{"EXECUTE"},
+				SchemaPermissions: map[string][]string{"dbo": {"EXECUTE"}},
+			},
+		}
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/databasePermission:DatabasePermission"))
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/schemaPermission:SchemaPermission"))
+	})
+
 	t.Run("msSqlDatabase exports username and password (implicit userRef)", func(t *testing.T) {
 		platform := "dev"
 		tenant := newTenant("tenant3", platform)

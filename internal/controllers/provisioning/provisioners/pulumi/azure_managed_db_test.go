@@ -68,6 +68,30 @@ func TestDeployAzureManagedDb(t *testing.T) {
 		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/script:Script"))
 	})
 
+	t.Run("grants permissions and schema permissions to a login-mode user", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureManagedDb("my-mi-db-permissions")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{
+				Name:              "origination_app",
+				Roles:             []string{"db_owner"},
+				Permissions:       []string{"EXECUTE"},
+				SchemaPermissions: map[string][]string{"dbo": {"EXECUTE"}},
+			},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/databasePermission:DatabasePermission"))
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/schemaPermission:SchemaPermission"))
+	})
+
 	t.Run("with contained user (ContainedUser true)", func(t *testing.T) {
 		setAzureMssqlAuthEnv(t)
 		azureDb := newAzureManagedDb("my-mi-db-contained-user")
