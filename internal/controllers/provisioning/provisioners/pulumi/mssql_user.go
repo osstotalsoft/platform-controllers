@@ -111,11 +111,19 @@ func deployDatabaseRoleGrants(ctx *pulumi.Context, provider *mssql.Provider, res
 // deployLoginUser creates a server-level SqlLogin (generated password) plus a database-scoped
 // SqlUser mapped to it, and grants userSpec.Roles. Used when a server login is available (sqlmi,
 // on-prem MsSqlDatabase).
+//
+// The database and its login/user share the same physical SQL Server/Managed Instance across every
+// tenant this CR is provisioned for — only the database itself is tenant-scoped (dbName's tenant
+// suffix). A server-level login is a server-wide name, so without tenant-scoping, two tenants
+// configuring the same users[].name (the common case — it names an application, not a tenant) would
+// collide on CREATE LOGIN. tenantScope (the caller's tenant-scoped dbName) is appended to make the
+// real login name unique per tenant, while userSpec.Name stays the stable, tenant-independent key
+// used for users[].name uniqueness and exports[].userRef matching.
 func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
-	databaseId pulumi.StringInput, userSpec *provisioningv1.DatabaseUserSpec, defaultName string,
+	databaseId pulumi.StringInput, userSpec *provisioningv1.DatabaseUserSpec, tenantScope string,
 	dependencies []pulumi.Resource, retainOnDelete bool) (string, pulumi.StringOutput, error) {
 
-	username := resolveName(userSpec.Name, defaultName)
+	username := fmt.Sprintf("%s_%s", userSpec.Name, tenantScope)
 
 	password, err := newRandomPassword(ctx, fmt.Sprintf("%s-login", resourceNamePrefix))
 	if err != nil {
@@ -263,11 +271,19 @@ SELECT ISNULL(
 
 // deployManagedIdentity creates an Azure user-assigned managed identity and wires it into the
 // database as a contained AAD service-principal user, granting identitySpec.Roles.
+//
+// The managed identity is an ARM resource in a fixed resource group (identitySpec.ResourceGroupName),
+// shared across every tenant this CR is provisioned for — only the database itself is tenant-scoped.
+// tenantScope (the caller's tenant-scoped dbName) is appended to the real identity name so tenants
+// don't silently share (and fight over the lifecycle of) the same ARM resource when
+// identitySpec.Name is the same across tenants (the common case — it names an application, not a
+// tenant). identitySpec.Name stays the stable, tenant-independent key used for
+// managedIdentities[].name uniqueness and exports[].identityRef matching.
 func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
-	databaseId pulumi.StringInput, identitySpec *provisioningv1.ManagedIdentitySpec, defaultName string,
+	databaseId pulumi.StringInput, identitySpec *provisioningv1.ManagedIdentitySpec, tenantScope string,
 	dependencies []pulumi.Resource, retainOnDelete bool) (pulumi.StringOutput, pulumi.StringOutput, error) {
 
-	name := resolveName(identitySpec.Name, defaultName)
+	name := fmt.Sprintf("%s_%s", identitySpec.Name, tenantScope)
 
 	identity, err := managedidentity.NewUserAssignedIdentity(ctx, fmt.Sprintf("%s-identity", resourceNamePrefix), &managedidentity.UserAssignedIdentityArgs{
 		ResourceName:      pulumi.String(name),
@@ -361,4 +377,43 @@ func resolveRef[T any](byName map[string]T, ref, domain, refKind, listKind strin
 		return zero, fmt.Errorf("exports[domain=%s]: %s %q does not match any spec.%s[].name", domain, refKind, ref, listKind)
 	}
 	return v, nil
+}
+
+// validateNoCrossListNameCollision returns an error if any name in managedIdentities also appears in
+// users — the two lists become distinct kinds of database principal (a password-based user vs. an
+// AAD service principal) but share one namespace at the SQL/Azure level, so a name used in both would
+// collide when both get deployed.
+func validateNoCrossListNameCollision(users []provisioningv1.DatabaseUserSpec, managedIdentities []provisioningv1.ManagedIdentitySpec) error {
+	userNames := make(map[string]bool, len(users))
+	for _, u := range users {
+		userNames[u.Name] = true
+	}
+	for _, m := range managedIdentities {
+		if userNames[m.Name] {
+			return fmt.Errorf("spec.managedIdentities[].name %q collides with a spec.users[].name — names must be unique across both lists", m.Name)
+		}
+	}
+	return nil
+}
+
+// domained is satisfied by any exports[] spec element that carries a Domain — all three DB kinds'
+// *ExportsSpec types implement it (add GetDomain() to each — see call sites below).
+type domained interface {
+	GetDomain() string
+}
+
+// validateUniqueDomains returns an error if any two entries in items share the same Domain. Export
+// secret/configmap names and vault paths are keyed by domain alone (not by userRef/identityRef), so
+// two exports[] entries with the same domain would collide on the same Kubernetes object name or
+// vault path. listKind names the failing spec field (e.g. "exports") in the error message.
+func validateUniqueDomains[T domained](items []T, listKind string) error {
+	seen := make(map[string]bool, len(items))
+	for _, item := range items {
+		domain := item.GetDomain()
+		if seen[domain] {
+			return fmt.Errorf("spec.%s[].domain %q is duplicated — each domain must appear at most once, since export secret/configmap names and vault paths are keyed by domain alone", listKind, domain)
+		}
+		seen[domain] = true
+	}
+	return nil
 }

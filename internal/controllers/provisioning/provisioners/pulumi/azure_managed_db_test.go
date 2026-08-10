@@ -1,6 +1,7 @@
 package pulumi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -226,8 +227,16 @@ func TestDeployAzureManagedDb(t *testing.T) {
 			data := cm.Inputs["data"].ObjectValue()
 			usernames[data[resource.PropertyKey("username")].StringValue()] = true
 		}
-		assert.True(t, usernames["origination_app"])
-		assert.True(t, usernames["reporting_app"])
+		hasPrefixedUsername := func(prefix string) bool {
+			for u := range usernames {
+				if strings.HasPrefix(u, prefix+"_") {
+					return true
+				}
+			}
+			return false
+		}
+		assert.True(t, hasPrefixedUsername("origination_app"), "expected a username starting with \"origination_app_\" (tenant-scoped), got: %v", usernames)
+		assert.True(t, hasPrefixedUsername("reporting_app"), "expected a username starting with \"reporting_app_\" (tenant-scoped), got: %v", usernames)
 	})
 
 	t.Run("duplicate user name fails fast", func(t *testing.T) {
@@ -396,4 +405,104 @@ func TestDeployAzureManagedDb(t *testing.T) {
 			assert.NotContains(t, azureAuthObj, resource.PropertyKey(key), "azureAuth must have no credential fields set under Workload Identity")
 		}
 	})
+
+	t.Run("a users[] name colliding with a managedIdentities[] name fails fast, before any pulumi resource is created", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureManagedDb("my-mi-db-cross-list-collision")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+		}
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+			{Name: "app1", ResourceGroupName: "SQLMI_RG", Location: "westeurope", Roles: []string{"db_owner"}},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, `collides with a spec.users[].name`)
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:"), "no mssql resource must be created once validation fails")
+		assert.False(t, capture.hasAnyTypeWithPrefix("azure-native:managedidentity"), "no managed identity resource must be created once validation fails")
+	})
+}
+
+// TestDeployAzureManagedDbLoginNameIsTenantScoped guards against the regression where
+// deployLoginUser's real SqlLogin name was users[].name verbatim. The managed instance is shared
+// across every tenant this CR is provisioned for — only the database itself is tenant-scoped — so
+// two tenants configuring the same users[].name (the common case, since it names an application, not
+// a tenant) must not collide on a server-wide CREATE LOGIN.
+func TestDeployAzureManagedDbLoginNameIsTenantScoped(t *testing.T) {
+	setAzureMssqlAuthEnv(t)
+	platform := "dev"
+	tenantA := newTenant("tenant-a", platform)
+	tenantB := newTenant("tenant-b", platform)
+
+	dbA := newAzureManagedDb("mi-db-tenant-a")
+	dbA.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
+	dbB := newAzureManagedDb("mi-db-tenant-b")
+	dbB.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
+
+	capture := newResourceCaptureMocks()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		if _, err := deployAzureManagedDb(tenantA, dbA, []pulumi.Resource{}, ctx); err != nil {
+			return err
+		}
+		_, err := deployAzureManagedDb(tenantB, dbB, []pulumi.Resource{}, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	logins := capture.byType["mssql:index/sqlLogin:SqlLogin"]
+	assert.Len(t, logins, 2, "each tenant must get its own SqlLogin")
+	names := map[string]bool{}
+	for _, l := range logins {
+		names[l.Inputs["name"].StringValue()] = true
+	}
+	assert.Len(t, names, 2, "the two tenants' logins must have different names despite both configuring users[].name=\"app1\"")
+	for name := range names {
+		assert.True(t, strings.HasPrefix(name, "app1_"), "login name %q must be tenant-scoped", name)
+	}
+}
+
+// TestDeployAzureManagedDbIdentityNameIsTenantScoped guards against the regression where
+// deployManagedIdentity's real UserAssignedIdentity resource name was managedIdentities[].name
+// verbatim. The identity is an ARM resource in a fixed resource group, shared across every tenant
+// this CR is provisioned for — only the database itself is tenant-scoped — so two tenants
+// configuring the same managedIdentities[].name must not silently share (and fight over the
+// lifecycle of) the same ARM resource.
+func TestDeployAzureManagedDbIdentityNameIsTenantScoped(t *testing.T) {
+	setAzureMssqlAuthEnv(t)
+	platform := "dev"
+	tenantA := newTenant("tenant-a", platform)
+	tenantB := newTenant("tenant-b", platform)
+
+	dbA := newAzureManagedDb("mi-db-id-tenant-a")
+	dbA.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+		{Name: "identity1", ResourceGroupName: "SQLMI_RG", Location: "westeurope", Roles: []string{"db_owner"}},
+	}
+	dbB := newAzureManagedDb("mi-db-id-tenant-b")
+	dbB.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+		{Name: "identity1", ResourceGroupName: "SQLMI_RG", Location: "westeurope", Roles: []string{"db_owner"}},
+	}
+
+	capture := newResourceCaptureMocks()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		if _, err := deployAzureManagedDb(tenantA, dbA, []pulumi.Resource{}, ctx); err != nil {
+			return err
+		}
+		_, err := deployAzureManagedDb(tenantB, dbB, []pulumi.Resource{}, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	identities := capture.byType["azure-native:managedidentity:UserAssignedIdentity"]
+	assert.Len(t, identities, 2, "each tenant must get its own UserAssignedIdentity")
+	names := map[string]bool{}
+	for _, i := range identities {
+		names[i.Inputs["resourceName"].StringValue()] = true
+	}
+	assert.Len(t, names, 2, "the two tenants' managed identities must have different resource names despite both configuring managedIdentities[].name=\"identity1\" — otherwise every tenant would silently share (and fight over the lifecycle of) the same ARM resource")
+	for name := range names {
+		assert.True(t, strings.HasPrefix(name, "identity1_"), "identity resource name %q must be tenant-scoped", name)
+	}
 }

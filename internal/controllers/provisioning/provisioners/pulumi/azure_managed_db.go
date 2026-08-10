@@ -21,6 +21,19 @@ func deployAzureManagedDb(
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 
+	if err := validateUniqueNames(azureDb.Spec.Users, "users"); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueNames(azureDb.Spec.ManagedIdentities, "managedIdentities"); err != nil {
+		return nil, err
+	}
+	if err := validateNoCrossListNameCollision(azureDb.Spec.Users, azureDb.Spec.ManagedIdentities); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueDomains(azureDb.Spec.Exports, "exports"); err != nil {
+		return nil, err
+	}
+
 	dbNameV1 := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s_%s_%s", azureDb.Spec.DbName, tenant.Spec.PlatformRef, tenant.GetName())
@@ -54,13 +67,6 @@ func deployAzureManagedDb(
 		pulumi.DependsOn(dependencies),
 	)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := validateUniqueNames(azureDb.Spec.Users, "users"); err != nil {
-		return nil, err
-	}
-	if err := validateUniqueNames(azureDb.Spec.ManagedIdentities, "managedIdentities"); err != nil {
 		return nil, err
 	}
 
@@ -108,7 +114,7 @@ func deployAzureManagedDb(
 					&user, user.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			} else {
 				username, password, err = deployLoginUser(ctx, provider, resourceNamePrefix, databaseId,
-					&user, user.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
+					&user, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			}
 			if err != nil {
 				return nil, err
@@ -119,7 +125,7 @@ func deployAzureManagedDb(
 		for i := range azureDb.Spec.ManagedIdentities {
 			identity := azureDb.Spec.ManagedIdentities[i]
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
-				&identity, identity.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
+				&identity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}

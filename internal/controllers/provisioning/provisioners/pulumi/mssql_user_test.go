@@ -66,17 +66,20 @@ func TestDeployLoginUser(t *testing.T) {
 
 			username, password, err := deployLoginUser(ctx, provider, "my-db",
 				pulumi.String("1").ToStringOutput(),
-				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
+				&provisioningv1.DatabaseUserSpec{Name: "app1", Roles: []string{"db_owner"}},
 				"my-db", []pulumi.Resource{}, false)
 			assert.NoError(t, err)
-			assert.Equal(t, "my-db", username)
+			assert.Equal(t, "app1_my-db", username)
 			assert.NotNil(t, password)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)
 	})
 
-	t.Run("explicit name overrides default", func(t *testing.T) {
+	// The real login/user name combines userSpec.Name with tenantScope (the caller's tenant-scoped
+	// dbName) — see deployLoginUser's doc comment. userSpec.Name alone stays the stable,
+	// tenant-independent key used for users[].name uniqueness/exports[].userRef matching.
+	t.Run("real name combines spec name with tenant scope", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			provider := newTestProvider(t, ctx, "test-provider")
 
@@ -85,7 +88,7 @@ func TestDeployLoginUser(t *testing.T) {
 				&provisioningv1.DatabaseUserSpec{Name: "custom-user"},
 				"my-db-2", []pulumi.Resource{}, false)
 			assert.NoError(t, err)
-			assert.Equal(t, "custom-user", username)
+			assert.Equal(t, "custom-user_my-db-2", username)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.NoError(t, err)

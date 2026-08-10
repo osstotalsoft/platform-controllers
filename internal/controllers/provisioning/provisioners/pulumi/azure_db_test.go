@@ -1,6 +1,7 @@
 package pulumi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -333,4 +334,79 @@ func TestDeployAzureDb(t *testing.T) {
 		assert.True(t, names["db-alpha-mssql-provider"])
 		assert.True(t, names["db-beta-mssql-provider"])
 	})
+
+	t.Run("duplicate export domain fails fast, before any pulumi resource is created", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureDb("my-azure-db-dup-domain")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+			{Name: "app2", Roles: []string{"db_owner"}},
+		}
+		azureDb.Spec.Exports = []provisioningv1.AzureDatabaseExportsSpec{
+			{
+				Domain:  "origination",
+				UserRef: "app1",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+			{
+				Domain:  "origination",
+				UserRef: "app2",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, "is duplicated")
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:"), "no mssql resource must be created once validation fails")
+	})
+}
+
+// TestDeployAzureDbIdentityNameIsTenantScoped guards against the regression where
+// deployManagedIdentity's real UserAssignedIdentity resource name was managedIdentities[].name
+// verbatim. The identity is an ARM resource in a fixed resource group, shared across every tenant
+// this CR is provisioned for — only the database itself is tenant-scoped — so two tenants
+// configuring the same managedIdentities[].name must not silently share (and fight over the
+// lifecycle of) the same ARM resource.
+func TestDeployAzureDbIdentityNameIsTenantScoped(t *testing.T) {
+	setAzureMssqlAuthEnv(t)
+	platform := "dev"
+	tenantA := newTenant("tenant-a", platform)
+	tenantB := newTenant("tenant-b", platform)
+
+	dbA := newAzureDb("db-id-tenant-a")
+	dbA.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+		{Name: "identity1", ResourceGroupName: "SQL_RG", Location: "westeurope", Roles: []string{"db_owner"}},
+	}
+	dbB := newAzureDb("db-id-tenant-b")
+	dbB.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+		{Name: "identity1", ResourceGroupName: "SQL_RG", Location: "westeurope", Roles: []string{"db_owner"}},
+	}
+
+	capture := newResourceCaptureMocks()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		if _, err := deployAzureDb(tenantA, dbA, []pulumi.Resource{}, ctx); err != nil {
+			return err
+		}
+		_, err := deployAzureDb(tenantB, dbB, []pulumi.Resource{}, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	identities := capture.byType["azure-native:managedidentity:UserAssignedIdentity"]
+	assert.Len(t, identities, 2, "each tenant must get its own UserAssignedIdentity")
+	names := map[string]bool{}
+	for _, i := range identities {
+		names[i.Inputs["resourceName"].StringValue()] = true
+	}
+	assert.Len(t, names, 2, "the two tenants' managed identities must have different resource names despite both configuring managedIdentities[].name=\"identity1\"")
+	for name := range names {
+		assert.True(t, strings.HasPrefix(name, "identity1_"), "identity resource name %q must be tenant-scoped", name)
+	}
 }

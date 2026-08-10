@@ -86,6 +86,10 @@ type AzureDatabaseExportsSpec struct {
 	IdentityPrincipalId ValueExport `json:"identityPrincipalId,omitempty"`
 }
 
+// GetDomain returns the export's domain, satisfying the validateUniqueDomains helper's domained[T]
+// constraint in mssql_user.go.
+func (e AzureDatabaseExportsSpec) GetDomain() string { return e.Domain }
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type AzureDatabaseList struct {

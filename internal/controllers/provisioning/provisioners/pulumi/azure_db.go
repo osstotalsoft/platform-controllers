@@ -20,6 +20,19 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureDatabase")
 
+	if err := validateUniqueNames(azureDb.Spec.Users, "users"); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueNames(azureDb.Spec.ManagedIdentities, "managedIdentities"); err != nil {
+		return nil, err
+	}
+	if err := validateNoCrossListNameCollision(azureDb.Spec.Users, azureDb.Spec.ManagedIdentities); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueDomains(azureDb.Spec.Exports, "exports"); err != nil {
+		return nil, err
+	}
+
 	server, err := azureSql.LookupServer(ctx, &azureSql.LookupServerArgs{
 		ResourceGroupName: azureDb.Spec.SqlServer.ResourceGroupName,
 		ServerName:        azureDb.Spec.SqlServer.ServerName,
@@ -90,13 +103,6 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	}
 	ctx.Export("azureDbName", db.Name)
 
-	if err := validateUniqueNames(azureDb.Spec.Users, "users"); err != nil {
-		return nil, err
-	}
-	if err := validateUniqueNames(azureDb.Spec.ManagedIdentities, "managedIdentities"); err != nil {
-		return nil, err
-	}
-
 	usersByName := map[string]deployedUser{}
 	identitiesByName := map[string]deployedIdentity{}
 	if len(azureDb.Spec.Users) > 0 || len(azureDb.Spec.ManagedIdentities) > 0 {
@@ -124,7 +130,7 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 		for i := range azureDb.Spec.ManagedIdentities {
 			identity := azureDb.Spec.ManagedIdentities[i]
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
-				&identity, identity.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
+				&identity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}

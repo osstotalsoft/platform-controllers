@@ -86,6 +86,10 @@ type MsSqlDatabaseExportsSpec struct {
 	Password ValueExport `json:"password,omitempty"`
 }
 
+// GetDomain returns the export's domain, satisfying the validateUniqueDomains helper's domained[T]
+// constraint in mssql_user.go.
+func (e MsSqlDatabaseExportsSpec) GetDomain() string { return e.Domain }
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 type MsSqlDatabaseList struct {

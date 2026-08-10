@@ -20,6 +20,13 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MsSqlDatabase")
 
+	if err := validateUniqueNames(mssqlDb.Spec.Users, "users"); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueDomains(mssqlDb.Spec.Exports, "exports"); err != nil {
+		return nil, err
+	}
+
 	provider, err := mssql.NewProvider(ctx, "provider-mssql", &mssql.ProviderArgs{
 		Hostname: pulumi.String(mssqlDb.Spec.SqlServer.HostName),
 		Port:     pulumi.Int(mssqlDb.Spec.SqlServer.Port),
@@ -119,10 +126,6 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 		}
 	}
 
-	if err := validateUniqueNames(mssqlDb.Spec.Users, "users"); err != nil {
-		return nil, err
-	}
-
 	usersByName := map[string]deployedUser{}
 	if len(mssqlDb.Spec.Users) > 0 {
 		userDeps := []pulumi.Resource{db}
@@ -132,7 +135,7 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 		for i := range mssqlDb.Spec.Users {
 			user := mssqlDb.Spec.Users[i]
 			username, password, err := deployLoginUser(ctx, provider, fmt.Sprintf("%s-%s", mssqlDb.Name, user.Name), db.ID().ToStringOutput(),
-				&user, user.Name, userDeps, pulumiRetainOnDelete)
+				&user, dbName, userDeps, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}

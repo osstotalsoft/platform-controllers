@@ -1,6 +1,7 @@
 package pulumi
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -157,8 +158,16 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 			data := cm.Inputs["data"].ObjectValue()
 			usernames[data[resource.PropertyKey("username")].StringValue()] = true
 		}
-		assert.True(t, usernames["origination_app"])
-		assert.True(t, usernames["reporting_app"])
+		hasPrefixedUsername := func(prefix string) bool {
+			for u := range usernames {
+				if strings.HasPrefix(u, prefix+"_") {
+					return true
+				}
+			}
+			return false
+		}
+		assert.True(t, hasPrefixedUsername("origination_app"), "expected a username starting with \"origination_app_\" (tenant-scoped), got: %v", usernames)
+		assert.True(t, hasPrefixedUsername("reporting_app"), "expected a username starting with \"reporting_app_\" (tenant-scoped), got: %v", usernames)
 	})
 
 	t.Run("duplicate user name fails fast", func(t *testing.T) {
@@ -226,4 +235,42 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
 		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
 	})
+}
+
+// TestDeployMsSqlDatabaseLoginNameIsTenantScoped guards against the regression where
+// deployLoginUser's real SqlLogin name was users[].name verbatim (the fallback defaultName being
+// unreachable once Name became required). Since MsSqlDatabase's server is shared across every tenant
+// this CR is provisioned for — only the database itself is tenant-scoped — two tenants configuring
+// the same users[].name (the common case, since it names an application, not a tenant) must not
+// collide on a server-wide CREATE LOGIN.
+func TestDeployMsSqlDatabaseLoginNameIsTenantScoped(t *testing.T) {
+	platform := "dev"
+	tenantA := newTenant("tenant-a", platform)
+	tenantB := newTenant("tenant-b", platform)
+
+	mssqlDbA := newMsSqlDb("my-db-tenant-a")
+	mssqlDbA.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
+	mssqlDbB := newMsSqlDb("my-db-tenant-b")
+	mssqlDbB.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
+
+	capture := newResourceCaptureMocks()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		if _, err := deployMsSqlDb(tenantA, mssqlDbA, []pulumi.Resource{}, ctx); err != nil {
+			return err
+		}
+		_, err := deployMsSqlDb(tenantB, mssqlDbB, []pulumi.Resource{}, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	logins := capture.byType["mssql:index/sqlLogin:SqlLogin"]
+	assert.Len(t, logins, 2, "each tenant must get its own SqlLogin")
+	names := map[string]bool{}
+	for _, l := range logins {
+		names[l.Inputs["name"].StringValue()] = true
+	}
+	assert.Len(t, names, 2, "the two tenants' logins must have different names despite both configuring users[].name=\"app1\" — same-named apps in different tenants must not collide on a server-wide login name")
+	for name := range names {
+		assert.True(t, strings.HasPrefix(name, "app1_"), "login name %q must be tenant-scoped (prefixed with the app name)", name)
+	}
 }
