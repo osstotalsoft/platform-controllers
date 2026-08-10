@@ -57,8 +57,10 @@ func (in *AzureDatabase) DeepCopyObject() runtime.Object {
 func (in *AzureDatabaseExportsSpec) DeepCopyInto(out *AzureDatabaseExportsSpec) {
 	*out = *in
 	out.DbName = in.DbName
+	out.UserRef = in.UserRef
 	out.Username = in.Username
 	out.Password = in.Password
+	out.IdentityRef = in.IdentityRef
 	out.IdentityClientId = in.IdentityClientId
 	out.IdentityPrincipalId = in.IdentityPrincipalId
 	return
@@ -111,15 +113,19 @@ func (in *AzureDatabaseList) DeepCopyObject() runtime.Object {
 func (in *AzureDatabaseSpec) DeepCopyInto(out *AzureDatabaseSpec) {
 	*out = *in
 	out.SqlServer = in.SqlServer
-	if in.User != nil {
-		in, out := &in.User, &out.User
-		*out = new(DatabaseUserSpec)
-		(*in).DeepCopyInto(*out)
+	if in.Users != nil {
+		in, out := &in.Users, &out.Users
+		*out = make([]DatabaseUserSpec, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
-	if in.ManagedIdentity != nil {
-		in, out := &in.ManagedIdentity, &out.ManagedIdentity
-		*out = new(ManagedIdentitySpec)
-		(*in).DeepCopyInto(*out)
+	if in.ManagedIdentities != nil {
+		in, out := &in.ManagedIdentities, &out.ManagedIdentities
+		*out = make([]ManagedIdentitySpec, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.Exports != nil {
 		in, out := &in.Exports, &out.Exports

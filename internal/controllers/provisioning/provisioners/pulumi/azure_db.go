@@ -90,9 +90,16 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	}
 	ctx.Export("azureDbName", db.Name)
 
-	var username string
-	var password, identityClientId, identityPrincipalId pulumi.StringOutput
-	if azureDb.Spec.User != nil || azureDb.Spec.ManagedIdentity != nil {
+	if err := validateUniqueNames(azureDb.Spec.Users, "users"); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueNames(azureDb.Spec.ManagedIdentities, "managedIdentities"); err != nil {
+		return nil, err
+	}
+
+	usersByName := map[string]deployedUser{}
+	identitiesByName := map[string]deployedIdentity{}
+	if len(azureDb.Spec.Users) > 0 || len(azureDb.Spec.ManagedIdentities) > 0 {
 		provider, err := newMssqlAzureAuthProvider(ctx, azureDb.Name,
 			fmt.Sprintf("%s.database.windows.net", azureDb.Spec.SqlServer.ServerName))
 		if err != nil {
@@ -104,33 +111,48 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 		}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{db}))
 		databaseId := dbLookup.ApplyT(func(r mssql.LookupDatabaseResult) string { return r.Id }).(pulumi.StringOutput)
 
-		if azureDb.Spec.User != nil {
-			username, password, err = deployContainedUser(ctx, provider, azureDb.Name, databaseId,
-				azureDb.Spec.User, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
+		for i := range azureDb.Spec.Users {
+			user := azureDb.Spec.Users[i]
+			username, password, err := deployContainedUser(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, user.Name), databaseId,
+				&user, user.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}
+			usersByName[user.Name] = deployedUser{username: username, password: password}
 		}
 
-		if azureDb.Spec.ManagedIdentity != nil {
-			identityClientId, identityPrincipalId, err = deployManagedIdentity(ctx, provider, azureDb.Name, databaseId,
-				azureDb.Spec.ManagedIdentity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
+		for i := range azureDb.Spec.ManagedIdentities {
+			identity := azureDb.Spec.ManagedIdentities[i]
+			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
+				&identity, identity.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			if err != nil {
 				return nil, err
 			}
+			identitiesByName[identity.Name] = deployedIdentity{clientId: clientId, principalId: principalId}
 		}
 	}
 
 	for _, exp := range azureDb.Spec.Exports {
 		values := map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}}
-		if azureDb.Spec.User != nil {
-			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(username)}
-			values["password"] = exportTemplateWithValue{exp.Password, password}
+
+		if exp.UserRef != "" || exp.Username != (provisioningv1.ValueExport{}) || exp.Password != (provisioningv1.ValueExport{}) {
+			user, err := resolveRef(usersByName, exp.UserRef, exp.Domain, "userRef", "users")
+			if err != nil {
+				return nil, err
+			}
+			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(user.username)}
+			values["password"] = exportTemplateWithValue{exp.Password, user.password}
 		}
-		if azureDb.Spec.ManagedIdentity != nil {
-			values["identityClientId"] = exportTemplateWithValue{exp.IdentityClientId, identityClientId}
-			values["identityPrincipalId"] = exportTemplateWithValue{exp.IdentityPrincipalId, identityPrincipalId}
+
+		if exp.IdentityRef != "" || exp.IdentityClientId != (provisioningv1.ValueExport{}) || exp.IdentityPrincipalId != (provisioningv1.ValueExport{}) {
+			identity, err := resolveRef(identitiesByName, exp.IdentityRef, exp.Domain, "identityRef", "managedIdentities")
+			if err != nil {
+				return nil, err
+			}
+			values["identityClientId"] = exportTemplateWithValue{exp.IdentityClientId, identity.clientId}
+			values["identityPrincipalId"] = exportTemplateWithValue{exp.IdentityPrincipalId, identity.principalId}
 		}
+
 		err = valueExporter(newExportContext(ctx, exp.Domain, azureDb.Name, azureDb.ObjectMeta, gvk),
 			values)
 		if err != nil {

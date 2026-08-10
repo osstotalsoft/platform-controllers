@@ -39,7 +39,7 @@ func TestDeployAzureDb(t *testing.T) {
 	platform := "dev"
 	tenant := newTenant("tenant1", platform)
 
-	t.Run("no user, no managed identity — unchanged behavior", func(t *testing.T) {
+	t.Run("no users, no managed identities — unchanged behavior", func(t *testing.T) {
 		azureDb := newAzureDb("my-azure-db")
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
@@ -50,16 +50,18 @@ func TestDeployAzureDb(t *testing.T) {
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
 
-		// No User/ManagedIdentity configured must mean no mssql provider, and no mssql-namespaced
+		// No Users/ManagedIdentities configured must mean no mssql provider, and no mssql-namespaced
 		// resource of any kind, is ever registered.
 		assert.False(t, capture.hasAnyTypeWithPrefix("pulumi:providers:mssql"))
 		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:"))
 	})
 
-	t.Run("with contained user", func(t *testing.T) {
+	t.Run("with one contained user, implicit userRef", func(t *testing.T) {
 		setAzureMssqlAuthEnv(t)
 		azureDb := newAzureDb("my-azure-db-user")
-		azureDb.Spec.User = &provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}}
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "origination_app", Roles: []string{"db_owner"}},
+		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
@@ -75,13 +77,16 @@ func TestDeployAzureDb(t *testing.T) {
 		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlLogin:SqlLogin"))
 	})
 
-	t.Run("with managed identity", func(t *testing.T) {
+	t.Run("with managed identity, implicit identityRef", func(t *testing.T) {
 		setAzureMssqlAuthEnv(t)
 		azureDb := newAzureDb("my-azure-db-mi")
-		azureDb.Spec.ManagedIdentity = &provisioningv1.ManagedIdentitySpec{
-			ResourceGroupName: "SQL_RG",
-			Location:          "westeurope",
-			Roles:             []string{"db_owner"},
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+			{
+				Name:              "origination_app_identity",
+				ResourceGroupName: "SQL_RG",
+				Location:          "westeurope",
+				Roles:             []string{"db_owner"},
+			},
 		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
@@ -96,14 +101,19 @@ func TestDeployAzureDb(t *testing.T) {
 		assert.True(t, capture.hasAnyTypeWithPrefix("azure-native:managedidentity"))
 	})
 
-	t.Run("exports username, password, identityClientId and identityPrincipalId", func(t *testing.T) {
+	t.Run("exports username, password, identityClientId and identityPrincipalId (implicit refs)", func(t *testing.T) {
 		setAzureMssqlAuthEnv(t)
 		azureDb := newAzureDb("my-azure-db-exports")
-		azureDb.Spec.User = &provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}}
-		azureDb.Spec.ManagedIdentity = &provisioningv1.ManagedIdentitySpec{
-			ResourceGroupName: "SQL_RG",
-			Location:          "westeurope",
-			Roles:             []string{"db_owner"},
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "origination_app", Roles: []string{"db_owner"}},
+		}
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+			{
+				Name:              "origination_app_identity",
+				ResourceGroupName: "SQL_RG",
+				Location:          "westeurope",
+				Roles:             []string{"db_owner"},
+			},
 		}
 		azureDb.Spec.Exports = []provisioningv1.AzureDatabaseExportsSpec{
 			{
@@ -143,6 +153,116 @@ func TestDeployAzureDb(t *testing.T) {
 		}
 	})
 
+	t.Run("multiple users, each exported to its own domain via explicit userRef", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureDb("my-azure-db-multi-user")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "origination_app", Roles: []string{"db_owner"}},
+			{Name: "reporting_app", Roles: []string{"db_datareader"}},
+		}
+		azureDb.Spec.Exports = []provisioningv1.AzureDatabaseExportsSpec{
+			{
+				Domain:  "origination",
+				UserRef: "origination_app",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+				Password: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "password"},
+				},
+			},
+			{
+				Domain:  "reporting",
+				UserRef: "reporting_app",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+				Password: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "password"},
+				},
+			},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		configMaps := capture.byType["kubernetes:core/v1:ConfigMap"]
+		assert.Len(t, configMaps, 2, "each exports[] entry (one per app) must produce its own ConfigMap")
+
+		usernames := map[string]bool{}
+		for _, cm := range configMaps {
+			data := cm.Inputs["data"].ObjectValue()
+			usernames[data[resource.PropertyKey("username")].StringValue()] = true
+		}
+		assert.True(t, usernames["origination_app"])
+		assert.True(t, usernames["reporting_app"])
+	})
+
+	t.Run("duplicate user name fails fast, before any pulumi resource is created", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureDb("my-azure-db-dup-user")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+			{Name: "app1", Roles: []string{"db_datareader"}},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, `spec.users[].name "app1" is duplicated`)
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:"), "no mssql resource must be created once validation fails")
+	})
+
+	t.Run("unknown userRef fails", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureDb("my-azure-db-bad-ref")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+		}
+		azureDb.Spec.Exports = []provisioningv1.AzureDatabaseExportsSpec{
+			{
+				Domain:  "origination",
+				UserRef: "does_not_exist",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+		}
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
+		assert.ErrorContains(t, err, `userRef "does_not_exist" does not match any spec.users[].name`)
+	})
+
+	t.Run("ambiguous userRef (more than one user, no ref given) fails", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureDb("my-azure-db-ambiguous-ref")
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+			{Name: "app2", Roles: []string{"db_owner"}},
+		}
+		azureDb.Spec.Exports = []provisioningv1.AzureDatabaseExportsSpec{
+			{
+				Domain: "origination",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+		}
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
+		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
+	})
+
 	t.Run("fails fast when azure auth creds are incomplete and workload identity is disabled", func(t *testing.T) {
 		t.Setenv("AZURE_USE_WORKLOAD_IDENTITY", "false")
 		t.Setenv("AZURE_CLIENT_ID", "")
@@ -150,7 +270,7 @@ func TestDeployAzureDb(t *testing.T) {
 		t.Setenv("AZURE_TENANT_ID", "")
 
 		azureDb := newAzureDb("my-azure-db-badauth")
-		azureDb.Spec.User = &provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}}
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
 			return err
@@ -166,7 +286,7 @@ func TestDeployAzureDb(t *testing.T) {
 		t.Setenv("AZURE_TENANT_ID", "")
 
 		azureDb := newAzureDb("my-azure-db-wi")
-		azureDb.Spec.User = &provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}}
+		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
@@ -178,11 +298,6 @@ func TestDeployAzureDb(t *testing.T) {
 
 		providers := capture.byType["pulumi:providers:mssql"]
 		assert.Len(t, providers, 1)
-		// The pulumi-mssql provider selects AAD auth mode based on whether the azureAuth block is
-		// present at all, not on what's inside it (see newMssqlAzureAuthProvider's doc comment) — so
-		// under Workload Identity, azureAuth must be present but empty (no clientId/clientSecret/
-		// tenantId), which is what triggers the provider's own default Azure credential chain
-		// fallback.
 		azureAuthVal, hasAzureAuth := providers[0].Inputs["azureAuth"]
 		assert.True(t, hasAzureAuth, "AzureAuth must be present (though empty) under Workload Identity so the provider selects AAD auth mode and falls back to the default Azure credential chain")
 		assert.True(t, azureAuthVal.IsObject(), "azureAuth must be an object value")
@@ -195,9 +310,9 @@ func TestDeployAzureDb(t *testing.T) {
 	t.Run("mssql provider resource name is unique per CR", func(t *testing.T) {
 		setAzureMssqlAuthEnv(t)
 		dbA := newAzureDb("db-alpha")
-		dbA.Spec.User = &provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}}
+		dbA.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
 		dbB := newAzureDb("db-beta")
-		dbB.Spec.User = &provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}}
+		dbB.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
