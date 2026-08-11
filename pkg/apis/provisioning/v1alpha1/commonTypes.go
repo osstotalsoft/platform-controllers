@@ -105,3 +105,57 @@ type ProvisioningResourceIdendtifier struct {
 }
 
 type ProvisioningResourceKind string
+
+// DatabaseUserSpec describes an app-facing database user. The password is never part of the spec —
+// it is always auto-generated and exported alongside the username.
+type DatabaseUserSpec struct {
+	// Login/user name. Must be unique within the owning resource's users list.
+	// +required
+	Name string `json:"name"`
+	// Database role(s) granted to this user (e.g. db_owner, db_datareader). No roles are granted if omitted.
+	// +optional
+	Roles []string `json:"roles,omitempty"`
+	// Database-level SQL permission(s) granted directly to this user (e.g. EXECUTE, SELECT),
+	// distinct from Roles — granted via GRANT ... TO, not by adding the user to an existing role.
+	// Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+	// invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+	// +optional
+	Permissions []string `json:"permissions,omitempty"`
+	// Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+	// user — narrower blast radius than Permissions, which applies to every schema in the database.
+	// +optional
+	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
+}
+
+// GetName returns the user's name, satisfying the resolveRef/validateUniqueNames helpers' named[T]
+// constraint (internal/controllers/provisioning/provisioners/pulumi/mssql_user.go).
+func (u DatabaseUserSpec) GetName() string { return u.Name }
+
+// ManagedIdentitySpec describes an Entra (Azure AD) user-assigned managed identity wired in as a
+// contained database user. Only applicable to Azure-native database kinds.
+type ManagedIdentitySpec struct {
+	// Identity name. Must be unique within the owning resource's managedIdentities list.
+	// +required
+	Name string `json:"name"`
+	// Resource group the managed identity is created in.
+	ResourceGroupName string `json:"resourceGroupName"`
+	// Azure region.
+	Location string `json:"location"`
+	// Database role(s) granted to this identity. No roles are granted if omitted.
+	// +optional
+	Roles []string `json:"roles,omitempty"`
+	// Database-level SQL permission(s) granted directly to this identity (e.g. EXECUTE, SELECT),
+	// distinct from Roles — granted via GRANT ... TO, not by adding the identity to an existing role.
+	// Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+	// invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+	// +optional
+	Permissions []string `json:"permissions,omitempty"`
+	// Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+	// identity — narrower blast radius than Permissions, which applies to every schema in the database.
+	// +optional
+	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
+}
+
+// GetName returns the managed identity's name, satisfying the resolveRef/validateUniqueNames
+// helpers' named[T] constraint (internal/controllers/provisioning/provisioners/pulumi/mssql_user.go).
+func (m ManagedIdentitySpec) GetName() string { return m.Name }

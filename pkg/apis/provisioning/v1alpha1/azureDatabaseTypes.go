@@ -33,6 +33,18 @@ type AzureDatabaseSpec struct {
 	// eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
 	// +optional
 	ImportDatabaseId string `json:"importDatabaseId,omitempty"`
+	// Optional app-facing database users (contained, password-based — AzureDatabase has no
+	// server-login concept). One entry per consuming application, each with a unique name.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	Users []DatabaseUserSpec `json:"users,omitempty"`
+	// Optional Entra (Azure AD) user-assigned managed identities, each wired in as a contained AAD
+	// database user. One entry per consuming application, each with a unique name.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	ManagedIdentities []ManagedIdentitySpec `json:"managedIdentities,omitempty"`
 	// +optional
 	Exports          []AzureDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
@@ -56,7 +68,27 @@ type AzureDatabaseExportsSpec struct {
 	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
+	// Name of the users[] entry whose username/password are exported below. Optional when users has
+	// exactly one entry (defaults to it); required to disambiguate when users has more than one entry.
+	// +optional
+	UserRef string `json:"userRef,omitempty"`
+	// +optional
+	Username ValueExport `json:"username,omitempty"`
+	// +optional
+	Password ValueExport `json:"password,omitempty"`
+	// Name of the managedIdentities[] entry whose identity is exported below. Same defaulting rule
+	// as userRef.
+	// +optional
+	IdentityRef string `json:"identityRef,omitempty"`
+	// +optional
+	IdentityClientId ValueExport `json:"identityClientId,omitempty"`
+	// +optional
+	IdentityPrincipalId ValueExport `json:"identityPrincipalId,omitempty"`
 }
+
+// GetDomain returns the export's domain, satisfying the validateUniqueDomains helper's domained[T]
+// constraint in mssql_user.go.
+func (e AzureDatabaseExportsSpec) GetDomain() string { return e.Domain }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 

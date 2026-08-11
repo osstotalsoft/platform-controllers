@@ -117,6 +117,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualMachineSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ConfigMapTemplate"):
 		return &applyconfigurationprovisioningv1alpha1.ConfigMapTemplateApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("DatabaseUserSpec"):
+		return &applyconfigurationprovisioningv1alpha1.DatabaseUserSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("EntraUser"):
 		return &applyconfigurationprovisioningv1alpha1.EntraUserApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("EntraUserExportsSpec"):
@@ -151,6 +153,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.LocalScriptExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("LocalScriptSpec"):
 		return &applyconfigurationprovisioningv1alpha1.LocalScriptSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ManagedIdentitySpec"):
+		return &applyconfigurationprovisioningv1alpha1.ManagedIdentitySpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioBucket"):
 		return &applyconfigurationprovisioningv1alpha1.MinioBucketApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("MinioBucketExportsSpec"):

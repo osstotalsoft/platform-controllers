@@ -52,6 +52,14 @@ spec:
                   The spec override has the same structure as Spec. Applied before TenantCategory.spec.provisioningOverrides,
                   TenantOverrides and Tenant.spec.provisioningOverrides, all of which take precedence when they also match.
                 type: object
+              containedUser:
+                default: false
+                description: |-
+                  Deploy every entry in `users` as a contained database user (password-based, no server-level
+                  login) instead of a server login + mapped database user. Ignored if `users` is empty. SQL
+                  Managed Instance has contained database authentication enabled by default, so no extra
+                  prerequisite is needed. Applies uniformly to every entry in `users` — there is no per-user override.
+                type: boolean
               dbName:
                 description: Managed database name prefix. Will have platform and
                   tenant suffix.
@@ -107,6 +115,112 @@ spec:
                       description: The domain or bounded-context in which this database
                         will be used.
                       type: string
+                    identityClientId:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    identityPrincipalId:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    identityRef:
+                      description: |-
+                        Name of the managedIdentities[] entry whose identity is exported below. Same defaulting rule
+                        as userRef.
+                      type: string
+                    password:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    userRef:
+                      description: |-
+                        Name of the users[] entry whose username/password are exported below. Optional when users has
+                        exactly one entry (defaults to it); required to disambiguate when users has more than one entry.
+                      type: string
+                    username:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
                   required:
                   - domain
                   type: object
@@ -116,6 +230,59 @@ spec:
                   Existing database to be used instead of creating a new one
                   eg: /subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/Default-SQL-SouthEastAsia/providers/Microsoft.Sql/servers/testsvr/databases/testdb
                 type: string
+              managedIdentities:
+                description: |-
+                  Optional Entra (Azure AD) user-assigned managed identities, each wired in as a contained AAD
+                  database user. One entry per consuming application, each with a unique name.
+                items:
+                  description: |-
+                    ManagedIdentitySpec describes an Entra (Azure AD) user-assigned managed identity wired in as a
+                    contained database user. Only applicable to Azure-native database kinds.
+                  properties:
+                    location:
+                      description: Azure region.
+                      type: string
+                    name:
+                      description: Identity name. Must be unique within the owning
+                        resource's managedIdentities list.
+                      type: string
+                    permissions:
+                      description: |-
+                        Database-level SQL permission(s) granted directly to this identity (e.g. EXECUTE, SELECT),
+                        distinct from Roles — granted via GRANT ... TO, not by adding the identity to an existing role.
+                        Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+                        invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+                      items:
+                        type: string
+                      type: array
+                    resourceGroupName:
+                      description: Resource group the managed identity is created
+                        in.
+                      type: string
+                    roles:
+                      description: Database role(s) granted to this identity. No roles
+                        are granted if omitted.
+                      items:
+                        type: string
+                      type: array
+                    schemaPermissions:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+                        identity — narrower blast radius than Permissions, which applies to every schema in the database.
+                      type: object
+                  required:
+                  - location
+                  - name
+                  - resourceGroupName
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               managedInstance:
                 description: Target managed instance spec.
                 properties:
@@ -209,6 +376,49 @@ spec:
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
                 type: object
+              users:
+                description: Optional app-facing database users. One entry per consuming
+                  application, each with a unique name.
+                items:
+                  description: |-
+                    DatabaseUserSpec describes an app-facing database user. The password is never part of the spec —
+                    it is always auto-generated and exported alongside the username.
+                  properties:
+                    name:
+                      description: Login/user name. Must be unique within the owning
+                        resource's users list.
+                      type: string
+                    permissions:
+                      description: |-
+                        Database-level SQL permission(s) granted directly to this user (e.g. EXECUTE, SELECT),
+                        distinct from Roles — granted via GRANT ... TO, not by adding the user to an existing role.
+                        Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+                        invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+                      items:
+                        type: string
+                      type: array
+                    roles:
+                      description: Database role(s) granted to this user (e.g. db_owner,
+                        db_datareader). No roles are granted if omitted.
+                      items:
+                        type: string
+                      type: array
+                    schemaPermissions:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+                        user — narrower blast radius than Permissions, which applies to every schema in the database.
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
             - dbName
             - domainRef

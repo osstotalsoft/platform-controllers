@@ -1,45 +1,305 @@
 package pulumi
 
 import (
+	"strings"
 	"testing"
 
+	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
+func newMsSqlDb(name string) *provisioningv1.MsSqlDatabase {
+	return &provisioningv1.MsSqlDatabase{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: provisioningv1.MsSqlDatabaseSpec{
+			DbName: name,
+			SqlServer: provisioningv1.MsSqlServerSpec{
+				HostName: "localhost",
+				Port:     1433,
+				SqlAuth: provisioningv1.MsSqlServerAuth{
+					Username: "admin",
+					Password: "password",
+				},
+			},
+			ProvisioningMeta: provisioningv1.ProvisioningMeta{
+				DomainRef: "example-domain",
+			},
+		},
+	}
+}
+
 func TestDeployMsSqlDatabase(t *testing.T) {
 	t.Run("maximal msSqlDatabase spec", func(t *testing.T) {
 		platform := "dev"
 		tenant := newTenant("tenant1", platform)
-		mssqlDb := &provisioningv1.MsSqlDatabase{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "my-db",
+		mssqlDb := newMsSqlDb("my-db")
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		// No Users configured must mean no mssql-namespaced user/login/role resource is registered
+		// (the mssql.Database resource itself is a "mssql:" type, so this specifically checks for
+		// login/user/role types, not the database).
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlLogin:SqlLogin"))
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlUser:SqlUser"))
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/databaseRoleMember:DatabaseRoleMember"))
+	})
+
+	t.Run("msSqlDatabase spec with one user, implicit userRef", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant2", platform)
+		mssqlDb := newMsSqlDb("my-db-with-user")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "origination_app", Roles: []string{"db_owner"}},
+		}
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		// A User set on MsSqlDatabase always goes through the login+user chain (no contained-user
+		// option exists for on-prem MsSqlDatabase).
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlLogin:SqlLogin"))
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlUser:SqlUser"))
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/databaseRoleMember:DatabaseRoleMember"))
+	})
+
+	t.Run("grants permissions and schema permissions to a user", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant-permissions", platform)
+		mssqlDb := newMsSqlDb("my-db-permissions")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{
+				Name:              "origination_app",
+				Roles:             []string{"db_owner"},
+				Permissions:       []string{"EXECUTE"},
+				SchemaPermissions: map[string][]string{"dbo": {"EXECUTE"}},
 			},
-			Spec: provisioningv1.MsSqlDatabaseSpec{
-				DbName: "my-db",
-				SqlServer: provisioningv1.MsSqlServerSpec{
-					HostName: "localhost",
-					Port:     1433,
-					SqlAuth: provisioningv1.MsSqlServerAuth{
-						Username: "admin",
-						Password: "password",
-					},
+		}
+
+		capture := newResourceCaptureMocks()
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{
+			"id": resource.NewStringProperty("1/1"),
+		})
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/databasePermission:DatabasePermission"))
+		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/schemaPermission:SchemaPermission"))
+	})
+
+	t.Run("msSqlDatabase exports username and password (implicit userRef)", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant3", platform)
+		mssqlDb := newMsSqlDb("my-db-with-exports")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "origination_app", Roles: []string{"db_owner"}},
+		}
+		mssqlDb.Spec.Exports = []provisioningv1.MsSqlDatabaseExportsSpec{
+			{
+				Domain: "myDomain",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
 				},
-				ProvisioningMeta: provisioningv1.ProvisioningMeta{
-					DomainRef: "example-domain",
+				Password: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "password"},
+				},
+			},
+		}
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		configMaps := capture.byType["kubernetes:core/v1:ConfigMap"]
+		assert.Len(t, configMaps, 1, "exactly one ConfigMap should be exported for the single Exports entry")
+
+		data := configMaps[0].Inputs["data"].ObjectValue()
+		for _, key := range []string{"username", "password"} {
+			val, ok := data[resource.PropertyKey(key)]
+			assert.True(t, ok, "expected export key %q to be present in the exported ConfigMap data", key)
+			assert.NotEmpty(t, val.StringValue(), "expected export key %q to have a non-empty value", key)
+		}
+	})
+
+	t.Run("multiple users, each exported to its own domain via explicit userRef", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant4", platform)
+		mssqlDb := newMsSqlDb("my-db-multi-user")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "origination_app", Roles: []string{"db_owner"}},
+			{Name: "reporting_app", Roles: []string{"db_datareader"}},
+		}
+		mssqlDb.Spec.Exports = []provisioningv1.MsSqlDatabaseExportsSpec{
+			{
+				Domain:  "origination",
+				UserRef: "origination_app",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+			{
+				Domain:  "reporting",
+				UserRef: "reporting_app",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+		}
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			assert.NoError(t, err)
+			assert.NotNil(t, db)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		configMaps := capture.byType["kubernetes:core/v1:ConfigMap"]
+		assert.Len(t, configMaps, 2, "each exports[] entry (one per app) must produce its own ConfigMap")
+		usernames := map[string]bool{}
+		for _, cm := range configMaps {
+			data := cm.Inputs["data"].ObjectValue()
+			usernames[data[resource.PropertyKey("username")].StringValue()] = true
+		}
+		hasPrefixedUsername := func(prefix string) bool {
+			for u := range usernames {
+				if strings.HasPrefix(u, prefix+"_") {
+					return true
+				}
+			}
+			return false
+		}
+		assert.True(t, hasPrefixedUsername("origination_app"), "expected a username starting with \"origination_app_\" (tenant-scoped), got: %v", usernames)
+		assert.True(t, hasPrefixedUsername("reporting_app"), "expected a username starting with \"reporting_app_\" (tenant-scoped), got: %v", usernames)
+	})
+
+	t.Run("duplicate user name fails fast", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant5", platform)
+		mssqlDb := newMsSqlDb("my-db-dup-user")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+			{Name: "app1", Roles: []string{"db_datareader"}},
+		}
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, `spec.users[].name "app1" is duplicated`)
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlLogin:SqlLogin"))
+	})
+
+	t.Run("unknown userRef fails", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant6", platform)
+		mssqlDb := newMsSqlDb("my-db-bad-ref")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+		}
+		mssqlDb.Spec.Exports = []provisioningv1.MsSqlDatabaseExportsSpec{
+			{
+				Domain:  "origination",
+				UserRef: "does_not_exist",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
 				},
 			},
 		}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			user, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
-			assert.NoError(t, err)
-			assert.NotNil(t, user)
-			return nil
-
-		}, pulumi.WithMocks("project", "stack", mocks(0)))
-		assert.NoError(t, err)
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
+		assert.ErrorContains(t, err, `userRef "does_not_exist" does not match any spec.users[].name`)
 	})
+
+	t.Run("ambiguous userRef fails", func(t *testing.T) {
+		platform := "dev"
+		tenant := newTenant("tenant7", platform)
+		mssqlDb := newMsSqlDb("my-db-ambiguous-ref")
+		mssqlDb.Spec.Users = []provisioningv1.DatabaseUserSpec{
+			{Name: "app1", Roles: []string{"db_owner"}},
+			{Name: "app2", Roles: []string{"db_owner"}},
+		}
+		mssqlDb.Spec.Exports = []provisioningv1.MsSqlDatabaseExportsSpec{
+			{
+				Domain: "origination",
+				Username: provisioningv1.ValueExport{
+					ToConfigMap: provisioningv1.ConfigMapTemplate{KeyTemplate: "username"},
+				},
+			},
+		}
+
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
+		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
+	})
+}
+
+// TestDeployMsSqlDatabaseLoginNameIsTenantScoped guards against the regression where
+// deployLoginUser's real SqlLogin name was users[].name verbatim (the fallback defaultName being
+// unreachable once Name became required). Since MsSqlDatabase's server is shared across every tenant
+// this CR is provisioned for — only the database itself is tenant-scoped — two tenants configuring
+// the same users[].name (the common case, since it names an application, not a tenant) must not
+// collide on a server-wide CREATE LOGIN.
+func TestDeployMsSqlDatabaseLoginNameIsTenantScoped(t *testing.T) {
+	platform := "dev"
+	tenantA := newTenant("tenant-a", platform)
+	tenantB := newTenant("tenant-b", platform)
+
+	mssqlDbA := newMsSqlDb("my-db-tenant-a")
+	mssqlDbA.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
+	mssqlDbB := newMsSqlDb("my-db-tenant-b")
+	mssqlDbB.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
+
+	capture := newResourceCaptureMocks()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		if _, err := deployMsSqlDb(tenantA, mssqlDbA, []pulumi.Resource{}, ctx); err != nil {
+			return err
+		}
+		_, err := deployMsSqlDb(tenantB, mssqlDbB, []pulumi.Resource{}, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	logins := capture.byType["mssql:index/sqlLogin:SqlLogin"]
+	assert.Len(t, logins, 2, "each tenant must get its own SqlLogin")
+	names := map[string]bool{}
+	for _, l := range logins {
+		names[l.Inputs["name"].StringValue()] = true
+	}
+	assert.Len(t, names, 2, "the two tenants' logins must have different names despite both configuring users[].name=\"app1\" — same-named apps in different tenants must not collide on a server-wide login name")
+	for name := range names {
+		assert.True(t, strings.HasPrefix(name, "app1_"), "login name %q must be tenant-scoped (prefixed with the app name)", name)
+	}
 }

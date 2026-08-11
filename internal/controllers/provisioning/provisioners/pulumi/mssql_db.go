@@ -20,6 +20,13 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	valueExporter := handleValueExport(target)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MsSqlDatabase")
 
+	if err := validateUniqueNames(mssqlDb.Spec.Users, "users"); err != nil {
+		return nil, err
+	}
+	if err := validateUniqueDomains(mssqlDb.Spec.Exports, "exports"); err != nil {
+		return nil, err
+	}
+
 	provider, err := mssql.NewProvider(ctx, "provider-mssql", &mssql.ProviderArgs{
 		Hostname: pulumi.String(mssqlDb.Spec.SqlServer.HostName),
 		Port:     pulumi.Int(mssqlDb.Spec.SqlServer.Port),
@@ -119,11 +126,38 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 		}
 	}
 
+	usersByName := map[string]deployedUser{}
+	if len(mssqlDb.Spec.Users) > 0 {
+		userDeps := []pulumi.Resource{db}
+		if restoreScript != nil {
+			userDeps = append(userDeps, restoreScript)
+		}
+		for i := range mssqlDb.Spec.Users {
+			user := mssqlDb.Spec.Users[i]
+			username, password, err := deployLoginUser(ctx, provider, fmt.Sprintf("%s-%s", mssqlDb.Name, user.Name), db.ID().ToStringOutput(),
+				&user, dbName, userDeps, pulumiRetainOnDelete)
+			if err != nil {
+				return nil, err
+			}
+			usersByName[user.Name] = deployedUser{username: username, password: password}
+		}
+	}
+
 	ctx.Export("mssqlDbName", db.Name)
 
 	for _, exp := range mssqlDb.Spec.Exports {
-		err = valueExporter(newExportContext(ctx, exp.Domain, mssqlDb.Name, mssqlDb.ObjectMeta, gvk),
-			map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}})
+		values := map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}}
+
+		if exp.UserRef != "" || exp.Username != (provisioningv1.ValueExport{}) || exp.Password != (provisioningv1.ValueExport{}) {
+			user, err := resolveRef(usersByName, exp.UserRef, exp.Domain, "userRef", "users")
+			if err != nil {
+				return nil, err
+			}
+			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(user.username)}
+			values["password"] = exportTemplateWithValue{exp.Password, user.password}
+		}
+
+		err = valueExporter(newExportContext(ctx, exp.Domain, mssqlDb.Name, mssqlDb.ObjectMeta, gvk), values)
 		if err != nil {
 			return nil, err
 		}

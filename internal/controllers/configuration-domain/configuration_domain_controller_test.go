@@ -539,15 +539,21 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		foundConfigurationDomain, err := c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Get(context.TODO(), domain, metav1.GetOptions{})
 		if err != nil {
 			t.Error("configurationDomain not found")
+			return // Add return here
 		}
 		foundConfigurationDomain = foundConfigurationDomain.DeepCopy()
 		foundConfigurationDomain.Spec.PlatformRef = new_platform
-		c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Update(context.TODO(), foundConfigurationDomain, metav1.UpdateOptions{})
+		_, err = c.platformClientset.ConfigurationV1alpha1().ConfigurationDomains(namespace).Update(context.TODO(), foundConfigurationDomain, metav1.UpdateOptions{})
+		if err != nil {
+			t.Errorf("failed to update configurationDomain: %v", err)
+			return // Add error check
+		}
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond) // Increase sleep duration
 
 		if c.workqueue.Len() != 1 {
 			t.Error("queue should have 1 item, but contains ", c.workqueue.Len())
+			return // Add return
 		}
 
 		if result := c.processNextWorkItem(); !result {
@@ -564,6 +570,7 @@ func TestConfigurationDomainController_processNextWorkItem(t *testing.T) {
 		foundConfigMap, err := c.kubeClientset.CoreV1().ConfigMaps(namespace).Get(context.TODO(), aggregateConfigMap, metav1.GetOptions{})
 		if foundConfigMap == nil || err != nil {
 			t.Errorf("output config map %s should be present ", aggregateConfigMap)
+			return // Add return
 		}
 		expectedOutput := map[string]string{"k2": "v2"}
 		if !reflect.DeepEqual(foundConfigMap.Data, expectedOutput) {

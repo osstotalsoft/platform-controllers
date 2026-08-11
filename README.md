@@ -250,11 +250,33 @@ kind: AzureDatabase
 spec:
   dbName: origination_db
   domainRef: origination
+  users:
+    - name: origination_app_user
+      roles:
+        - db_owner
+      permissions:
+        - EXECUTE
+      schemaPermissions:
+        dbo:
+          - EXECUTE
+  managedIdentities:
+    - name: origination_app_identity
+      resourceGroupName: SQL_RG
+      location: westeurope
+      roles:
+        - db_owner
   exports:
     - domain: origination
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
+      userRef: origination_app_user # optional here since users has exactly one entry
+      username:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+      password:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   platformRef: charismaonline.qa
   sourceDatabaseId: /subscriptions/XXXXXX-b8a5-4967-a05a-2fa3c4295710/resourceGroups/SQLMI_RG/providers/Microsoft.Sql/servers/r7ddbsrv/databases/insurance_db
   sqlServer:
@@ -277,11 +299,34 @@ kind: AzureManagedDatabase
 spec:
   dbName: origination_db
   domainRef: origination
+  containedUser: false # set to true to deploy every users[] entry as a contained user instead of a server login
+  users:
+    - name: origination_app_user
+      roles:
+        - db_owner
+      permissions:
+        - EXECUTE
+      schemaPermissions:
+        dbo:
+          - EXECUTE
+  managedIdentities:
+    - name: origination_app_identity
+      resourceGroupName: SQL_RG
+      location: westeurope
+      roles:
+        - db_owner
   exports:
     - domain: origination
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
+      userRef: origination_app_user # optional here since users has exactly one entry
+      username:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+      password:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
@@ -667,11 +712,27 @@ metadata:
 spec:
   dbName: test
   domainRef: domain1
+  users:
+    - name: test_app_user
+      roles:
+        - db_owner
+      permissions:
+        - EXECUTE
+      schemaPermissions:
+        dbo:
+          - EXECUTE
   exports:
     - dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Test_Database__Database
       domain: domain1
+      userRef: test_app_user # optional here since users has exactly one entry
+      username:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+      password:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   platformRef: provisioning.test
   restoreFrom:
     backupFilePath: C:\tmp\test-db\mydb.bak

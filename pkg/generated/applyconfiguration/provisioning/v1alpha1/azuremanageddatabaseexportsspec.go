@@ -21,8 +21,14 @@ package v1alpha1
 // AzureManagedDatabaseExportsSpecApplyConfiguration represents an declarative configuration of the AzureManagedDatabaseExportsSpec type for use
 // with apply.
 type AzureManagedDatabaseExportsSpecApplyConfiguration struct {
-	Domain *string                        `json:"domain,omitempty"`
-	DbName *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	Domain              *string                        `json:"domain,omitempty"`
+	DbName              *ValueExportApplyConfiguration `json:"dbName,omitempty"`
+	UserRef             *string                        `json:"userRef,omitempty"`
+	Username            *ValueExportApplyConfiguration `json:"username,omitempty"`
+	Password            *ValueExportApplyConfiguration `json:"password,omitempty"`
+	IdentityRef         *string                        `json:"identityRef,omitempty"`
+	IdentityClientId    *ValueExportApplyConfiguration `json:"identityClientId,omitempty"`
+	IdentityPrincipalId *ValueExportApplyConfiguration `json:"identityPrincipalId,omitempty"`
 }
 
 // AzureManagedDatabaseExportsSpecApplyConfiguration constructs an declarative configuration of the AzureManagedDatabaseExportsSpec type for use with
@@ -44,5 +50,53 @@ func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithDomain(value str
 // If called multiple times, the DbName field is set to the value of the last call.
 func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithDbName(value *ValueExportApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
 	b.DbName = value
+	return b
+}
+
+// WithUserRef sets the UserRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the UserRef field is set to the value of the last call.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithUserRef(value string) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	b.UserRef = &value
+	return b
+}
+
+// WithUsername sets the Username field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Username field is set to the value of the last call.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithUsername(value *ValueExportApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	b.Username = value
+	return b
+}
+
+// WithPassword sets the Password field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Password field is set to the value of the last call.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithPassword(value *ValueExportApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	b.Password = value
+	return b
+}
+
+// WithIdentityRef sets the IdentityRef field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IdentityRef field is set to the value of the last call.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithIdentityRef(value string) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	b.IdentityRef = &value
+	return b
+}
+
+// WithIdentityClientId sets the IdentityClientId field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IdentityClientId field is set to the value of the last call.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithIdentityClientId(value *ValueExportApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	b.IdentityClientId = value
+	return b
+}
+
+// WithIdentityPrincipalId sets the IdentityPrincipalId field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the IdentityPrincipalId field is set to the value of the last call.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithIdentityPrincipalId(value *ValueExportApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	b.IdentityPrincipalId = value
 	return b
 }

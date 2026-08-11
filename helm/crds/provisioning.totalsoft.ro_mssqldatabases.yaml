@@ -105,6 +105,59 @@ spec:
                       description: The domain or bounded-context in which this database
                         will be used.
                       type: string
+                    password:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    userRef:
+                      description: |-
+                        Name of the users[] entry whose username/password are exported below. Optional when users has
+                        exactly one entry (defaults to it); required to disambiguate when users has more than one entry.
+                      type: string
+                    username:
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
                   required:
                   - domain
                   type: object
@@ -218,6 +271,50 @@ spec:
                   Overrides for tenants. Dictionary with tenant name as key, spec override as value.
                   The spec override has the same structure as Spec
                 type: object
+              users:
+                description: |-
+                  Optional app-facing database users, distinct from the admin sqlAuth credential used for
+                  provisioning. One entry per consuming application, each with a unique name.
+                items:
+                  description: |-
+                    DatabaseUserSpec describes an app-facing database user. The password is never part of the spec —
+                    it is always auto-generated and exported alongside the username.
+                  properties:
+                    name:
+                      description: Login/user name. Must be unique within the owning
+                        resource's users list.
+                      type: string
+                    permissions:
+                      description: |-
+                        Database-level SQL permission(s) granted directly to this user (e.g. EXECUTE, SELECT),
+                        distinct from Roles — granted via GRANT ... TO, not by adding the user to an existing role.
+                        Free-form strings, not validated against a fixed enum (same convention as Roles) — an
+                        invalid/nonexistent permission name surfaces as a Pulumi apply-time error.
+                      items:
+                        type: string
+                      type: array
+                    roles:
+                      description: Database role(s) granted to this user (e.g. db_owner,
+                        db_datareader). No roles are granted if omitted.
+                      items:
+                        type: string
+                      type: array
+                    schemaPermissions:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: |-
+                        Schema-scoped SQL permission(s), keyed by schema name (e.g. "dbo"), granted directly to this
+                        user — narrower blast radius than Permissions, which applies to every schema in the database.
+                      type: object
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
             - dbName
             - domainRef

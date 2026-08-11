@@ -30,6 +30,8 @@ type AzureDatabaseSpecApplyConfiguration struct {
 	Sku                                *string                                      `json:"sku,omitempty"`
 	SourceDatabaseId                   *string                                      `json:"sourceDatabaseId,omitempty"`
 	ImportDatabaseId                   *string                                      `json:"importDatabaseId,omitempty"`
+	Users                              []DatabaseUserSpecApplyConfiguration         `json:"users,omitempty"`
+	ManagedIdentities                  []ManagedIdentitySpecApplyConfiguration      `json:"managedIdentities,omitempty"`
 	Exports                            []AzureDatabaseExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
 }
@@ -77,6 +79,32 @@ func (b *AzureDatabaseSpecApplyConfiguration) WithSourceDatabaseId(value string)
 // If called multiple times, the ImportDatabaseId field is set to the value of the last call.
 func (b *AzureDatabaseSpecApplyConfiguration) WithImportDatabaseId(value string) *AzureDatabaseSpecApplyConfiguration {
 	b.ImportDatabaseId = &value
+	return b
+}
+
+// WithUsers adds the given value to the Users field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Users field.
+func (b *AzureDatabaseSpecApplyConfiguration) WithUsers(values ...*DatabaseUserSpecApplyConfiguration) *AzureDatabaseSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithUsers")
+		}
+		b.Users = append(b.Users, *values[i])
+	}
+	return b
+}
+
+// WithManagedIdentities adds the given value to the ManagedIdentities field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ManagedIdentities field.
+func (b *AzureDatabaseSpecApplyConfiguration) WithManagedIdentities(values ...*ManagedIdentitySpecApplyConfiguration) *AzureDatabaseSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithManagedIdentities")
+		}
+		b.ManagedIdentities = append(b.ManagedIdentities, *values[i])
+	}
 	return b
 }
 

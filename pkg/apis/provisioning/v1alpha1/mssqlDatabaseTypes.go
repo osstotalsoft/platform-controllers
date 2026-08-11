@@ -32,6 +32,12 @@ type MsSqlDatabaseSpec struct {
 	// Login name to be set as the database owner
 	// +optional
 	OwnerLoginName string `json:"ownerLoginName,omitempty"`
+	// Optional app-facing database users, distinct from the admin sqlAuth credential used for
+	// provisioning. One entry per consuming application, each with a unique name.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	Users []DatabaseUserSpec `json:"users,omitempty"`
 	// +optional
 	Exports          []MsSqlDatabaseExportsSpec `json:"exports,omitempty"`
 	ProvisioningMeta `json:",inline"`
@@ -70,7 +76,19 @@ type MsSqlDatabaseExportsSpec struct {
 	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
+	// Name of the users[] entry whose username/password are exported below. Optional when users has
+	// exactly one entry (defaults to it); required to disambiguate when users has more than one entry.
+	// +optional
+	UserRef string `json:"userRef,omitempty"`
+	// +optional
+	Username ValueExport `json:"username,omitempty"`
+	// +optional
+	Password ValueExport `json:"password,omitempty"`
 }
+
+// GetDomain returns the export's domain, satisfying the validateUniqueDomains helper's domained[T]
+// constraint in mssql_user.go.
+func (e MsSqlDatabaseExportsSpec) GetDomain() string { return e.Domain }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
