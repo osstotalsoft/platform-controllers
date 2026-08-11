@@ -165,36 +165,24 @@ func TestDeployContainedUser(t *testing.T) {
 	})
 }
 
-// TestDeployContainedUserTracksRoleMembershipNotJustPresence guards against a regression where
-// deployContainedUser's idempotency check tracked only whether the contained user existed
-// ("Present"/"Absent"), not which roles it held. With that bug, adding a role to userSpec.Roles on
-// a later apply (the same logical user, same defaultName) would leave the Script's desired State
-// unchanged ("Present" == "Present"), so UpdateScript would never re-run and the new role would
-// never be granted.
-//
-// The Pulumi Go testing mocks don't simulate real state-diffing across two sequential `pulumi up`
-// runs for the same resource (there is no "previous state" to diff against — NewResource is always
-// treated as a create). So instead this test deploys two independently-named Script resources
-// (simulating "apply 1" and "apply 2" of the same conceptual user, just with different role sets)
-// and asserts directly on the rendered State/UpdateScript content:
-//   - the desired State value differs once a role is added, which is exactly the signal Pulumi's
-//     real diff engine uses to decide whether ReadScript's output still matches and, if not, to run
-//     UpdateScript on the next actual apply;
-//   - UpdateScript for the second deployment contains a guarded ALTER ROLE for the newly added role.
-func TestDeployContainedUserTracksRoleMembershipNotJustPresence(t *testing.T) {
+// TestDeployContainedUserScriptTracksOnlyExistence guards against role membership creeping back into
+// the contained-user Script's tracked State/ReadScript/UpdateScript. Roles are managed entirely
+// through separate mssql.DatabaseRoleMember resources now (see TestDeployContainedUserRoleGrants), so
+// the Script itself must track only whether the contained user exists — changing userSpec.Roles must
+// not change the Script's desired State, or an unrelated role edit would spuriously redrive the
+// Script's UpdateScript (which only creates the user) on every apply.
+func TestDeployContainedUserScriptTracksOnlyExistence(t *testing.T) {
 	capture := newScriptCaptureMocks()
 
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		provider := newTestProvider(t, ctx, "test-provider-4")
 
-		// "Apply 1": user provisioned with a single role.
 		_, _, err := deployContainedUser(ctx, provider, "contained-db-v1",
 			pulumi.String("1").ToStringOutput(),
 			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader"}},
 			"contained-db", []pulumi.Resource{}, false)
 		assert.NoError(t, err)
 
-		// "Apply 2": same logical user (same defaultName), but a role was added to the spec.
 		_, _, err = deployContainedUser(ctx, provider, "contained-db-v2",
 			pulumi.String("1").ToStringOutput(),
 			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datawriter", "db_datareader"}},
@@ -210,87 +198,108 @@ func TestDeployContainedUserTracksRoleMembershipNotJustPresence(t *testing.T) {
 	v1State := v1Inputs["state"].ObjectValue()["UserStatus"].StringValue()
 	v2State := v2Inputs["state"].ObjectValue()["UserStatus"].StringValue()
 
-	// Roles are sorted, so the desired state string is deterministic regardless of spec order.
-	assert.Equal(t, "Present:db_datareader", v1State)
-	assert.Equal(t, "Present:db_datareader,db_datawriter", v2State)
-	assert.NotEqual(t, v1State, v2State,
-		"adding a role must change the tracked desired State so a later apply's ReadScript/State comparison detects the drift")
+	assert.Equal(t, "Present", v1State)
+	assert.Equal(t, "Present", v2State,
+		"the Script's tracked State must not vary with userSpec.Roles — role changes are handled entirely by separate DatabaseRoleMember resources")
 
 	v2Update := v2Inputs["updateScript"].StringValue()
-	assert.Contains(t, v2Update, "ALTER ROLE [db_datawriter] ADD MEMBER [contained-db];")
-	assert.Contains(t, v2Update, "ALTER ROLE [db_datareader] ADD MEMBER [contained-db];")
 	assert.Contains(t, v2Update, "IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'contained-db')",
 		"CREATE USER must be idempotency-guarded so updateScript is safe to re-run against an already-existing user")
+	assert.NotContains(t, v2Update, "ALTER ROLE",
+		"role grants must not be embedded in the Script's UpdateScript anymore")
 
-	// readScript's shape depends on the managed role set (see
-	// TestDeployContainedUserRoleRemovalConverges below) — for the same-role-count check here, just
-	// confirm the readScript actually restricts aggregation to the roles each deployment manages.
-	assert.Contains(t, v1Inputs["readScript"].StringValue(), "r.name IN ('db_datareader')")
-	assert.Contains(t, v2Inputs["readScript"].StringValue(), "r.name IN ('db_datareader','db_datawriter')")
+	assert.NotContains(t, v1Inputs["readScript"].StringValue(), "r.name IN",
+		"readScript must not aggregate role membership anymore — it only reports user existence")
 }
 
-// TestDeployContainedUserRoleRemovalConverges proves the fix for the idempotency gap where
-// updateScript only ever emits guarded "ALTER ROLE ... ADD MEMBER" statements and never "DROP
-// MEMBER" for a role removed from userSpec.Roles (or granted out-of-band). Without a fix, readScript
-// would keep reporting the actual (superset) role membership forever, permanently mismatching the
-// narrower desired State and forcing UpdateScript to re-run on every single apply without ever
-// converging.
-//
-// The fix taken here is option (b) from the review: readScript's role-membership aggregation is
-// scoped to exactly the roles this deployment manages (userSpec.Roles at the time of THIS apply),
-// via a "r.name IN (...)" filter in the join — so a role that is no longer desired (or was never
-// managed to begin with) is excluded from the aggregate and can never cause read/desired drift. This
-// intentionally means role *removal* is not enforced against the database: the role membership
-// itself is left untouched, only its tracking stops. That limitation is what this test asserts.
-func TestDeployContainedUserRoleRemovalConverges(t *testing.T) {
-	capture := newScriptCaptureMocks()
+// TestDeployContainedUserRoleGrants proves role removal now actually revokes: roles are managed as
+// individually-named mssql.DatabaseRoleMember resources (the same mechanism deployLoginUser and
+// deployManagedIdentity already rely on), so a role dropped from userSpec.Roles is simply absent from
+// the next apply's desired resource graph — which is what causes Pulumi's own engine to delete
+// (revoke) it, exactly like removing a permission already does (see
+// deployDatabasePermissionGrants's doc comment).
+func TestDeployContainedUserRoleGrants(t *testing.T) {
+	t.Run("no roles is a no-op", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployContainedUser(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{}, "app1", []pulumi.Resource{}, false)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/databaseRoleMember:DatabaseRoleMember"))
+	})
 
-	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-		provider := newTestProvider(t, ctx, "test-provider-5")
-
-		// "Apply 1": user provisioned with two roles.
-		_, _, err := deployContainedUser(ctx, provider, "contained-db-removal-v1",
-			pulumi.String("1").ToStringOutput(),
-			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader", "db_datawriter"}},
-			"contained-db-removal", []pulumi.Resource{}, false)
+	t.Run("grants each named role as a typed resource", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployContainedUser(ctx, provider, "my-db",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader", "db_datawriter"}},
+				"app1", []pulumi.Resource{}, false)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
 
-		// "Apply 2": same logical user, but db_datawriter was removed from the spec. In the real
-		// database (not simulated by these mocks — NewResource never executes ReadScript/
-		// UpdateScript), db_datawriter membership granted by apply 1 is still actually present,
-		// since no DROP MEMBER is ever emitted.
-		_, _, err = deployContainedUser(ctx, provider, "contained-db-removal-v2",
-			pulumi.String("1").ToStringOutput(),
-			&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader"}},
-			"contained-db-removal", []pulumi.Resource{}, false)
+		grants := capture.byType["mssql:index/databaseRoleMember:DatabaseRoleMember"]
+		assert.Len(t, grants, 2)
+		_, hasReader := capture.byName["my-db-role-db_datareader"]
+		_, hasWriter := capture.byName["my-db-role-db_datawriter"]
+		assert.True(t, hasReader)
+		assert.True(t, hasWriter)
+	})
+
+	t.Run("retainOnDelete propagates to role-grant resources", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployContainedUser(ctx, provider, "contained-db-retain",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
+				"contained-db-retain", []pulumi.Resource{}, true)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
-		return nil
-	}, pulumi.WithMocks("project", "stack", capture))
-	assert.NoError(t, err)
+		assert.True(t, capture.retainOnDelete("contained-db-retain-role-db_owner"))
+	})
 
-	v2Inputs := capture.resourceInputs["contained-db-removal-v2-contained-user"]
-	v2State := v2Inputs["state"].ObjectValue()["UserStatus"].StringValue()
-	v2Read := v2Inputs["readScript"].StringValue()
-	v2Update := v2Inputs["updateScript"].StringValue()
+	// The Pulumi Go testing mocks don't simulate real state-diffing across two sequential `pulumi up`
+	// runs for the same resource (there is no "previous state" to diff against — NewResource is
+	// always treated as a create; see the older tests this replaced for the same caveat). So this
+	// proves the underlying mechanism instead: a role dropped from userSpec.Roles is not part of the
+	// resources this deployment registers at all — which is exactly the condition that makes Pulumi's
+	// engine delete a same-named resource left over from a prior apply.
+	t.Run("role removed from spec is absent from the next apply's resource graph", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
 
-	// Desired State no longer mentions the removed role.
-	assert.Equal(t, "Present:db_datareader", v2State)
+			// "Apply 1": two roles.
+			_, _, err := deployContainedUser(ctx, provider, "contained-db-removal-v1",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader", "db_datawriter"}},
+				"contained-db-removal", []pulumi.Resource{}, false)
+			assert.NoError(t, err)
 
-	// readScript's role filter is scoped to ONLY the roles still being managed — db_datawriter is
-	// excluded, so even though it is (per the scenario) still actually granted in the real database,
-	// readScript will never surface it, and therefore will report exactly "Present:db_datareader" —
-	// matching v2State exactly. This is what makes the Script converge (no drift) despite the
-	// database still holding the stale db_datawriter grant.
-	assert.Contains(t, v2Read, "r.name IN ('db_datareader')")
-	assert.NotContains(t, v2Read, "db_datawriter",
-		"readScript must not aggregate a role that is no longer in userSpec.Roles, or the removed role would cause permanent read/desired drift")
+			// "Apply 2": db_datawriter removed from the spec.
+			_, _, err = deployContainedUser(ctx, provider, "contained-db-removal-v2",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_datareader"}},
+				"contained-db-removal", []pulumi.Resource{}, false)
+			assert.NoError(t, err)
+			return nil
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
 
-	// updateScript never attempts to DROP the removed role's membership — role removal is not
-	// enforced against the database by this path, only its tracking stops (the documented
-	// limitation).
-	assert.NotContains(t, v2Update, "DROP MEMBER",
-		"deployContainedUser does not enforce role removal — this asserts the documented limitation, not a requirement to add DROP MEMBER")
-	assert.NotContains(t, v2Update, "db_datawriter")
+		_, v2HasReader := capture.byName["contained-db-removal-v2-role-db_datareader"]
+		_, v2HasWriter := capture.byName["contained-db-removal-v2-role-db_datawriter"]
+		assert.True(t, v2HasReader)
+		assert.False(t, v2HasWriter,
+			"a role removed from userSpec.Roles must not be registered on the next apply, or the real resource left over from the prior apply would never be deleted/revoked")
+	})
 }
 
 func TestDeployManagedIdentity(t *testing.T) {

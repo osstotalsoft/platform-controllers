@@ -3,7 +3,6 @@ package pulumi
 import (
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -270,102 +269,38 @@ func deployContainedUser(ctx *pulumi.Context, provider *mssql.Provider, resource
 		return "", pulumi.StringOutput{}, err
 	}
 
-	// Sort roles so the desired/actual state strings are order-independent (a spec that lists the
-	// same roles in a different order must not be seen as a change).
-	sortedRoles := append([]string{}, userSpec.Roles...)
-	sort.Strings(sortedRoles)
-
-	// desiredState mirrors what readScript computes from the DB: "Absent" if the user doesn't
-	// exist, otherwise "Present" optionally followed by a sorted, comma-joined list of the
-	// *managed* roles (see roleFilter below) the user currently belongs to. Unlike a plain
-	// "Present"/"Absent" flag, this ties the tracked state to the actual role membership, so
-	// adding a role to userSpec.Roles changes the desired value and is detected as a mismatch
-	// against readScript's output on the next apply, which triggers updateScript to reconcile it
-	// (mirroring the ownerLoginName/set-db-owner pattern in mssql_db.go, where the tracked state IS
-	// the configuration that matters).
-	desiredState := "Present"
-	if len(sortedRoles) > 0 {
-		desiredState = "Present:" + strings.Join(sortedRoles, ",")
-	}
-
-	// roleFilter restricts readScript's role-membership aggregation to exactly the roles this
-	// deployment manages (sortedRoles). This is a deliberate design choice, not an oversight:
-	//
-	// Role *removal* from the spec is intentionally NOT enforced by this Script — updateScript only
-	// ever ADDs role memberships, it never DROPs one. If readScript reported ALL of the user's actual
-	// role memberships (as it used to), then a role granted out-of-band (or previously granted by an
-	// older spec and since removed from userSpec.Roles) would make readScript's output a permanent
-	// superset of desiredState. That mismatch would never resolve — since updateScript still
-	// wouldn't drop it — so the Script would show drift and re-run UpdateScript on every single
-	// `pulumi up`, forever, and could surface as a hard "provider produced inconsistent result after
-	// apply" error from the Terraform-bridged provider.
-	//
-	// By scoping the aggregation to only the roles currently in userSpec.Roles, an out-of-band or
-	// previously-removed role is silently excluded from readScript's output, so it can never cause
-	// read/desired drift: the Script converges once the roles in sortedRoles are granted, and stays
-	// converged even if the actual principal still holds additional roles this deployment doesn't
-	// (and, for a removed role, no longer does) manage. If a role is removed from userSpec.Roles,
-	// the membership itself is left untouched in the database — it is simply no longer tracked.
-	roleFilter := "1 = 0" // no roles managed: never match any actual role-membership row
-	if len(sortedRoles) > 0 {
-		quotedRoles := make([]string, len(sortedRoles))
-		for i, role := range sortedRoles {
-			quotedRoles[i] = fmt.Sprintf("'%s'", role)
-		}
-		roleFilter = fmt.Sprintf("r.name IN (%s)", strings.Join(quotedRoles, ","))
-	}
-
-	// readScript reports "Absent" if the contained user doesn't exist, otherwise "Present" plus the
-	// sorted, comma-joined list of *managed* roles (roleFilter) currently granted to it (STRING_AGG
-	// ... WITHIN GROUP is available on both Azure SQL Database and Azure SQL Managed Instance). The
-	// LEFT JOINs plus GROUP BY on the user's principal_id ensure a row is still produced (with an
-	// empty role list) when the user exists but has no managed role memberships. The role filter is
-	// applied inside the second LEFT JOIN's ON clause (not a WHERE clause) so that a role membership
-	// row for an unmanaged role still keeps the underlying drm/user row alive (producing a NULL role
-	// name, excluded by STRING_AGG) instead of removing the row entirely and breaking the
-	// "user exists but has zero managed roles" case.
+	// readScript/State only ever track whether the contained user itself exists — "Absent" if not,
+	// "Present" otherwise. Role membership is NOT tracked here: it's managed entirely through
+	// individually-named mssql.DatabaseRoleMember resources below (the same mechanism
+	// deployLoginUser/deployManagedIdentity already use for their role grants), so Pulumi's own
+	// resource-graph diffing — not this Script — decides what to add or revoke when userSpec.Roles
+	// changes. Folding roles into this Script's tracked state was tried before and reverted: an
+	// idempotent add-only UpdateScript can never emit a DROP, so a role removed from the spec (or
+	// granted out-of-band) would either linger forever untracked, or, if reported by readScript,
+	// create permanent, never-resolving drift against a desired state that also can't shed it.
 	readScript := fmt.Sprintf(`
 SELECT ISNULL(
-	(SELECT 'Present' + ISNULL(':' + STRING_AGG(r.name, ',') WITHIN GROUP (ORDER BY r.name), '')
-	 FROM sys.database_principals u
-	 LEFT JOIN sys.database_role_members drm ON drm.member_principal_id = u.principal_id
-	 LEFT JOIN sys.database_principals r ON r.principal_id = drm.role_principal_id AND %s
-	 WHERE u.name = '%s'
-	 GROUP BY u.principal_id),
-	'Absent') AS [UserStatus]`, roleFilter, username)
-
-	// Each ALTER ROLE statement is itself guarded by a membership check, so updateScript is safe to
-	// re-run both when creating the user for the first time and when reconciling roles onto an
-	// already-existing user (the only case that changes UserStatus without CREATE USER running).
-	roleGrants := ""
-	for _, role := range sortedRoles {
-		roleGrants += fmt.Sprintf(`IF NOT EXISTS (
-	SELECT 1 FROM sys.database_role_members drm
-	JOIN sys.database_principals r ON r.principal_id = drm.role_principal_id
-	JOIN sys.database_principals m ON m.principal_id = drm.member_principal_id
-	WHERE r.name = '%s' AND m.name = '%s')
-	ALTER ROLE [%s] ADD MEMBER [%s];
-`, role, username, role, username)
-	}
+	(SELECT 'Present' FROM sys.database_principals u WHERE u.name = '%s'),
+	'Absent') AS [UserStatus]`, username)
 
 	script, err := mssql.NewScript(ctx, fmt.Sprintf("%s-contained-user", resourceNamePrefix), &mssql.ScriptArgs{
 		DatabaseId: databaseId,
 		ReadScript: pulumi.String(readScript),
 		UpdateScript: password.ApplyT(func(p string) string {
 			return fmt.Sprintf(
-				"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '%s')\n\tCREATE USER [%s] WITH PASSWORD = '%s';\n%s",
-				username, username, p, roleGrants)
+				"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '%s')\n\tCREATE USER [%s] WITH PASSWORD = '%s';\n",
+				username, username, p)
 		}).(pulumi.StringOutput),
 		DeleteScript: pulumi.String(fmt.Sprintf("DROP USER IF EXISTS [%s];", username)),
 		State: pulumi.StringMap{
-			"UserStatus": pulumi.String(desiredState),
+			"UserStatus": pulumi.String("Present"),
 		},
 	}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
 	if err != nil {
 		return "", pulumi.StringOutput{}, err
 	}
 
-	if len(userSpec.Permissions) > 0 || len(userSpec.SchemaPermissions) > 0 {
+	if len(userSpec.Roles) > 0 || len(userSpec.Permissions) > 0 || len(userSpec.SchemaPermissions) > 0 {
 		gatedDatabaseId := gateOn(databaseId, []pulumi.Resource{script})
 		memberIdLookup := mssql.LookupSqlUserOutput(ctx, mssql.LookupSqlUserOutputArgs{
 			DatabaseId: gatedDatabaseId.ToStringPtrOutput(),
@@ -373,6 +308,11 @@ SELECT ISNULL(
 		}, pulumi.Provider(provider))
 		memberId := memberIdLookup.ApplyT(func(r mssql.LookupSqlUserResult) string { return r.Id }).(pulumi.StringOutput)
 
+		err = deployDatabaseRoleGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.Roles,
+			append(dependencies, script), retainOnDelete)
+		if err != nil {
+			return "", pulumi.StringOutput{}, err
+		}
 		err = deployDatabasePermissionGrants(ctx, provider, resourceNamePrefix, databaseId, memberId, userSpec.Permissions,
 			append(dependencies, script), retainOnDelete)
 		if err != nil {
