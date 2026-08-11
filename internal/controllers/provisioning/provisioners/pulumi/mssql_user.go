@@ -34,9 +34,13 @@ func resolveName(name, defaultName string) string {
 //     whether the AzureAuth block is present at all — not on what's inside it (all three of
 //     ProviderAzureAuthArgs' fields are optional). So AzureAuth is set to an empty, non-nil
 //     &mssql.ProviderAzureAuthArgs{}: its mere presence is what makes the provider fall back to its
-//     default Azure credential chain (see github.com/microsoft/go-mssqldb's azuread driver), which
-//     does support Workload Identity federation. Leaving AzureAuth nil/omitted would mean neither
-//     azureAuth nor sqlAuth is set, and the provider would have no auth mode selected at all.
+//     default Azure credential chain (see github.com/microsoft/go-mssqldb's azuread driver). That
+//     chain only supports Workload Identity federation from the mssql plugin's v0.1.0+ release
+//     onward (azidentity v1.3.0+) — see the InstallPlugin("mssql", ...) comment in pulumi.go — so
+//     the plugin version pinned there must not regress below v0.1.0, or this silently falls back to
+//     ManagedIdentityCredential/IMDS instead and fails with "Identity not found". Leaving AzureAuth
+//     nil/omitted would mean neither azureAuth nor sqlAuth is set, and the provider would have no
+//     auth mode selected at all.
 //   - Workload Identity disabled: the ambient AZURE_CLIENT_ID/AZURE_CLIENT_SECRET/AZURE_TENANT_ID
 //     service-principal env vars (already relied upon elsewhere for the AAD Admin service principal)
 //     are required and wired into AzureAuth. Fails fast with a clear error — instead of silently

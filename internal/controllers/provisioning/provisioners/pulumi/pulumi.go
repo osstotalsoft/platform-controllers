@@ -24,9 +24,9 @@ import (
 )
 
 var (
-	EnvPulumiSkipRefresh = "PULUMI_SKIP_REFRESH"
-	EnvAzureEnabled      = "AZURE_ENABLED"
-	EnvAzureUseWorkloadIdentity       = "AZURE_USE_WORKLOAD_IDENTITY"
+	EnvPulumiSkipRefresh        = "PULUMI_SKIP_REFRESH"
+	EnvAzureEnabled             = "AZURE_ENABLED"
+	EnvAzureUseWorkloadIdentity = "AZURE_USE_WORKLOAD_IDENTITY"
 )
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
@@ -195,7 +195,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		klog.Errorf("Failed to install kubernetes plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "mssql", "v0.0.8")
+	err = w.InstallPlugin(ctx, "mssql", "v0.1.0")
 	if err != nil {
 		klog.Errorf("Failed to install mssql plugin: %v", err)
 		return auto.Stack{}, err
