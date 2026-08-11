@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
+	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sSchema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,7 +30,7 @@ const (
 // newRandomPassword generates a random password suitable for a SQL login/user or Entra user.
 func newRandomPassword(ctx *pulumi.Context, name string) (pulumi.StringOutput, error) {
 	randomPassword, err := random.NewRandomPassword(ctx, fmt.Sprintf("%s-password", name), &random.RandomPasswordArgs{
-		Length:     pulumi.Int(10),
+		Length:     pulumi.Int(17),
 		Upper:      pulumi.Bool(true),
 		MinUpper:   pulumi.Int(1),
 		Lower:      pulumi.Bool(true),
