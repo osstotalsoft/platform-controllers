@@ -209,13 +209,15 @@ func deploySchemaPermissionGrants(ctx *pulumi.Context, provider *mssql.Provider,
 // suffix). A server-level login is a server-wide name, so without tenant-scoping, two tenants
 // configuring the same users[].name (the common case — it names an application, not a tenant) would
 // collide on CREATE LOGIN. tenantScope (the caller's tenant-scoped dbName) is appended to make the
-// real login name unique per tenant, while userSpec.Name stays the stable, tenant-independent key
-// used for users[].name uniqueness and exports[].userRef matching.
+// real login name unique per tenant. The database-scoped SqlUser, by contrast, only ever needs to be
+// unique within its own database, so it keeps userSpec.Name as-is. The login name — not the plain
+// username — is what's returned/exported, since callers connect using the login.
 func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
 	databaseId pulumi.StringInput, userSpec *provisioningv1.DatabaseUserSpec, tenantScope string,
 	dependencies []pulumi.Resource, retainOnDelete bool) (string, pulumi.StringOutput, error) {
 
-	username := fmt.Sprintf("%s_%s", userSpec.Name, tenantScope)
+	loginName := fmt.Sprintf("%s_%s", userSpec.Name, tenantScope)
+	username := userSpec.Name
 
 	password, err := newRandomPassword(ctx, fmt.Sprintf("%s-login", resourceNamePrefix))
 	if err != nil {
@@ -223,7 +225,7 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 	}
 
 	login, err := mssql.NewSqlLogin(ctx, fmt.Sprintf("%s-login", resourceNamePrefix), &mssql.SqlLoginArgs{
-		Name:     pulumi.String(username),
+		Name:     pulumi.String(loginName),
 		Password: password,
 	}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
 	if err != nil {
@@ -256,7 +258,7 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 		return "", pulumi.StringOutput{}, err
 	}
 
-	return username, password, nil
+	return loginName, password, nil
 }
 
 // deployContainedUser creates a password-based contained database user (no server-level login) via
