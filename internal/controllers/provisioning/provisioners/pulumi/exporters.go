@@ -27,18 +27,25 @@ const (
 	EnvVaultEnabled = "VAULT_ENABLED"
 )
 
+// randomPasswordSpecialChars is the terraform-random provider's default special-character set
+// (see pulumi-random's RandomPasswordArgs.OverrideSpecial doc comment) minus '{' and '}': Prisma
+// Migrate rejects DATABASE_URL connection strings whose credentials contain curly braces, so they
+// must never appear in a generated password.
+const randomPasswordSpecialChars = "!@#$%^&*()-_=+[]<>:?"
+
 // newRandomPassword generates a random password suitable for a SQL login/user or Entra user.
 func newRandomPassword(ctx *pulumi.Context, name string) (pulumi.StringOutput, error) {
 	randomPassword, err := random.NewRandomPassword(ctx, fmt.Sprintf("%s-password", name), &random.RandomPasswordArgs{
-		Length:     pulumi.Int(17),
-		Upper:      pulumi.Bool(true),
-		MinUpper:   pulumi.Int(1),
-		Lower:      pulumi.Bool(true),
-		MinLower:   pulumi.Int(1),
-		Numeric:    pulumi.Bool(true),
-		MinNumeric: pulumi.Int(1),
-		Special:    pulumi.Bool(true),
-		MinSpecial: pulumi.Int(1),
+		Length:          pulumi.Int(17),
+		Upper:           pulumi.Bool(true),
+		MinUpper:        pulumi.Int(1),
+		Lower:           pulumi.Bool(true),
+		MinLower:        pulumi.Int(1),
+		Numeric:         pulumi.Bool(true),
+		MinNumeric:      pulumi.Int(1),
+		Special:         pulumi.Bool(true),
+		MinSpecial:      pulumi.Int(1),
+		OverrideSpecial: pulumi.String(randomPasswordSpecialChars),
 	})
 	if err != nil {
 		return pulumi.StringOutput{}, err
