@@ -142,6 +142,12 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 		})
 	}
 
+	// Windows limits the local administrator user name to 20 characters
+	adminUsername := fmt.Sprintf("admin-%s", args.TargetName)
+	if len(adminUsername) > 20 {
+		adminUsername = strings.TrimRight(adminUsername[:20], "-.")
+	}
+
 	vmArgs := compute.VirtualMachineArgs{
 		//VmName:            pulumi.String(name),
 		ResourceGroupName: args.ResourceGroupName,
@@ -154,7 +160,7 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 
 		OsProfile: compute.OSProfileArgs{
 			ComputerName:  avdVM.ComputerName,
-			AdminUsername: pulumi.String(fmt.Sprintf("admin-%s", args.TargetName)),
+			AdminUsername: pulumi.String(adminUsername),
 			AdminPassword: avdVM.AdminPassword.Result,
 			WindowsConfiguration: compute.WindowsConfigurationArgs{
 				EnableAutomaticUpdates: pulumi.Bool(false),
