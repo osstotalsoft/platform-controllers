@@ -79,6 +79,10 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 		Values:      pulumiValues,
 	}
 
+	if hr.Spec.Release.Timeout != nil {
+		spec.Timeout = pulumi.String(hr.Spec.Release.Timeout.Duration.String())
+	}
+
 	switch {
 	case hr.Spec.Release.Chart != nil:
 		sourceRef := fluxcd.HelmReleaseSpecChartSpecSourceRefArgs{
@@ -111,10 +115,22 @@ func pulumiFluxHrV2Args(target provisioning.ProvisioningTarget, hr *provisioning
 		return nil, fmt.Errorf("helm release %q must define either spec.release.chart or spec.release.chartRef", hr.Name)
 	}
 
+	if hr.Spec.Release.Install != nil {
+		remediation := hr.Spec.Release.Install.GetRemediation()
+		spec.Install = fluxcd.HelmReleaseSpecInstallArgs{
+			Remediation: fluxcd.HelmReleaseSpecInstallRemediationArgs{
+				RemediateLastFailure: pulumi.Bool(remediation.MustRemediateLastFailure()),
+				Retries:              pulumi.Int(remediation.GetRetries()),
+			},
+		}
+	}
+
 	if hr.Spec.Release.Upgrade != nil {
+		remediation := hr.Spec.Release.Upgrade.GetRemediation()
 		spec.Upgrade = fluxcd.HelmReleaseSpecUpgradeArgs{
 			Remediation: fluxcd.HelmReleaseSpecUpgradeRemediationArgs{
-				RemediateLastFailure: pulumi.Bool(hr.Spec.Release.Upgrade.GetRemediation().MustRemediateLastFailure()),
+				RemediateLastFailure: pulumi.Bool(remediation.MustRemediateLastFailure()),
+				Retries:              pulumi.Int(remediation.GetRetries()),
 			},
 		}
 	}

@@ -114,6 +114,83 @@ func TestPulumiFluxHrV2ArgsOmitsSourceRefNamespaceWhenEmpty(t *testing.T) {
 	assert.Nil(t, sourceRef.Namespace)
 }
 
+func TestPulumiFluxHrV2ArgsOmitsTimeoutWhenNotConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Timeout = nil
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	assert.Nil(t, spec.Timeout)
+}
+
+func TestPulumiFluxHrV2ArgsSetsTimeoutWhenConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Timeout = &metav1.Duration{Duration: 5 * time.Minute}
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	assert.Equal(t, pulumi.String("5m0s"), spec.Timeout)
+}
+
+func TestPulumiFluxHrV2ArgsSetsUpgradeRetriesWhenConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Upgrade.Remediation.Retries = 3
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	upgrade, ok := spec.Upgrade.(fluxcd.HelmReleaseSpecUpgradeArgs)
+	assert.True(t, ok)
+	remediation, ok := upgrade.Remediation.(fluxcd.HelmReleaseSpecUpgradeRemediationArgs)
+	assert.True(t, ok)
+	assert.Equal(t, pulumi.Int(3), remediation.Retries)
+}
+
+func TestPulumiFluxHrV2ArgsOmitsInstallWhenNotConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Install = nil
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	assert.Nil(t, spec.Install)
+}
+
+func TestPulumiFluxHrV2ArgsSetsInstallRetriesWhenConfigured(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	hr := newHrV2("my-helm-release-v2", "dev")
+	hr.Spec.Release.Install = &fluxv2.Install{
+		Remediation: &fluxv2.InstallRemediation{
+			Retries: 4,
+		},
+	}
+
+	args, err := pulumiFluxHrV2Args(tenant, hr)
+
+	assert.NoError(t, err)
+	spec, ok := args.Spec.(fluxcd.HelmReleaseSpecArgs)
+	assert.True(t, ok)
+	install, ok := spec.Install.(fluxcd.HelmReleaseSpecInstallArgs)
+	assert.True(t, ok)
+	remediation, ok := install.Remediation.(fluxcd.HelmReleaseSpecInstallRemediationArgs)
+	assert.True(t, ok)
+	assert.Equal(t, pulumi.Int(4), remediation.Retries)
+}
+
 func TestPulumiFluxHrV2ArgsErrorsWhenChartConfigurationMissing(t *testing.T) {
 	tenant := newTenant("tenant1", "dev")
 	hr := newHrV2("my-helm-release-v2", "dev")
