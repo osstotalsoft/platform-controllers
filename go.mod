@@ -40,6 +40,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0
 )
 
+require github.com/pulumiverse/pulumi-time/sdk v0.1.0
+
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect

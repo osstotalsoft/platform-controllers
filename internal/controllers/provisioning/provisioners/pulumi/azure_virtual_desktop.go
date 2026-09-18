@@ -5,7 +5,6 @@ import (
 	"math"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
@@ -16,6 +15,7 @@ import (
 	"github.com/pulumi/pulumi-azuread/sdk/v5/go/azuread"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/pulumiverse/pulumi-time/sdk/go/time"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	"totalsoft.ro/platform-controllers/internal/template"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -282,7 +282,11 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 				"useAgentDownloadEndpoint": pulumi.Bool(true),
 			},
 		},
-	}, pulumi.Parent(avdVM.VirtualMachine))
+	}, pulumi.Parent(avdVM.VirtualMachine),
+		// The registration token is only needed once, when this VM first joins the host pool.
+		// Ignoring settings here stops an already-registered VM from being re-applied every
+		// time the HostPool's live registration token changes.
+		pulumi.IgnoreChanges([]string{"settings"}))
 
 	if err != nil {
 		return nil, err
@@ -540,6 +544,17 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		}
 	}
 
+	// Auto-renews the HostPool registration token every 14 days. Between rotations its output
+	// stays stable across runs, so it won't cause the constant registrationInfo diff/regen that
+	// time.Now() did before; once RotationDays elapses it flips, and that's the only moment a
+	// real HostPool update (and token regen) happens.
+	tokenRotation, err := time.NewRotating(ctx, fmt.Sprintf("%s-token-rotation", hostPoolName), &time.RotatingArgs{
+		RotationDays: pulumi.Int(14),
+	}, pulumi.Parent(avdComponent))
+	if err != nil {
+		return nil, err
+	}
+
 	hostPoolArgs := desktopvirtualization.HostPoolArgs{
 		//HostPoolName:                  pulumi.String(hostPoolName),
 		HostPoolType:                  pulumi.String(desktopvirtualization.HostPoolTypePooled),
@@ -553,7 +568,7 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		StartVMOnConnect:  pulumi.Bool(true),
 
 		RegistrationInfo: &desktopvirtualization.RegistrationInfoArgs{
-			ExpirationTime:             pulumi.String(time.Now().AddDate(0, 0, 14).Format(time.RFC3339)),
+			ExpirationTime:             tokenRotation.RotationRfc3339,
 			RegistrationTokenOperation: pulumi.String(desktopvirtualization.RegistrationTokenOperationUpdate),
 		},
 
