@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientfeatures "k8s.io/client-go/features"
 	clientfeaturestesting "k8s.io/client-go/features/testing"
+	"k8s.io/client-go/tools/cache"
 	"totalsoft.ro/platform-controllers/internal/messaging"
 	messagingMock "totalsoft.ro/platform-controllers/internal/messaging/mock"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -881,6 +882,43 @@ func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 		assert.Equal(t, "overriddenReleaseName", result[0].Spec.Release.ReleaseName)
 	})
 
+}
+
+func TestProvisioningController_drainWorkqueue(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+	t.Setenv(EnvSkipInitialReconcile, "true")
+
+	domain := "my-domain"
+	clientset := fakeClientset.NewSimpleClientset(
+		newTenant("dev1", "dev", domain),
+		newTenant("dev2", "dev", domain),
+	)
+	noopProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+		return ProvisioningResult{}
+	}
+
+	c := NewProvisioningController(clientset, noopProvisioner, nil, nil, messaging.NilMessagingPublisher)
+	assert.True(t, c.skipInitialReconcile, EnvSkipInitialReconcile+" should be picked up from the environment")
+
+	c.factory.Start(nil)
+	c.factory.WaitForCacheSync(nil)
+
+	// The handler registrations, unlike the informer caches, also account for the delivery of the
+	// initial "added" events, so the queue is guaranteed to be fully populated at this point.
+	if !cache.WaitForCacheSync(nil, c.handlerSyncFuncs()...) {
+		t.Fatal("event handlers were not notified of the initial list")
+	}
+	assert.Equal(t, 2, c.workqueue.Len(), "both pre-existing tenants should have been enqueued")
+
+	c.drainWorkqueue()
+	assert.Equal(t, 0, c.workqueue.Len(), "the initial work items should have been discarded")
+
+	// Events occurring after the drain must still be picked up.
+	_, err := clientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).
+		Create(context.TODO(), newTenant("dev3", "dev", domain), metav1.CreateOptions{})
+	assert.NoError(t, err)
+	assert.Eventually(t, func() bool { return c.workqueue.Len() == 1 }, 10*time.Second, 20*time.Millisecond,
+		"a tenant added after the drain should have been enqueued")
 }
 
 func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
