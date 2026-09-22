@@ -41,6 +41,10 @@ type TenantSpec struct {
 	// +optional
 	DomainRefs []string `json:"domainRefs,omitempty"`
 
+	// ServiceRefs are the services selected by this tenant.
+	// +optional
+	ServiceRefs []string `json:"serviceRefs,omitempty"`
+
 	// Tenant administrator email address.
 	// +required
 	AdminEmail string `json:"adminEmail"`

@@ -20,6 +20,9 @@ type ServiceSpec struct {
 	// PlatformRef is the target platform.
 	// +required
 	PlatformRef string `json:"platformRef"`
+	// Label is a human friendly display name for this service, used by the UI.
+	// +optional
+	Label string `json:"label,omitempty"`
 	// RequiredDomainRefs are the required business domains associated to this service.
 	// +required
 	RequiredDomainRefs []string `json:"requiredDomainRefs"`

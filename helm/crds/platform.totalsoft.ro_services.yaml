@@ -38,6 +38,10 @@ spec:
             type: object
           spec:
             properties:
+              label:
+                description: Label is a human friendly display name for this service,
+                  used by the UI.
+                type: string
               optionalDomainRefs:
                 description: OptionalDomainRefs are the optional business domains
                   associated to this service.
