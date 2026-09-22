@@ -170,6 +170,8 @@ spec:
           value: "{{ .Values.global.workersCount }}"
         - name: MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED
           value: "{{ .Values.global.migrationJobTTLSecondsAfterFinished }}"
+        - name: SKIP_INITIAL_RECONCILE
+          value: {{ .Values.global.skipInitialReconcile | quote }}
         {{- if .Values.global.s3.enabled }}
         volumeMounts:
           - mountPath: "/home/nonroot/.aws/credentials"
