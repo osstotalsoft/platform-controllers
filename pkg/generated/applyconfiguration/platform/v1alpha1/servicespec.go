@@ -22,6 +22,7 @@ package v1alpha1
 // with apply.
 type ServiceSpecApplyConfiguration struct {
 	PlatformRef        *string  `json:"platformRef,omitempty"`
+	Label              *string  `json:"label,omitempty"`
 	RequiredDomainRefs []string `json:"requiredDomainRefs,omitempty"`
 	OptionalDomainRefs []string `json:"optionalDomainRefs,omitempty"`
 }
@@ -37,6 +38,14 @@ func ServiceSpec() *ServiceSpecApplyConfiguration {
 // If called multiple times, the PlatformRef field is set to the value of the last call.
 func (b *ServiceSpecApplyConfiguration) WithPlatformRef(value string) *ServiceSpecApplyConfiguration {
 	b.PlatformRef = &value
+	return b
+}
+
+// WithLabel sets the Label field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Label field is set to the value of the last call.
+func (b *ServiceSpecApplyConfiguration) WithLabel(value string) *ServiceSpecApplyConfiguration {
+	b.Label = &value
 	return b
 }
 

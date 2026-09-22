@@ -482,6 +482,22 @@ func (c *PlatformController) syncHandler(key string) error {
 	}
 	domains = domains[:n]
 
+	services, err := c.servicesLister.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+
+	n = 0
+	for _, s := range services {
+		if s.Spec.PlatformRef == platform.Name {
+			services[n] = s
+			n++
+		}
+	}
+	services = services[:n]
+
+	c.warnOnInconsistentServiceSelections(tenants, services)
+
 	platformCfgMap := c.genPlatformTenantsCfgMap(platform, tenants)
 	err = c.syncConfigMap(platformCfgMap, platform)
 
@@ -673,6 +689,32 @@ func (c *PlatformController) genDomainTenantsCfgMap(platform *platformv1.Platfor
 		},
 		Data:      tenantData,
 		Immutable: func(b bool) *bool { return &b }(true),
+	}
+}
+
+// warnOnInconsistentServiceSelections emits a warning event on tenants that select a service
+// requiring a domain not present in the tenant's own DomainRefs. It does not affect provisioning,
+// which remains driven solely by DomainRefs.
+func (c *PlatformController) warnOnInconsistentServiceSelections(tenants []*platformv1.Tenant, services []*platformv1.Service) {
+	servicesByName := make(map[string]*platformv1.Service, len(services))
+	for _, s := range services {
+		servicesByName[s.Name] = s
+	}
+
+	for _, tenant := range tenants {
+		for _, serviceRef := range tenant.Spec.ServiceRefs {
+			service, ok := servicesByName[serviceRef]
+			if !ok {
+				continue
+			}
+			for _, requiredDomain := range service.Spec.RequiredDomainRefs {
+				if !tenantHasAccessToDomain(tenant, requiredDomain) {
+					msg := fmt.Sprintf("Tenant %q selects service %q which requires domain %q, but that domain is not in the tenant's domainRefs.",
+						tenant.Name, service.Name, requiredDomain)
+					c.recorder.Event(tenant, corev1.EventTypeWarning, "InconsistentServiceSelection", msg)
+				}
+			}
+		}
 	}
 }
 

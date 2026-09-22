@@ -479,6 +479,11 @@ func (in *TenantSpec) DeepCopyInto(out *TenantSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.ServiceRefs != nil {
+		in, out := &in.ServiceRefs, &out.ServiceRefs
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Configs != nil {
 		in, out := &in.Configs, &out.Configs
 		*out = make(map[string]string, len(*in))

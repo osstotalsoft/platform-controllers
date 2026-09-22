@@ -3,6 +3,7 @@ package platform
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	clientfeaturestesting "k8s.io/client-go/features/testing"
 	kubeinformers "k8s.io/client-go/informers"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/record"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging/mock"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
@@ -662,7 +664,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 	t.Run("service created", func(t *testing.T) {
 		// Arrange
 		platform := _newPlatform("qa", "charismaonline.qa")
-		service := _newService("qa", "service1", platform.Name)
+		service := _newService("qa", "service1", platform.Name, []string{})
 
 		c, msgChan := _runController([]runtime.Object{platform, service})
 		if c.workqueue.Len() != 1 {
@@ -718,7 +720,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		// Arrange
 		platformQa := _newPlatform("qa", "charismaonline.qa")
 		platformUat := _newPlatform("uat", "charismaonline.uat")
-		service := _newService("qa", "service1", platformQa.Name)
+		service := _newService("qa", "service1", platformQa.Name, []string{})
 
 		c, msgChan := _runController([]runtime.Object{platformQa, platformUat, service})
 		if c.workqueue.Len() != 2 {
@@ -804,7 +806,7 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 	t.Run("service deleted", func(t *testing.T) {
 		// Arrange
 		platform := _newPlatform("qa", "charismaonline.qa")
-		service := _newService("qa", "service1", platform.Name)
+		service := _newService("qa", "service1", platform.Name, []string{})
 
 		c, msgChan := _runController([]runtime.Object{platform, service})
 		if c.workqueue.Len() != 1 {
@@ -865,6 +867,62 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("tenant service selection inconsistent with domain refs raises warning", func(t *testing.T) {
+		// Arrange
+		platform := _newPlatform("qa", "charismaonline.qa")
+		service := _newService("qa", "service1", platform.Name, []string{"origination"})
+		tenant := _newTenant("tenant1", platform.Name, []string{})
+		tenant.Spec.ServiceRefs = []string{"service1"}
+
+		c, msgChan := _runController([]runtime.Object{platform, service, tenant})
+		recorder := record.NewFakeRecorder(10)
+		c.recorder = recorder
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		<-msgChan
+
+		// Assert
+		close(recorder.Events)
+		found := false
+		for event := range recorder.Events {
+			if strings.Contains(event, "InconsistentServiceSelection") {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("expected an InconsistentServiceSelection warning event to be recorded, but none was")
+		}
+	})
+
+	t.Run("tenant service selection consistent with domain refs raises no warning", func(t *testing.T) {
+		// Arrange
+		platform := _newPlatform("qa", "charismaonline.qa")
+		service := _newService("qa", "service1", platform.Name, []string{"origination"})
+		tenant := _newTenant("tenant1", platform.Name, []string{"origination"})
+		tenant.Spec.ServiceRefs = []string{"service1"}
+
+		c, msgChan := _runController([]runtime.Object{platform, service, tenant})
+		recorder := record.NewFakeRecorder(10)
+		c.recorder = recorder
+
+		// Act
+		if result := c.processNextWorkItem(); !result {
+			t.Error("processing failed")
+		}
+		<-msgChan
+
+		// Assert
+		close(recorder.Events)
+		for event := range recorder.Events {
+			if strings.Contains(event, "Warning") {
+				t.Errorf("expected no warning event, got %q", event)
+			}
+		}
+	})
 }
 
 func _newPlatform(ns, name string) *platformv1.Platform {
@@ -909,7 +967,7 @@ func _newDomain(ns, name, platform string) *platformv1.Domain {
 	}
 }
 
-func _newService(ns, name, platform string /* requiredDomainRefs []string, optionalDomainRefs []string */) *platformv1.Service {
+func _newService(ns, name, platform string, requiredDomainRefs []string) *platformv1.Service {
 	return &platformv1.Service{
 		TypeMeta: metav1.TypeMeta{APIVersion: platformv1.SchemeGroupVersion.String()},
 		ObjectMeta: metav1.ObjectMeta{
@@ -917,9 +975,8 @@ func _newService(ns, name, platform string /* requiredDomainRefs []string, optio
 			Namespace: ns,
 		},
 		Spec: platformv1.ServiceSpec{
-			PlatformRef: platform,
-			/* RequiredDomainRefs: requiredDomainRefs,
-			OptionalDomainRefs: optionalDomainRefs, */
+			PlatformRef:        platform,
+			RequiredDomainRefs: requiredDomainRefs,
 		},
 	}
 }
