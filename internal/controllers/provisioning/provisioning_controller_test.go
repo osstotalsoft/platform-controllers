@@ -387,6 +387,44 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 			t.Error("expected zero dbs, got", len((*outputs)[0].infra.AzureDbs))
 		}
 	})
+
+	t.Run("removing a domain from a tenant re-enqueues cleanup for that domain", func(t *testing.T) {
+		domain := "my-domain"
+		otherDomain := "other-domain"
+		tenant := newTenant("dev1", "dev", domain, otherDomain)
+
+		objects := []runtime.Object{tenant}
+		c, _, _ := runControllerWithDefaultFakes(objects)
+
+		// drain the initial enqueue triggered by adding the tenant
+		for c.workqueue.Len() > 0 {
+			item, _ := c.workqueue.Get()
+			c.workqueue.Done(item)
+			c.workqueue.Forget(item)
+		}
+
+		updatedTenant := tenant.DeepCopy()
+		updatedTenant.Spec.DomainRefs = []string{otherDomain}
+		_, err := c.clientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).Update(context.TODO(), updatedTenant, metav1.UpdateOptions{})
+		if err != nil {
+			t.Error(err)
+		}
+		time.Sleep(time.Second)
+
+		expectedKey := encodeKey(tenant.Spec.PlatformRef, metav1.NamespaceDefault+"/"+tenant.Name, domain)
+		found := false
+		for c.workqueue.Len() > 0 {
+			item, _ := c.workqueue.Get()
+			if item == expectedKey {
+				found = true
+			}
+			c.workqueue.Done(item)
+			c.workqueue.Forget(item)
+		}
+		if !found {
+			t.Error("expected removed domain to be re-enqueued for cleanup with key", expectedKey)
+		}
+	})
 }
 
 func TestProvisioningController_applyTargetOverrides(t *testing.T) {

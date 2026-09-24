@@ -344,16 +344,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 				ObjectMeta: metav1.ObjectMeta{Name: tenantName},
 				Spec:       platformv1.TenantSpec{PlatformRef: platformKey}},
 				domainKey,
-				&InfrastructureManifests{
-					AzureDbs:             []*provisioningv1.AzureDatabase{},
-					AzureManagedDbs:      []*provisioningv1.AzureManagedDatabase{},
-					HelmReleases:         []*provisioningv1.HelmRelease{},
-					HelmReleaseV2s:       []*provisioningv1.HelmReleaseV2{},
-					AzureVirtualMachines: []*provisioningv1.AzureVirtualMachine{},
-					AzureVirtualDesktops: []*provisioningv1.AzureVirtualDesktop{},
-					MsSqlDbs:             []*provisioningv1.MsSqlDatabase{},
-					LocalScripts:         []*provisioningv1.LocalScript{},
-				},
+				&InfrastructureManifests{},
 			)
 			if cleanupResult.Error != nil {
 				utilruntime.HandleError(cleanupResult.Error)
@@ -813,7 +804,9 @@ func addTenantHandlers(informer platformInformersv1.TenantInformer, handler func
 			newPlatform, newOk := getTenantPlatform(newT)
 			platformChanged := oldPlatform != newPlatform
 			specChanged := !reflect.DeepEqual(oldT.Spec, newT.Spec)
-			if oldOk && platformChanged {
+			if oldOk && (platformChanged || specChanged) {
+				// re-enqueue the old domains too (not just the new ones), so that domains removed
+				// from DomainRefs are still synced and their resources get deprovisioned/cleaned up
 				klog.V(4).InfoS("Tenant invalidated", "name", oldT.Name, "namespace", oldT.Namespace, "platform", oldPlatform)
 				handler(oldT)
 			}
