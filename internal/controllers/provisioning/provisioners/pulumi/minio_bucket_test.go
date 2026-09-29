@@ -87,3 +87,55 @@ func TestDeployMinioBucket(t *testing.T) {
 		assert.Equal(t, "minio-password", mocks.providerInputs[0]["minioPassword"].StringValue())
 	})
 }
+
+func TestDeployMinioBucketImport(t *testing.T) {
+	newMinioBucket := func(importBucketName string) *provisioningv1.MinioBucket {
+		return &provisioningv1.MinioBucket{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "my-buc",
+			},
+			Spec: provisioningv1.MinioBucketSpec{
+				BucketName:       "buc1",
+				ImportBucketName: importBucketName,
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					DomainRef: "example-domain",
+				},
+			},
+		}
+	}
+
+	deploy := func(t *testing.T, minioBucket *provisioningv1.MinioBucket) *resourceCaptureMocks {
+		tenant := newTenant("tenant1", "dev")
+		mocks := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", mocks))
+		assert.NoError(t, err)
+		return mocks
+	}
+
+	t.Run("imports the existing bucket and grants access to it", func(t *testing.T) {
+		mocks := deploy(t, newMinioBucket("legacy-bucket"))
+
+		bucket := mocks.byName["my-buc"]
+		assert.Equal(t, "legacy-bucket", bucket.ID)
+		assert.Equal(t, "legacy-bucket", bucket.Inputs["bucket"].StringValue())
+		assert.Contains(t, bucket.RegisterRPC.GetIgnoreChanges(), "forceDestroy")
+
+		sa := mocks.byType["minio:index/iamServiceAccount:IamServiceAccount"]
+		assert.Len(t, sa, 1)
+		policy := sa[0].Inputs["policy"].StringValue()
+		assert.Contains(t, policy, "arn:aws:s3:::legacy-bucket")
+		assert.NotContains(t, policy, "buc1-dev-tenant1")
+	})
+
+	t.Run("creates a new bucket when import is not requested", func(t *testing.T) {
+		mocks := deploy(t, newMinioBucket(""))
+
+		bucket := mocks.byName["my-buc"]
+		assert.Empty(t, bucket.ID)
+		assert.Equal(t, "buc1-dev-tenant1", bucket.Inputs["bucket"].StringValue())
+		assert.NotContains(t, bucket.RegisterRPC.GetIgnoreChanges(), "forceDestroy")
+	})
+}
