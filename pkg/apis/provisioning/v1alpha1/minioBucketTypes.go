@@ -22,6 +22,12 @@ type MinioBucketSpec struct {
 	// BucketName represents the bucket name.
 	BucketName string `json:"bucketName"`
 
+	// Existing bucket to be adopted instead of creating a new one.
+	// When set, it replaces the generated bucket name.
+	// eg: "my-existing-bucket"
+	// +optional
+	ImportBucketName string `json:"importBucketName,omitempty"`
+
 	// MinioServer represents the Minio server configuration. If omitted, the default Pulumi provider configuration is used.
 	// +optional
 	MinioServer *MinioServerSpec `json:"minioServer,omitempty"`

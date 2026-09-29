@@ -31,8 +31,11 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 			return fmt.Sprintf("%s-%s", minioBucket.Spec.BucketName, platform.GetName())
 		},
 	)
+	if minioBucket.Spec.ImportBucketName != "" {
+		bucketName = minioBucket.Spec.ImportBucketName
+	}
 
-	userName := fmt.Sprintf("%s-%s-%s", provisioning.MatchTarget(target,
+	userName :=fmt.Sprintf("%s-%s-%s", provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
 		},
@@ -79,6 +82,10 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 	ignoreChanges := []string{"bucket"}
+	if minioBucket.Spec.ImportBucketName != "" {
+		// forceDestroy is provider-side only; the value read back on import won't match our input
+		ignoreChanges = append(ignoreChanges, "forceDestroy")
+	}
 
 	bucket, err := minio.NewS3Bucket(ctx, minioBucket.Name, &minio.S3BucketArgs{
 		Acl:          nil,
@@ -88,6 +95,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		minioResourceOptions(providerOptions,
 			pulumi.RetainOnDelete(pulumiRetainOnDelete),
 			pulumi.IgnoreChanges(ignoreChanges),
+			pulumi.Import(pulumi.ID(minioBucket.Spec.ImportBucketName)),
 			pulumi.DependsOn(dependencies))...)
 	if err != nil {
 		return nil, err
