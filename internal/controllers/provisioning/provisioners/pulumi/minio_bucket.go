@@ -35,7 +35,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		bucketName = minioBucket.Spec.ImportBucketName
 	}
 
-	userName :=fmt.Sprintf("%s-%s-%s", provisioning.MatchTarget(target,
+	userName := fmt.Sprintf("%s-%s-%s", provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", tenant.Spec.PlatformRef, tenant.GetName())
 		},
