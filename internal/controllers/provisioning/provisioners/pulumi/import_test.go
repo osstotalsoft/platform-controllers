@@ -1,0 +1,136 @@
+package pulumi
+
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/stretchr/testify/assert"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+)
+
+func metaWithImport(importSetting *bool) *provisioningv1.ProvisioningMeta {
+	return &provisioningv1.ProvisioningMeta{Import: importSetting}
+}
+
+func TestNewImportOptions(t *testing.T) {
+	yes, no := true, false
+
+	t.Run("reads the global setting", func(t *testing.T) {
+		for value, expected := range map[string]bool{"true": true, "1": true, "false": false, "": false, "nope": false} {
+			t.Setenv(EnvPulumiImportAll, value)
+			options := newImportOptions(&provisioning.InfrastructureManifests{})
+			assert.Equal(t, expected, options.enabled, "%s=%q", EnvPulumiImportAll, value)
+			assert.Equal(t, expected, options.stack.anyEnabled, "%s=%q", EnvPulumiImportAll, value)
+		}
+	})
+
+	t.Run("loads the stack's state when a stateful resource opts in while the global setting is off", func(t *testing.T) {
+		t.Setenv(EnvPulumiImportAll, "false")
+		infra := &provisioning.InfrastructureManifests{MinioBuckets: []*provisioningv1.MinioBucket{
+			{Spec: provisioningv1.MinioBucketSpec{ProvisioningMeta: *metaWithImport(&yes)}},
+		}}
+		options := newImportOptions(infra)
+		assert.False(t, options.enabled)
+		assert.True(t, options.stack.anyEnabled)
+	})
+
+	t.Run("doesn't load the stack's state for resource kinds that don't import", func(t *testing.T) {
+		t.Setenv(EnvPulumiImportAll, "false")
+		infra := &provisioning.InfrastructureManifests{
+			KeycloakClients: []*provisioningv1.KeycloakClient{{Spec: provisioningv1.KeycloakClientSpec{ProvisioningMeta: *metaWithImport(&yes)}}},
+			MinioBuckets:    []*provisioningv1.MinioBucket{{Spec: provisioningv1.MinioBucketSpec{ProvisioningMeta: *metaWithImport(&no)}}},
+		}
+		assert.False(t, newImportOptions(infra).stack.anyEnabled)
+	})
+}
+
+func TestImportOptionsForResource(t *testing.T) {
+	yes, no := true, false
+
+	assert.True(t, importsWith(false).forResource(metaWithImport(&yes)).enabled)
+	assert.False(t, importsWith(true).forResource(metaWithImport(&no)).enabled)
+	assert.True(t, importsWith(true).forResource(metaWithImport(nil)).enabled)
+	assert.False(t, importsWith(false).forResource(metaWithImport(nil)).enabled)
+
+	var nilOptions *importOptions
+	assert.Nil(t, nilOptions.forResource(metaWithImport(&yes)))
+
+	parent := importsWith(false, managedResourceKey(minioBucketType, "managed-bucket"))
+	assert.False(t, parent.forResource(metaWithImport(&yes)).shouldImport(minioBucketType, "managed-bucket"),
+		"a resource's own setting must still skip what the stack already manages")
+}
+
+func TestImportOptionsForAnyOf(t *testing.T) {
+	yes, no := true, false
+
+	assert.False(t, importsWith(false).forAnyOf(nil).enabled)
+	assert.True(t, importsWith(true).forAnyOf(nil).enabled, "without resources sharing it, the global setting applies")
+	assert.True(t, importsWith(false).forAnyOf([]*provisioningv1.ProvisioningMeta{metaWithImport(nil), metaWithImport(&yes)}).enabled)
+	assert.False(t, importsWith(true).forAnyOf([]*provisioningv1.ProvisioningMeta{metaWithImport(&no), metaWithImport(&no)}).enabled)
+	assert.True(t, importsWith(true).forAnyOf([]*provisioningv1.ProvisioningMeta{metaWithImport(&no), metaWithImport(nil)}).enabled)
+}
+
+func TestImportOptionsShouldImport(t *testing.T) {
+	t.Run("never imports when disabled or nil", func(t *testing.T) {
+		var nilOptions *importOptions
+		assert.False(t, nilOptions.shouldImport(minioBucketType, "bucket"))
+		assert.False(t, importsWith(false).shouldImport(minioBucketType, "bucket"))
+	})
+
+	t.Run("imports only resources the stack doesn't manage yet", func(t *testing.T) {
+		options := importAll(managedResourceKey(minioBucketType, "managed-bucket"))
+		assert.False(t, options.shouldImport(minioBucketType, "managed-bucket"))
+		assert.True(t, options.shouldImport(minioBucketType, "new-bucket"))
+		assert.True(t, options.shouldImport(mssqlDatabaseType, "managed-bucket"), "keys must include the type")
+	})
+
+	t.Run("a resource managed under one of its aliases isn't imported", func(t *testing.T) {
+		options := importAll(managedResourceKey(azureSqlDatabaseType, "db_dev_tenant.1"))
+		assert.False(t, options.shouldImport(azureSqlDatabaseType, "db_dev_tenant_1", "db_dev_tenant.1"))
+		assert.True(t, options.shouldImport(azureSqlDatabaseType, "db_dev_tenant_1"))
+	})
+}
+
+func TestManagedResources(t *testing.T) {
+	t.Run("keys resources by their own type and name, ignoring the parent chain", func(t *testing.T) {
+		deployment, err := json.Marshal(map[string]any{
+			"resources": []map[string]any{
+				{"urn": "urn:pulumi:tenant1-domain::dev::pulumi:pulumi:Stack::dev-tenant1-domain", "type": "pulumi:pulumi:Stack"},
+				{"urn": "urn:pulumi:tenant1-domain::dev::mssql:index/database:Database::my-db", "type": mssqlDatabaseType},
+				{
+					"urn":  "urn:pulumi:tenant1-domain::dev::ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop$azuread:index/group:Group::pool-apps",
+					"type": azureadGroupType,
+				},
+			},
+		})
+		assert.NoError(t, err)
+
+		managed, err := managedResources(apitype.UntypedDeployment{Version: 3, Deployment: deployment})
+		assert.NoError(t, err)
+		assert.True(t, managed[managedResourceKey(mssqlDatabaseType, "my-db")])
+		assert.True(t, managed[managedResourceKey(azureadGroupType, "pool-apps")])
+		assert.Len(t, managed, 3)
+	})
+
+	t.Run("a stack without state manages nothing", func(t *testing.T) {
+		managed, err := managedResources(apitype.UntypedDeployment{})
+		assert.NoError(t, err)
+		assert.Empty(t, managed)
+	})
+}
+
+func TestNeedsPostImportUpdate(t *testing.T) {
+	var nilOptions *importOptions
+	assert.False(t, nilOptions.needsPostImportUpdate())
+
+	options := importAll()
+	options.importResource(pulumi.ID("id"))
+	assert.False(t, options.needsPostImportUpdate(), "an import without ignored inputs needs no second update")
+
+	options.importResource(pulumi.ID("id"), "password")
+	assert.True(t, options.needsPostImportUpdate())
+	assert.False(t, options.needsPostImportUpdate(), "it must reset, so the post-import update doesn't trigger another one")
+}

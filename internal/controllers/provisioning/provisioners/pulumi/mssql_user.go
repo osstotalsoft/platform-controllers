@@ -214,7 +214,7 @@ func deploySchemaPermissionGrants(ctx *pulumi.Context, provider *mssql.Provider,
 // username — is what's returned/exported, since callers connect using the login.
 func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
 	databaseId pulumi.StringInput, userSpec *provisioningv1.DatabaseUserSpec, tenantScope string,
-	dependencies []pulumi.Resource, retainOnDelete bool) (string, pulumi.StringOutput, error) {
+	dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (string, pulumi.StringOutput, error) {
 
 	loginName := fmt.Sprintf("%s_%s", userSpec.Name, tenantScope)
 	username := userSpec.Name
@@ -224,19 +224,44 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 		return "", pulumi.StringOutput{}, err
 	}
 
-	login, err := mssql.NewSqlLogin(ctx, fmt.Sprintf("%s-login", resourceNamePrefix), &mssql.SqlLoginArgs{
+	loginResourceName := fmt.Sprintf("%s-login", resourceNamePrefix)
+	loginOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete)}
+	if imports.shouldImport(mssqlSqlLoginType, loginResourceName) {
+		existing, err := mssql.LookupSqlLogin(ctx, &mssql.LookupSqlLoginArgs{Name: loginName}, pulumi.Provider(provider))
+		if err != nil {
+			return "", pulumi.StringOutput{}, err
+		}
+		if existing.Id == "" {
+			return "", pulumi.StringOutput{}, fmt.Errorf("login %s to import not found", loginName)
+		}
+		// The password is regenerated along with the lost state, and the login's current one can't be
+		// read back: it's set on the login by the post-import update.
+		loginOpts = append(loginOpts, imports.importResource(pulumi.ID(existing.Id), "password")...)
+	}
+
+	login, err := mssql.NewSqlLogin(ctx, loginResourceName, &mssql.SqlLoginArgs{
 		Name:     pulumi.String(loginName),
 		Password: password,
-	}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
+	}, loginOpts...)
 	if err != nil {
 		return "", pulumi.StringOutput{}, err
 	}
 
-	user, err := mssql.NewSqlUser(ctx, fmt.Sprintf("%s-user", resourceNamePrefix), &mssql.SqlUserArgs{
+	userResourceName := fmt.Sprintf("%s-user", resourceNamePrefix)
+	userOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, login)), pulumi.RetainOnDelete(retainOnDelete)}
+	if imports.shouldImport(mssqlSqlUserType, userResourceName) {
+		existing := mssql.LookupSqlUserOutput(ctx, mssql.LookupSqlUserOutputArgs{
+			DatabaseId: databaseId.ToStringOutput().ToStringPtrOutput(),
+			Name:       pulumi.String(username),
+		}, pulumi.Provider(provider))
+		userOpts = append(userOpts, imports.importResource(lookedUpImportId(existing.Id(), fmt.Sprintf("user %s", username)))...)
+	}
+
+	user, err := mssql.NewSqlUser(ctx, userResourceName, &mssql.SqlUserArgs{
 		DatabaseId: databaseId,
 		LoginId:    login.ID().ToStringOutput(),
 		Name:       pulumi.String(username),
-	}, pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, login)), pulumi.RetainOnDelete(retainOnDelete))
+	}, userOpts...)
 	if err != nil {
 		return "", pulumi.StringOutput{}, err
 	}
@@ -346,24 +371,46 @@ SELECT ISNULL(
 // managedIdentities[].name uniqueness and exports[].identityRef matching.
 func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
 	databaseId pulumi.StringInput, identitySpec *provisioningv1.ManagedIdentitySpec, tenantScope string,
-	dependencies []pulumi.Resource, retainOnDelete bool) (pulumi.StringOutput, pulumi.StringOutput, error) {
+	dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.StringOutput, pulumi.StringOutput, error) {
 
 	name := fmt.Sprintf("%s_%s", identitySpec.Name, tenantScope)
 
-	identity, err := managedidentity.NewUserAssignedIdentity(ctx, fmt.Sprintf("%s-identity", resourceNamePrefix), &managedidentity.UserAssignedIdentityArgs{
+	identityResourceName := fmt.Sprintf("%s-identity", resourceNamePrefix)
+	identityOpts := []pulumi.ResourceOption{pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete)}
+	if imports.shouldImport(azureUserAssignedIdentityType, identityResourceName) {
+		subscriptionId, err := azureSubscriptionId(ctx)
+		if err != nil {
+			return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+		}
+		identityOpts = append(identityOpts, imports.importResource(pulumi.ID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s",
+			subscriptionId, identitySpec.ResourceGroupName, name)))...)
+	}
+
+	identity, err := managedidentity.NewUserAssignedIdentity(ctx, identityResourceName, &managedidentity.UserAssignedIdentityArgs{
 		ResourceName:      pulumi.String(name),
 		ResourceGroupName: pulumi.String(identitySpec.ResourceGroupName),
 		Location:          pulumi.String(identitySpec.Location),
-	}, pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
+	}, identityOpts...)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
-	principal, err := mssql.NewAzureadServicePrincipal(ctx, fmt.Sprintf("%s-identity-user", resourceNamePrefix), &mssql.AzureadServicePrincipalArgs{
+	principalResourceName := fmt.Sprintf("%s-identity-user", resourceNamePrefix)
+	principalOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, identity)), pulumi.RetainOnDelete(retainOnDelete)}
+	if imports.shouldImport(mssqlAzureadPrincipalType, principalResourceName) {
+		existing := mssql.LookupAzureadServicePrincipalOutput(ctx, mssql.LookupAzureadServicePrincipalOutputArgs{
+			DatabaseId: databaseId,
+			Name:       pulumi.String(name),
+		}, pulumi.Provider(provider))
+		principalOpts = append(principalOpts, imports.importResource(lookedUpImportId(existing.Id(), fmt.Sprintf("database user %s", name)))...)
+	}
+
+	principal, err := mssql.NewAzureadServicePrincipal(ctx, principalResourceName, &mssql.AzureadServicePrincipalArgs{
 		DatabaseId: databaseId,
 		ClientId:   identity.ClientId,
 		Name:       pulumi.String(name),
-	}, pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, identity)), pulumi.RetainOnDelete(retainOnDelete))
+	}, principalOpts...)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}

@@ -16,6 +16,7 @@ func deployAzureManagedDb(
 	target provisioning.ProvisioningTarget,
 	azureDb *provisioningv1.AzureManagedDatabase,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*azureSql.ManagedDatabase, error) {
 
 	valueExporter := handleValueExport(target)
@@ -59,11 +60,21 @@ func deployAzureManagedDb(
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 	ignoreChanges := []string{"managedInstanceName", "resourceGroupName", "createMode", "autoCompleteRestore", "lastBackupName", "storageContainerSasToken", "storageContainerUri", "collation", "tags"}
 
+	importDatabaseId := azureDb.Spec.ImportDatabaseId
+	if importDatabaseId == "" && imports.shouldImport(azureSqlManagedDatabaseType, dbName, dbNameV1) {
+		subscriptionId, err := azureSubscriptionId(ctx)
+		if err != nil {
+			return nil, err
+		}
+		importDatabaseId = fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Sql/managedInstances/%s/databases/%s",
+			subscriptionId, azureDb.Spec.ManagedInstance.ResourceGroup, azureDb.Spec.ManagedInstance.Name, dbName)
+	}
+
 	db, err := azureSql.NewManagedDatabase(ctx, dbName, &args,
 		pulumi.RetainOnDelete(pulumiRetainOnDelete),
 		pulumi.IgnoreChanges(ignoreChanges),
 		pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
-		pulumi.Import(pulumi.ID(azureDb.Spec.ImportDatabaseId)),
+		pulumi.Import(pulumi.ID(importDatabaseId)),
 		pulumi.DependsOn(dependencies),
 	)
 	if err != nil {
@@ -114,7 +125,7 @@ func deployAzureManagedDb(
 					&user, user.Name, []pulumi.Resource{db}, pulumiRetainOnDelete)
 			} else {
 				username, password, err = deployLoginUser(ctx, provider, resourceNamePrefix, databaseId,
-					&user, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
+					&user, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete, imports)
 			}
 			if err != nil {
 				return nil, err
@@ -125,7 +136,7 @@ func deployAzureManagedDb(
 		for i := range azureDb.Spec.ManagedIdentities {
 			identity := azureDb.Spec.ManagedIdentities[i]
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
-				&identity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
+				&identity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete, imports)
 			if err != nil {
 				return nil, err
 			}

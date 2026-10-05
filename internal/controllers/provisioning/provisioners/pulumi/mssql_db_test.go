@@ -39,7 +39,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -64,7 +64,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -96,7 +96,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 			"id": resource.NewStringProperty("1/1"),
 		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -128,7 +128,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -173,7 +173,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			db, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -210,7 +210,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.ErrorContains(t, err, `spec.users[].name "app1" is duplicated`)
@@ -235,7 +235,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 		}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
 		assert.ErrorContains(t, err, `userRef "does_not_exist" does not match any spec.users[].name`)
@@ -259,7 +259,7 @@ func TestDeployMsSqlDatabase(t *testing.T) {
 		}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, ctx)
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
 		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
@@ -284,10 +284,10 @@ func TestDeployMsSqlDatabaseLoginNameIsTenantScoped(t *testing.T) {
 
 	capture := newResourceCaptureMocks()
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-		if _, err := deployMsSqlDb(tenantA, mssqlDbA, []pulumi.Resource{}, ctx); err != nil {
+		if _, err := deployMsSqlDb(tenantA, mssqlDbA, []pulumi.Resource{}, nil, ctx); err != nil {
 			return err
 		}
-		_, err := deployMsSqlDb(tenantB, mssqlDbB, []pulumi.Resource{}, ctx)
+		_, err := deployMsSqlDb(tenantB, mssqlDbB, []pulumi.Resource{}, nil, ctx)
 		return err
 	}, pulumi.WithMocks("project", "stack", capture))
 	assert.NoError(t, err)

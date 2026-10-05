@@ -15,6 +15,7 @@ import (
 func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	mssqlDb *provisioningv1.MsSqlDatabase,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*mssql.Database, error) {
 
 	valueExporter := handleValueExport(target)
@@ -49,6 +50,18 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	)
 	dbName = strings.ReplaceAll(dbName, ".", "_")
 
+	importDatabaseId := mssqlDb.Spec.ImportDatabaseId
+	if importDatabaseId == "" && imports.shouldImport(mssqlDatabaseType, mssqlDb.Name) {
+		existing, err := mssql.LookupDatabase(ctx, &mssql.LookupDatabaseArgs{Name: dbName}, pulumi.Provider(provider))
+		if err != nil {
+			return nil, err
+		}
+		if existing.Id == "" {
+			return nil, fmt.Errorf("database %s to import not found", dbName)
+		}
+		importDatabaseId = existing.Id
+	}
+
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 	ignoreChanges := []string{"name", "collation"}
 
@@ -58,7 +71,7 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 		pulumi.Provider(provider),
 		pulumi.RetainOnDelete(pulumiRetainOnDelete),
 		pulumi.IgnoreChanges(ignoreChanges),
-		pulumi.Import(pulumi.ID(mssqlDb.Spec.ImportDatabaseId)),
+		pulumi.Import(pulumi.ID(importDatabaseId)),
 		pulumi.DependsOn(dependencies))
 	if err != nil {
 		return nil, err
@@ -135,7 +148,7 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 		for i := range mssqlDb.Spec.Users {
 			user := mssqlDb.Spec.Users[i]
 			username, password, err := deployLoginUser(ctx, provider, fmt.Sprintf("%s-%s", mssqlDb.Name, user.Name), db.ID().ToStringOutput(),
-				&user, dbName, userDeps, pulumiRetainOnDelete)
+				&user, dbName, userDeps, pulumiRetainOnDelete, imports)
 			if err != nil {
 				return nil, err
 			}

@@ -271,3 +271,11 @@ func (b *AzureVirtualDesktopSpecApplyConfiguration) WithDependsOn(values ...*Pro
 	}
 	return b
 }
+
+// WithImport sets the Import field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Import field is set to the value of the last call.
+func (b *AzureVirtualDesktopSpecApplyConfiguration) WithImport(value bool) *AzureVirtualDesktopSpecApplyConfiguration {
+	b.Import = &value
+	return b
+}
