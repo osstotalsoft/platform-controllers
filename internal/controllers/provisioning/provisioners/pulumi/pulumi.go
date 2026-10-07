@@ -64,7 +64,7 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	)
 
 	if anyResource {
-		imports := newImportOptions(infra)
+		imports := newImportOptions(target, infra)
 		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, deployFunc(target, domain, infra, needsResourceGroup, imports))
 		if result.Error != nil {
 			return result

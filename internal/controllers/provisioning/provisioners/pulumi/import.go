@@ -13,13 +13,15 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
 // EnvPulumiImportAll, when true, makes every stack adopt its already existing stateful resources
 // (the ones retained under DeletePolicyRetainStatefulResources: databases, buckets, logins, ...)
-// instead of creating them — the disaster recovery path for a lost Pulumi state. A resource's own
-// spec.import, when set, overrides it for that resource. Resources a stack already manages are
+// instead of creating them — the disaster recovery path for a lost Pulumi state. A tenant's
+// spec.import, when set, overrides it for that tenant's stacks, and a resource's own spec.import
+// overrides both for that resource. Resources a stack already manages are
 // never re-imported. A stateful resource that doesn't exist fails the reconcile: while recovering,
 // every one of them is expected to be there.
 var EnvPulumiImportAll = "PULUMI_IMPORT_ALL"
@@ -44,8 +46,8 @@ const (
 // that differs from an already-managed resource's ID (even just in casing) is treated by the Pulumi
 // engine as an import-replacement, deleting and recreating the resource.
 type importOptions struct {
-	// enabled tells whether the resource at hand imports: the stack's global setting, or the
-	// resource's own (see forResource).
+	// enabled tells whether the resource at hand imports: the stack's setting (see
+	// newImportOptions), or the resource's own (see forResource).
 	enabled bool
 	stack   *stackImports
 }
@@ -62,10 +64,21 @@ type stackImports struct {
 	driftIgnored atomic.Bool
 }
 
-// newImportOptions returns the global import setting for the stack provisioning infra.
-func newImportOptions(infra *provisioning.InfrastructureManifests) *importOptions {
-	enabled, err := strconv.ParseBool(os.Getenv(EnvPulumiImportAll))
-	o := &importOptions{enabled: err == nil && enabled, stack: &stackImports{}}
+// newImportOptions returns the import setting of the stack provisioning infra for target: the
+// tenant's own when set, otherwise the global one.
+func newImportOptions(target provisioning.ProvisioningTarget, infra *provisioning.InfrastructureManifests) *importOptions {
+	global, err := strconv.ParseBool(os.Getenv(EnvPulumiImportAll))
+	global = err == nil && global
+	enabled := provisioning.MatchTarget(target,
+		func(tenant *platformv1.Tenant) bool {
+			if tenant.Spec.Import != nil {
+				return *tenant.Spec.Import
+			}
+			return global
+		},
+		func(*platformv1.Platform) bool { return global },
+	)
+	o := &importOptions{enabled: enabled, stack: &stackImports{}}
 
 	o.stack.anyEnabled = o.enabled
 	for _, meta := range statefulResourceMetas(infra) {
@@ -95,7 +108,7 @@ func statefulResourceMetas(infra *provisioning.InfrastructureManifests) []*provi
 
 // forResource returns the import options of the resource with the given provisioning meta: its own
 // spec.import when set (with the tenant and tenant category overrides already applied to it),
-// otherwise the global setting. Safe to call on a nil receiver.
+// otherwise the stack's setting. Safe to call on a nil receiver.
 func (o *importOptions) forResource(meta *provisioningv1.ProvisioningMeta) *importOptions {
 	if o == nil || meta.Import == nil {
 		return o

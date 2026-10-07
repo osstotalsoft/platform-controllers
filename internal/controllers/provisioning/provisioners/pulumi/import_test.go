@@ -7,7 +7,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -21,7 +23,7 @@ func TestNewImportOptions(t *testing.T) {
 	t.Run("reads the global setting", func(t *testing.T) {
 		for value, expected := range map[string]bool{"true": true, "1": true, "false": false, "": false, "nope": false} {
 			t.Setenv(EnvPulumiImportAll, value)
-			options := newImportOptions(&provisioning.InfrastructureManifests{})
+			options := newImportOptions(newTenant("tenant1", "dev"), &provisioning.InfrastructureManifests{})
 			assert.Equal(t, expected, options.enabled, "%s=%q", EnvPulumiImportAll, value)
 			assert.Equal(t, expected, options.stack.anyEnabled, "%s=%q", EnvPulumiImportAll, value)
 		}
@@ -32,7 +34,7 @@ func TestNewImportOptions(t *testing.T) {
 		infra := &provisioning.InfrastructureManifests{MinioBuckets: []*provisioningv1.MinioBucket{
 			{Spec: provisioningv1.MinioBucketSpec{ProvisioningMeta: *metaWithImport(&yes)}},
 		}}
-		options := newImportOptions(infra)
+		options := newImportOptions(newTenant("tenant1", "dev"), infra)
 		assert.False(t, options.enabled)
 		assert.True(t, options.stack.anyEnabled)
 	})
@@ -43,7 +45,42 @@ func TestNewImportOptions(t *testing.T) {
 			KeycloakClients: []*provisioningv1.KeycloakClient{{Spec: provisioningv1.KeycloakClientSpec{ProvisioningMeta: *metaWithImport(&yes)}}},
 			MinioBuckets:    []*provisioningv1.MinioBucket{{Spec: provisioningv1.MinioBucketSpec{ProvisioningMeta: *metaWithImport(&no)}}},
 		}
-		assert.False(t, newImportOptions(infra).stack.anyEnabled)
+		assert.False(t, newImportOptions(newTenant("tenant1", "dev"), infra).stack.anyEnabled)
+	})
+
+	t.Run("a tenant's own setting overrides the global one", func(t *testing.T) {
+		optingIn := newTenant("tenant1", "dev")
+		optingIn.Spec.Import = &yes
+		optingOut := newTenant("tenant2", "dev")
+		optingOut.Spec.Import = &no
+
+		t.Setenv(EnvPulumiImportAll, "false")
+		options := newImportOptions(optingIn, &provisioning.InfrastructureManifests{})
+		assert.True(t, options.enabled)
+		assert.True(t, options.stack.anyEnabled, "the opting-in tenant's stack state must be loaded")
+		assert.False(t, newImportOptions(newTenant("tenant3", "dev"), &provisioning.InfrastructureManifests{}).enabled,
+			"other tenants keep the global setting")
+
+		t.Setenv(EnvPulumiImportAll, "true")
+		assert.False(t, newImportOptions(optingOut, &provisioning.InfrastructureManifests{}).enabled)
+	})
+
+	t.Run("a resource's own setting overrides its tenant's", func(t *testing.T) {
+		t.Setenv(EnvPulumiImportAll, "false")
+		tenant := newTenant("tenant1", "dev")
+		tenant.Spec.Import = &yes
+
+		options := newImportOptions(tenant, &provisioning.InfrastructureManifests{})
+		assert.False(t, options.forResource(metaWithImport(&no)).enabled)
+		assert.True(t, options.forResource(metaWithImport(nil)).enabled)
+	})
+
+	t.Run("platform stacks follow the global setting", func(t *testing.T) {
+		platform := &platformv1.Platform{ObjectMeta: metav1.ObjectMeta{Name: "dev"}}
+		t.Setenv(EnvPulumiImportAll, "true")
+		assert.True(t, newImportOptions(platform, &provisioning.InfrastructureManifests{}).enabled)
+		t.Setenv(EnvPulumiImportAll, "false")
+		assert.False(t, newImportOptions(platform, &provisioning.InfrastructureManifests{}).enabled)
 	})
 }
 

@@ -66,6 +66,13 @@ type TenantSpec struct {
 	// ProvisioningOverrides contains a list of resource overrides to be applied during provisioning.
 	// +optional
 	ProvisioningOverrides []ProvisioningResourcePatch `json:"provisioningOverrides,omitempty"`
+
+	// Import this tenant's existing stateful resources (databases, buckets, logins, ...) into the Pulumi stacks
+	// instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it overrides the
+	// provisioner's global PULUMI_IMPORT_ALL setting for this tenant; a provisioning resource's own import setting
+	// still takes precedence.
+	// +optional
+	Import *bool `json:"import,omitempty"`
 }
 
 // TenantStatus is the status for a tenant.
