@@ -30,8 +30,6 @@ const (
 	azureSqlDatabaseType          = "azure-native:sql:Database"
 	azureSqlManagedDatabaseType   = "azure-native:sql:ManagedDatabase"
 	azureUserAssignedIdentityType = "azure-native:managedidentity:UserAssignedIdentity"
-	azureadGroupType              = "azuread:index/group:Group"
-	azureadGroupMemberType        = "azuread:index/groupMember:GroupMember"
 	minioBucketType               = "minio:index/s3Bucket:S3Bucket"
 	mssqlDatabaseType             = "mssql:index/database:Database"
 	mssqlSqlLoginType             = "mssql:index/sqlLogin:SqlLogin"
@@ -92,9 +90,6 @@ func statefulResourceMetas(infra *provisioning.InfrastructureManifests) []*provi
 	for _, r := range infra.MinioBuckets {
 		metas = append(metas, r.GetProvisioningMeta())
 	}
-	for _, r := range infra.AzureVirtualDesktops {
-		metas = append(metas, r.GetProvisioningMeta())
-	}
 	return metas
 }
 
@@ -106,19 +101,6 @@ func (o *importOptions) forResource(meta *provisioningv1.ProvisioningMeta) *impo
 		return o
 	}
 	return &importOptions{enabled: *meta.Import, stack: o.stack}
-}
-
-// forAnyOf returns the import options of a resource shared by the resources with the given
-// provisioning metas: imported when any of them is, or per the global setting when there are none.
-func (o *importOptions) forAnyOf(metas []*provisioningv1.ProvisioningMeta) *importOptions {
-	if o == nil || len(metas) == 0 {
-		return o
-	}
-	shared := &importOptions{stack: o.stack}
-	for _, meta := range metas {
-		shared.enabled = shared.enabled || o.forResource(meta).enabled
-	}
-	return shared
 }
 
 // shouldImport reports whether the resource registered with typeToken and name — or formerly

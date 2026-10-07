@@ -63,16 +63,6 @@ func TestImportOptionsForResource(t *testing.T) {
 		"a resource's own setting must still skip what the stack already manages")
 }
 
-func TestImportOptionsForAnyOf(t *testing.T) {
-	yes, no := true, false
-
-	assert.False(t, importsWith(false).forAnyOf(nil).enabled)
-	assert.True(t, importsWith(true).forAnyOf(nil).enabled, "without resources sharing it, the global setting applies")
-	assert.True(t, importsWith(false).forAnyOf([]*provisioningv1.ProvisioningMeta{metaWithImport(nil), metaWithImport(&yes)}).enabled)
-	assert.False(t, importsWith(true).forAnyOf([]*provisioningv1.ProvisioningMeta{metaWithImport(&no), metaWithImport(&no)}).enabled)
-	assert.True(t, importsWith(true).forAnyOf([]*provisioningv1.ProvisioningMeta{metaWithImport(&no), metaWithImport(nil)}).enabled)
-}
-
 func TestImportOptionsShouldImport(t *testing.T) {
 	t.Run("never imports when disabled or nil", func(t *testing.T) {
 		var nilOptions *importOptions
@@ -101,8 +91,8 @@ func TestManagedResources(t *testing.T) {
 				{"urn": "urn:pulumi:tenant1-domain::dev::pulumi:pulumi:Stack::dev-tenant1-domain", "type": "pulumi:pulumi:Stack"},
 				{"urn": "urn:pulumi:tenant1-domain::dev::mssql:index/database:Database::my-db", "type": mssqlDatabaseType},
 				{
-					"urn":  "urn:pulumi:tenant1-domain::dev::ts-azure-comp:azureVirtualDesktop:AzureVirtualDesktop$azuread:index/group:Group::pool-apps",
-					"type": azureadGroupType,
+					"urn":  "urn:pulumi:tenant1-domain::dev::mssql:index/database:Database$mssql:index/sqlLogin:SqlLogin::my-db-app-login",
+					"type": mssqlSqlLoginType,
 				},
 			},
 		})
@@ -111,7 +101,7 @@ func TestManagedResources(t *testing.T) {
 		managed, err := managedResources(apitype.UntypedDeployment{Version: 3, Deployment: deployment})
 		assert.NoError(t, err)
 		assert.True(t, managed[managedResourceKey(mssqlDatabaseType, "my-db")])
-		assert.True(t, managed[managedResourceKey(azureadGroupType, "pool-apps")])
+		assert.True(t, managed[managedResourceKey(mssqlSqlLoginType, "my-db-app-login")])
 		assert.Len(t, managed, 3)
 	})
 

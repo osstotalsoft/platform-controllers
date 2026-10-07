@@ -245,7 +245,7 @@ If the Pulumi state is lost, the stateful resources it managed (the ones retaine
 - **Globally:** set `PULUMI_IMPORT_ALL=true` on the provisioner (Helm: `global.importAll`).
 - **Per resource:** set `import: true` or `import: false` on a provisioning resource. It overrides the global setting for that resource. Like any spec field, it can be set per tenant or tenant category through the [overrides](#overrides).
 
-Only `AzureDatabase`, `AzureManagedDatabase`, `MsSqlDatabase`, `MinioBucket` and `AzureVirtualDesktop` honor `import`, together with their SQL logins and users, managed identities and Azure AD groups. A stack's resource group is imported along with its `AzureVirtualDesktop`s. Other kinds ignore the field.
+Only `AzureDatabase`, `AzureManagedDatabase`, `MsSqlDatabase` and `MinioBucket` honor `import`, together with their SQL logins and users and managed identities. Other kinds ignore the field. A stack's resource group, which isn't a provisioning resource itself, follows the global setting.
 
 While import is on:
 

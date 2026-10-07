@@ -404,7 +404,6 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 
 func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
 	avd *provisioningv1.AzureVirtualDesktop, dependencies []pulumi.Resource,
-	imports *importOptions,
 	ctx *pulumi.Context) (*AzureVirtualDesktop, error) {
 
 	valueExporter := handleValueExport(target)
@@ -433,19 +432,13 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 	if err != nil {
 		return nil, err
 	}
-	appsUserGroupName := fmt.Sprintf("%s-apps", hostPoolName)
-	appsUserGroupDisplayName := fmt.Sprintf("%s-%s-apps", globalQalifier, hostPoolName)
-	appsUserGroupImport, err := lookupGroupToImport(ctx, imports, appsUserGroupName, appsUserGroupDisplayName)
-	if err != nil {
-		return nil, err
-	}
-	appsUserGroup, err := azuread.NewGroup(ctx, appsUserGroupName, &azuread.GroupArgs{
-		DisplayName: pulumi.String(appsUserGroupDisplayName),
+	appsUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-apps", hostPoolName), &azuread.GroupArgs{
+		DisplayName: pulumi.String(fmt.Sprintf("%s-%s-apps", globalQalifier, hostPoolName)),
 		Owners: pulumi.StringArray{
 			pulumi.String(current.ObjectId),
 		},
 		SecurityEnabled: pulumi.Bool(true),
-	}, append(appsUserGroupImport.options(), pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))...)
+	}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 	if err != nil {
 		return nil, err
 	}
@@ -465,11 +458,10 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		memberName := fmt.Sprintf("%s-app-user-%s", parsedAppUser, avd.Spec.HostPoolName)
-		_, err = azuread.NewGroupMember(ctx, memberName, &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-%s", parsedAppUser, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  appsUserGroup.ID(),
 			MemberObjectId: pulumi.String(user.Id),
-		}, append(appsUserGroupImport.memberOptions(imports, memberName, user.Id), pulumi.Parent(appsUserGroup))...)
+		}, pulumi.Parent(appsUserGroup))
 		if err != nil {
 			return nil, err
 		}
@@ -487,29 +479,22 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		memberName := fmt.Sprintf("%s-app-user-group-%s", parsedChildAppsUserGroupName, avd.Spec.HostPoolName)
-		_, err = azuread.NewGroupMember(ctx, memberName, &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-app-user-group-%s", parsedChildAppsUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  appsUserGroup.ID(),
 			MemberObjectId: pulumi.String(childAppsUserGroup.Id),
-		}, append(appsUserGroupImport.memberOptions(imports, memberName, childAppsUserGroup.Id), pulumi.Parent(appsUserGroup))...)
+		}, pulumi.Parent(appsUserGroup))
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	adminUserGroupName := fmt.Sprintf("%s-admin", hostPoolName)
-	adminUserGroupDisplayName := fmt.Sprintf("%s-%s-admin", globalQalifier, hostPoolName)
-	adminUserGroupImport, err := lookupGroupToImport(ctx, imports, adminUserGroupName, adminUserGroupDisplayName)
-	if err != nil {
-		return nil, err
-	}
-	adminUserGroup, err := azuread.NewGroup(ctx, adminUserGroupName, &azuread.GroupArgs{
-		DisplayName: pulumi.String(adminUserGroupDisplayName),
+	adminUserGroup, err := azuread.NewGroup(ctx, fmt.Sprintf("%s-admin", hostPoolName), &azuread.GroupArgs{
+		DisplayName: pulumi.String(fmt.Sprintf("%s-%s-admin", globalQalifier, hostPoolName)),
 		Owners: pulumi.StringArray{
 			pulumi.String(current.ObjectId),
 		},
 		SecurityEnabled: pulumi.Bool(true),
-	}, append(adminUserGroupImport.options(), pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))...)
+	}, pulumi.Parent(avdComponent), pulumi.RetainOnDelete(pulumiRetainOnDelete))
 	if err != nil {
 		return nil, err
 	}
@@ -527,11 +512,10 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		memberName := fmt.Sprintf("%s-admin-%s", parsedAdmin, avd.Spec.HostPoolName)
-		_, err = azuread.NewGroupMember(ctx, memberName, &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-%s", parsedAdmin, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  adminUserGroup.ID(),
 			MemberObjectId: pulumi.String(user.Id),
-		}, append(adminUserGroupImport.memberOptions(imports, memberName, user.Id), pulumi.Parent(adminUserGroup))...)
+		}, pulumi.Parent(adminUserGroup))
 		if err != nil {
 			return nil, err
 		}
@@ -551,11 +535,10 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 			return nil, err
 		}
 
-		memberName := fmt.Sprintf("%s-admin-group-%s", parsedChildAdminUserGroupName, avd.Spec.HostPoolName)
-		_, err = azuread.NewGroupMember(ctx, memberName, &azuread.GroupMemberArgs{
+		_, err = azuread.NewGroupMember(ctx, fmt.Sprintf("%s-admin-group-%s", parsedChildAdminUserGroupName, avd.Spec.HostPoolName), &azuread.GroupMemberArgs{
 			GroupObjectId:  adminUserGroup.ID(),
 			MemberObjectId: pulumi.String(childAdminUserGroup.Id),
-		}, append(adminUserGroupImport.memberOptions(imports, memberName, childAdminUserGroup.Id), pulumi.Parent(adminUserGroup))...)
+		}, pulumi.Parent(adminUserGroup))
 		if err != nil {
 			return nil, err
 		}
@@ -888,49 +871,4 @@ func joinProp(vms []*AzureVirtualDesktopVM, selector func(vm *AzureVirtualDeskto
 
 		return strings.Join(stringArgs, " ; ")
 	}).(pulumi.StringOutput)
-}
-
-// groupImport describes an existing Azure AD group being imported; the zero value means none is.
-type groupImport struct {
-	imports  *importOptions
-	objectId string
-	members  map[string]bool
-}
-
-// lookupGroupToImport finds the existing group with displayName when the group registered as
-// resourceName should be imported.
-func lookupGroupToImport(ctx *pulumi.Context, imports *importOptions, resourceName, displayName string) (groupImport, error) {
-	if !imports.shouldImport(azureadGroupType, resourceName) {
-		return groupImport{}, nil
-	}
-	group, err := azuread.LookupGroup(ctx, &azuread.LookupGroupArgs{
-		DisplayName: pulumi.StringRef(displayName),
-	}, nil)
-	if err != nil {
-		return groupImport{}, fmt.Errorf("group %s to import: %w", displayName, err)
-	}
-	members := make(map[string]bool, len(group.Members))
-	for _, m := range group.Members {
-		members[m] = true
-	}
-	return groupImport{imports: imports, objectId: group.ObjectId, members: members}, nil
-}
-
-// options returns the options importing the group, if it's being imported.
-func (g groupImport) options() []pulumi.ResourceOption {
-	if g.objectId == "" {
-		return nil
-	}
-	// The owners are whoever deployed the group, which may not be the identity recovering it.
-	return g.imports.importResource(pulumi.ID(g.objectId), "owners")
-}
-
-// memberOptions returns the options importing the membership of memberObjectId in the imported
-// group: memberships aren't retained themselves, but an imported group keeps its existing ones,
-// and creating an existing membership fails.
-func (g groupImport) memberOptions(imports *importOptions, resourceName, memberObjectId string) []pulumi.ResourceOption {
-	if !g.members[memberObjectId] || !imports.shouldImport(azureadGroupMemberType, resourceName) {
-		return nil
-	}
-	return imports.importResource(pulumi.ID(fmt.Sprintf("%s/member/%s", g.objectId, memberObjectId)))
 }

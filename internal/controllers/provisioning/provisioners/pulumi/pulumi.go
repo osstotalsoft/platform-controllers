@@ -354,7 +354,7 @@ func deployResource(target provisioning.ProvisioningTarget,
 	case string(provisioning.ProvisioningResourceKindAzureVirtualMachine):
 		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):
-		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, imports, ctx)
+		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMsSqlDatabase):
 		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindLocalScript):
@@ -403,13 +403,7 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 		var rgName *pulumi.StringOutput
 
 		if needsResourceGroup {
-			// The resource group holds the AzureVirtualDesktops' stateful resources, so it's imported
-			// along with them.
-			var avdMetas []*provisioningv1.ProvisioningMeta
-			for _, avd := range infra.AzureVirtualDesktops {
-				avdMetas = append(avdMetas, avd.GetProvisioningMeta())
-			}
-			resGroupName, err := deployAzureRG(target, domain, imports.forAnyOf(avdMetas))(ctx)
+			resGroupName, err := deployAzureRG(target, domain, imports)(ctx)
 			if err != nil {
 				return err
 			}

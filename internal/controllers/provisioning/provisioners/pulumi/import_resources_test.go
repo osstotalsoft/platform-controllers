@@ -38,19 +38,6 @@ func (m *resourceCaptureMocks) importId(t *testing.T, name string) string {
 	return args.RegisterRPC.GetImportId()
 }
 
-// importIdOfType is importId for a name several resource types share.
-func (m *resourceCaptureMocks) importIdOfType(t *testing.T, typeToken, name string) string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for _, args := range m.byType[typeToken] {
-		if args.Name == name {
-			return args.RegisterRPC.GetImportId()
-		}
-	}
-	assert.Fail(t, "resource not registered", "%s %s", typeToken, name)
-	return ""
-}
-
 func (m *resourceCaptureMocks) ignoreChanges(name string) []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -269,43 +256,6 @@ func TestImportMsSqlDb(t *testing.T) {
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.ErrorContains(t, err, "user app to import not found")
 	})
-}
-
-func TestImportAzureVirtualDesktopGroups(t *testing.T) {
-	tenant := newTenant("tenant1", "dev")
-	rg := pulumi.String("my-rg").ToStringOutput()
-
-	avd := newVirtualDesktop("my-avd", "dev")
-	avd.Spec.Users.Admins = []string{"admin@contoso.com"}
-	avd.Spec.Groups.Admins = []string{"child-group"}
-
-	capture := newResourceCaptureMocks()
-	// Every group lookup — the AVD's own groups and the child group — resolves to this one group,
-	// whose only member is the admin user.
-	capture.stubCall("azuread:index/getGroup:getGroup", resource.PropertyMap{
-		"id":       resource.NewStringProperty("group-1"),
-		"objectId": resource.NewStringProperty("group-1"),
-		"members":  resource.NewArrayProperty([]resource.PropertyValue{resource.NewStringProperty("user-1")}),
-	})
-	capture.stubCall("azuread:index/getUser:getUser", resource.PropertyMap{
-		"id":       resource.NewStringProperty("user-1"),
-		"objectId": resource.NewStringProperty("user-1"),
-	})
-
-	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-		_, err := deployAzureVirtualDesktop(tenant, rg, avd, []pulumi.Resource{}, importAll(), ctx)
-		return err
-	}, pulumi.WithMocks("project", "stack", capture))
-	assert.NoError(t, err)
-
-	// The AVD's application group is named "test-vm-apps" too.
-	assert.Equal(t, "group-1", capture.importIdOfType(t, azureadGroupType, "test-vm-apps"))
-	assert.Equal(t, "group-1", capture.importId(t, "test-vm-admin"))
-	assert.Equal(t, []string{"owners"}, capture.ignoreChanges("test-vm-admin"))
-	assert.Equal(t, "group-1/member/user-1", capture.importId(t, "admin@contoso.com-admin-test-vm"),
-		"an existing membership of an imported group must be imported, or creating it fails")
-	assert.Empty(t, capture.importId(t, "child-group-admin-group-test-vm"),
-		"a membership the imported group doesn't have yet must be created")
 }
 
 func TestImportResourceLevelOverride(t *testing.T) {

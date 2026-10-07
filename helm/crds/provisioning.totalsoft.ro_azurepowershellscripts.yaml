@@ -113,11 +113,11 @@ spec:
                 type: string
               import:
                 description: |-
-                  Import this resource's existing stateful parts (databases, buckets, logins, Azure AD groups, ...) into the
+                  Import this resource's existing stateful parts (databases, buckets, logins, ...) into the
                   Pulumi stack instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it
                   overrides the provisioner's global PULUMI_IMPORT_ALL setting for this resource; set it per tenant or tenant
                   category through the provisioning overrides. Only honored by AzureDatabase, AzureManagedDatabase,
-                  MsSqlDatabase, MinioBucket and AzureVirtualDesktop.
+                  MsSqlDatabase and MinioBucket.
                 type: boolean
               platformRef:
                 description: Target platform (custom resource name).
