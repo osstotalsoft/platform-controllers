@@ -314,13 +314,20 @@ SELECT ISNULL(
 	(SELECT 'Present' FROM sys.database_principals u WHERE u.name = '%s'),
 	'Absent') AS [UserStatus]`, username)
 
+	// UpdateScript creates the user, or sets the password of an existing one. The provider runs it
+	// when the Script is created and on every update of its inputs, which embed the password: so a
+	// regenerated password reaches the user, including after a lost Pulumi state, when the Script is
+	// created again for a user that still exists.
 	script, err := mssql.NewScript(ctx, fmt.Sprintf("%s-contained-user", resourceNamePrefix), &mssql.ScriptArgs{
 		DatabaseId: databaseId,
 		ReadScript: pulumi.String(readScript),
 		UpdateScript: password.ApplyT(func(p string) string {
-			return fmt.Sprintf(
-				"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '%s')\n\tCREATE USER [%s] WITH PASSWORD = '%s';\n",
-				username, username, p)
+			return fmt.Sprintf(`
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = '%[1]s')
+	CREATE USER [%[1]s] WITH PASSWORD = '%[2]s';
+ELSE
+	ALTER USER [%[1]s] WITH PASSWORD = '%[2]s';
+`, username, p)
 		}).(pulumi.StringOutput),
 		DeleteScript: pulumi.String(fmt.Sprintf("DROP USER IF EXISTS [%s];", username)),
 		State: pulumi.StringMap{
