@@ -93,6 +93,13 @@ type ProvisioningMeta struct {
 	// List of dependencies
 	// +optional
 	DependsOn []ProvisioningResourceIdendtifier `json:"dependsOn,omitempty"`
+	// Import this resource's existing stateful parts (databases, buckets, logins, ...) into the
+	// Pulumi stack instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it
+	// overrides the provisioner's global PULUMI_IMPORT_ALL setting for this resource; set it per tenant or tenant
+	// category through the provisioning overrides. Only honored by AzureDatabase, AzureManagedDatabase,
+	// MsSqlDatabase and MinioBucket.
+	// +optional
+	Import *bool `json:"import,omitempty"`
 }
 
 type ProvisioningResourceIdendtifier struct {

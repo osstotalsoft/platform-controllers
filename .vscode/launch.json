@@ -40,6 +40,8 @@
                 //"RUSI_ENABLED": "true"
                 //"PULUMI_SKIP_REFRESH": "true",
                 //"PULUMI_ACCESS_TOKEN": "PLEASE_ADD_PULUMI_ACCESS_TOKEN",
+                "SKIP_INITIAL_RECONCILE": "false",
+                "PULUMI_IMPORT_ALL": "false",             
                 "WORKERS_COUNT": "1"
             },
         },

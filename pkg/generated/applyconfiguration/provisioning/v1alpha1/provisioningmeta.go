@@ -31,6 +31,7 @@ type ProvisioningMetaApplyConfiguration struct {
 	TenantOverrides   map[string]*v1.JSON                                 `json:"tenantOverrides,omitempty"`
 	Target            *ProvisioningTargetApplyConfiguration               `json:"target,omitempty"`
 	DependsOn         []ProvisioningResourceIdendtifierApplyConfiguration `json:"dependsOn,omitempty"`
+	Import            *bool                                               `json:"import,omitempty"`
 }
 
 // ProvisioningMetaApplyConfiguration constructs an declarative configuration of the ProvisioningMeta type for use with
@@ -101,5 +102,13 @@ func (b *ProvisioningMetaApplyConfiguration) WithDependsOn(values ...*Provisioni
 		}
 		b.DependsOn = append(b.DependsOn, *values[i])
 	}
+	return b
+}
+
+// WithImport sets the Import field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Import field is set to the value of the last call.
+func (b *ProvisioningMetaApplyConfiguration) WithImport(value bool) *ProvisioningMetaApplyConfiguration {
+	b.Import = &value
 	return b
 }

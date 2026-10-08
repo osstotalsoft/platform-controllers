@@ -43,7 +43,7 @@ func TestDeployMinioBucket(t *testing.T) {
 		mocks := &minioMocks{}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			bucket, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, ctx)
+			bucket, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, bucket)
 			return nil
@@ -75,7 +75,7 @@ func TestDeployMinioBucket(t *testing.T) {
 		mocks := &minioMocks{}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			bucket, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, ctx)
+			bucket, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, bucket)
 			return nil
@@ -108,7 +108,7 @@ func TestDeployMinioBucketImport(t *testing.T) {
 		tenant := newTenant("tenant1", "dev")
 		mocks := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, ctx)
+			_, err := deployMinioBucket(tenant, minioBucket, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", mocks))
 		assert.NoError(t, err)

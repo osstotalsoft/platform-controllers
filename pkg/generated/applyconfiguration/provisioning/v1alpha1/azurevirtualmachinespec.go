@@ -163,6 +163,14 @@ func (b *AzureVirtualMachineSpecApplyConfiguration) WithDependsOn(values ...*Pro
 	return b
 }
 
+// WithImport sets the Import field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Import field is set to the value of the last call.
+func (b *AzureVirtualMachineSpecApplyConfiguration) WithImport(value bool) *AzureVirtualMachineSpecApplyConfiguration {
+	b.Import = &value
+	return b
+}
+
 // WithExports adds the given value to the Exports field in the declarative configuration
 // and returns the receiver, so that objects can be build by chaining "With" function invocations.
 // If called multiple times, values provided by each call will be appended to the Exports field.

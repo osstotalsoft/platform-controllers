@@ -67,7 +67,7 @@ func TestDeployLoginUser(t *testing.T) {
 			username, password, err := deployLoginUser(ctx, provider, "my-db",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Name: "app1", Roles: []string{"db_owner"}},
-				"my-db", []pulumi.Resource{}, false)
+				"my-db", []pulumi.Resource{}, false, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, "app1_my-db", username)
 			assert.NotNil(t, password)
@@ -86,7 +86,7 @@ func TestDeployLoginUser(t *testing.T) {
 			username, _, err := deployLoginUser(ctx, provider, "my-db-2",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Name: "custom-user"},
-				"my-db-2", []pulumi.Resource{}, false)
+				"my-db-2", []pulumi.Resource{}, false, nil)
 			assert.NoError(t, err)
 			assert.Equal(t, "custom-user_my-db-2", username)
 			return nil
@@ -102,7 +102,7 @@ func TestDeployLoginUser(t *testing.T) {
 			_, _, err := deployLoginUser(ctx, provider, "retain-db",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
-				"retain-db", []pulumi.Resource{}, true)
+				"retain-db", []pulumi.Resource{}, true, nil)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
@@ -120,7 +120,7 @@ func TestDeployLoginUser(t *testing.T) {
 			_, _, err := deployLoginUser(ctx, provider, "noretain-db",
 				pulumi.String("1").ToStringOutput(),
 				&provisioningv1.DatabaseUserSpec{Roles: []string{"db_owner"}},
-				"noretain-db", []pulumi.Resource{}, false)
+				"noretain-db", []pulumi.Resource{}, false, nil)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
@@ -163,6 +163,28 @@ func TestDeployContainedUser(t *testing.T) {
 
 		assert.True(t, capture.retainOnDelete("contained-db-retain-contained-user"))
 	})
+
+	// The provider runs UpdateScript when the Script is created, and on every update of its inputs.
+	// So after a lost Pulumi state (Script created again, user already there) or a regenerated password
+	// (UpdateScript's text changes), the user only gets the new password if UpdateScript sets it on an
+	// existing user rather than skipping it.
+	t.Run("UpdateScript sets the password of an existing user", func(t *testing.T) {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider-2-password")
+
+			_, _, err := deployContainedUser(ctx, provider, "contained-db-password",
+				pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{},
+				"app1", []pulumi.Resource{}, false)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		updateScript := capture.resourceInputs["contained-db-password-contained-user"]["updateScript"].StringValue()
+		assert.Regexp(t, `(?s)IF NOT EXISTS \(SELECT 1 FROM sys.database_principals WHERE name = 'app1'\)\s+CREATE USER \[app1\] WITH PASSWORD = '[^']*';\s+ELSE\s+ALTER USER \[app1\] WITH PASSWORD = '[^']*';`,
+			updateScript)
+	})
 }
 
 // TestDeployContainedUserScriptTracksOnlyExistence guards against role membership creeping back into
@@ -170,7 +192,7 @@ func TestDeployContainedUser(t *testing.T) {
 // through separate mssql.DatabaseRoleMember resources now (see TestDeployContainedUserRoleGrants), so
 // the Script itself must track only whether the contained user exists — changing userSpec.Roles must
 // not change the Script's desired State, or an unrelated role edit would spuriously redrive the
-// Script's UpdateScript (which only creates the user) on every apply.
+// Script's UpdateScript (which only creates the user or sets its password) on every apply.
 func TestDeployContainedUserScriptTracksOnlyExistence(t *testing.T) {
 	capture := newScriptCaptureMocks()
 
@@ -314,7 +336,7 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db", []pulumi.Resource{}, false)
+				"my-db", []pulumi.Resource{}, false, nil)
 			assert.NoError(t, err)
 			assert.NotNil(t, clientId)
 			assert.NotNil(t, principalId)
@@ -335,7 +357,7 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db-retain", []pulumi.Resource{}, true)
+				"my-db-retain", []pulumi.Resource{}, true, nil)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)

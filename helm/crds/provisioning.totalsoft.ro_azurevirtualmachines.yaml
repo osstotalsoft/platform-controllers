@@ -202,6 +202,14 @@ spec:
                   - domain
                   type: object
                 type: array
+              import:
+                description: |-
+                  Import this resource's existing stateful parts (databases, buckets, logins, ...) into the
+                  Pulumi stack instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it
+                  overrides the provisioner's global PULUMI_IMPORT_ALL setting for this resource; set it per tenant or tenant
+                  category through the provisioning overrides. Only honored by AzureDatabase, AzureManagedDatabase,
+                  MsSqlDatabase and MinioBucket.
+                type: boolean
               osDiskType:
                 description: Possible values are Standard_LRS, StandardSSD_LRS or
                   Premium_LRS.

@@ -44,7 +44,7 @@ func TestDeployAzureDb(t *testing.T) {
 		azureDb := newAzureDb("my-azure-db")
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -65,7 +65,7 @@ func TestDeployAzureDb(t *testing.T) {
 		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -94,7 +94,7 @@ func TestDeployAzureDb(t *testing.T) {
 			"id": resource.NewStringProperty("1/1"),
 		})
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -118,7 +118,7 @@ func TestDeployAzureDb(t *testing.T) {
 		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -163,7 +163,7 @@ func TestDeployAzureDb(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -212,7 +212,7 @@ func TestDeployAzureDb(t *testing.T) {
 		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -240,7 +240,7 @@ func TestDeployAzureDb(t *testing.T) {
 		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.ErrorContains(t, err, `spec.users[].name "app1" is duplicated`)
@@ -263,7 +263,7 @@ func TestDeployAzureDb(t *testing.T) {
 			},
 		}
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
 		assert.ErrorContains(t, err, `userRef "does_not_exist" does not match any spec.users[].name`)
@@ -285,7 +285,7 @@ func TestDeployAzureDb(t *testing.T) {
 			},
 		}
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
 		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
@@ -300,7 +300,7 @@ func TestDeployAzureDb(t *testing.T) {
 		azureDb := newAzureDb("my-azure-db-badauth")
 		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
 		assert.Error(t, err)
@@ -317,7 +317,7 @@ func TestDeployAzureDb(t *testing.T) {
 		azureDb.Spec.Users = []provisioningv1.DatabaseUserSpec{{Name: "app1", Roles: []string{"db_owner"}}}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			db, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, db)
 			return nil
@@ -344,10 +344,10 @@ func TestDeployAzureDb(t *testing.T) {
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			if _, err := deployAzureDb(tenant, dbA, []pulumi.Resource{}, ctx); err != nil {
+			if _, err := deployAzureDb(tenant, dbA, []pulumi.Resource{}, nil, ctx); err != nil {
 				return err
 			}
-			_, err := deployAzureDb(tenant, dbB, []pulumi.Resource{}, ctx)
+			_, err := deployAzureDb(tenant, dbB, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
@@ -387,7 +387,7 @@ func TestDeployAzureDb(t *testing.T) {
 		}
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, ctx)
+			_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.ErrorContains(t, err, "is duplicated")
@@ -418,10 +418,10 @@ func TestDeployAzureDbIdentityNameIsTenantScoped(t *testing.T) {
 
 	capture := newResourceCaptureMocks()
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-		if _, err := deployAzureDb(tenantA, dbA, []pulumi.Resource{}, ctx); err != nil {
+		if _, err := deployAzureDb(tenantA, dbA, []pulumi.Resource{}, nil, ctx); err != nil {
 			return err
 		}
-		_, err := deployAzureDb(tenantB, dbB, []pulumi.Resource{}, ctx)
+		_, err := deployAzureDb(tenantB, dbB, []pulumi.Resource{}, nil, ctx)
 		return err
 	}, pulumi.WithMocks("project", "stack", capture))
 	assert.NoError(t, err)

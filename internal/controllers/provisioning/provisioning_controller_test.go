@@ -429,6 +429,33 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 
 func TestProvisioningController_applyTargetOverrides(t *testing.T) {
 
+	t.Run("tenant overrides set import", func(t *testing.T) {
+		tenantName := "tenant1"
+		overridesBytes, _ := json.Marshal(map[string]any{"import": true})
+
+		bucket := provisioningv1.MinioBucket{
+			Spec: provisioningv1.MinioBucketSpec{
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					PlatformRef: "platform",
+					TenantOverrides: map[string]*v1.JSON{
+						tenantName: {Raw: overridesBytes},
+					},
+				},
+			},
+		}
+
+		result, err := applyTargetOverrides([]*provisioningv1.MinioBucket{&bucket}, newTenant(tenantName, "platform", "domain"), nil)
+		if err != nil {
+			t.Error(err)
+		}
+
+		assert.Len(t, result, 1)
+		if assert.NotNil(t, result[0].Spec.Import) {
+			assert.True(t, *result[0].Spec.Import)
+		}
+		assert.Nil(t, bucket.Spec.Import, "the source resource must be left untouched")
+	})
+
 	t.Run("apply managedDb tenant overrides", func(t *testing.T) {
 		tenantName := "tenant1"
 		overrides := map[string]any{
