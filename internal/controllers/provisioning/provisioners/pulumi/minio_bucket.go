@@ -18,6 +18,7 @@ import (
 func deployMinioBucket(target provisioning.ProvisioningTarget,
 	minioBucket *provisioningv1.MinioBucket,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*minio.S3Bucket, error) {
 
 	valueExporter := handleValueExport(target)
@@ -85,9 +86,14 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		return nil, err
 	}
 
+	importBucketName := minioBucket.Spec.ImportBucketName
+	if importBucketName == "" && imports.shouldImport(minioBucketType, minioBucket.Name) {
+		importBucketName = bucketName
+	}
+
 	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
 	ignoreChanges := []string{"bucket"}
-	if minioBucket.Spec.ImportBucketName != "" {
+	if importBucketName != "" {
 		// forceDestroy is provider-side only; the value read back on import won't match our input
 		ignoreChanges = append(ignoreChanges, "forceDestroy")
 	}
@@ -100,7 +106,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 		minioResourceOptions(providerOptions,
 			pulumi.RetainOnDelete(pulumiRetainOnDelete),
 			pulumi.IgnoreChanges(ignoreChanges),
-			pulumi.Import(pulumi.ID(minioBucket.Spec.ImportBucketName)),
+			pulumi.Import(pulumi.ID(importBucketName)),
 			pulumi.DependsOn(dependencies))...)
 	if err != nil {
 		return nil, err

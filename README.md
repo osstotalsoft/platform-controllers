@@ -238,6 +238,48 @@ spec:
   ...
 ```
 
+### Importing existing resources (disaster recovery)
+
+If the Pulumi state is lost, the stateful resources it managed (the ones retained under the `RetainStatefulResources` delete policy) still exist, and recreating them would fail. Import mode adopts them into the stacks instead:
+
+- **Globally:** set `PULUMI_IMPORT_ALL=true` on the provisioner (Helm: `global.importAll`).
+- **Per tenant:** set `import: true` or `import: false` on a `Tenant`. It overrides the global setting for all of that tenant's resources.
+- **Per resource:** set `import: true` or `import: false` on a provisioning resource. It overrides both settings above for that resource. Like any spec field, it can be set per tenant or tenant category through the [overrides](#overrides).
+
+Only `AzureDatabase`, `AzureManagedDatabase`, `MsSqlDatabase` and `MinioBucket` honor `import`, together with their SQL logins and users and managed identities. Other kinds ignore the field. A stack's resource group, which isn't a provisioning resource itself, follows the global setting.
+
+While import is on:
+
+- Resources a stack already manages are never re-imported, so it is safe to leave on until the recovery is done.
+- A stateful resource that doesn't exist fails the reconcile.
+- SQL login passwords are regenerated, and a second update in the same reconcile sets them on the logins.
+
+Example: recover all of one tenant's resources, with the global setting off:
+
+```yaml
+apiVersion: platform.totalsoft.ro/v1alpha1
+kind: Tenant
+metadata:
+  name: tenant1
+spec:
+  ...
+  import: true
+```
+
+Example: recover only one database of a tenant:
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureManagedDatabase
+metadata:
+  name: my-db
+spec:
+  ...
+  tenantOverrides:
+    tenant1:
+      import: true
+```
+
 ### AzureDatabase
 
 Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azuredatabases.yaml)

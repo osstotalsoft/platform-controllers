@@ -498,6 +498,11 @@ func (in *TenantSpec) DeepCopyInto(out *TenantSpec) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
+	if in.Import != nil {
+		in, out := &in.Import, &out.Import
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 

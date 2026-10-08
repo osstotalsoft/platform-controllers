@@ -72,7 +72,8 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 				return result
 			}
 		}
-		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), deployFunc(target, domain, infra, needsResourceGroup))
+		imports := newImportOptions(target, infra)
+		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, deployFunc(target, domain, infra, needsResourceGroup, imports))
 		if result.Error != nil {
 			return result
 		}
@@ -100,12 +101,18 @@ func hasChanges(summary auto.UpdateSummary) bool {
 	return false
 }
 
-func updateStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
+func updateStack(stackName, projectName string, imports *importOptions, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
 	ctx := context.Background()
 
 	s, err := createOrSelectStack(ctx, stackName, projectName, deployFunc)
 	if err != nil {
 		klog.ErrorS(err, "Failed to create or select stack", "name", stackName)
+		return auto.UpResult{}, err
+	}
+
+	// deployFunc reads imports only once Up runs it, so loading the managed set here is in time.
+	if err := imports.loadManagedResources(ctx, s); err != nil {
+		klog.ErrorS(err, "Failed to load managed resources", "name", stackName)
 		return auto.UpResult{}, err
 	}
 	klog.V(4).InfoS("Starting stack update", "name", stackName)
@@ -120,6 +127,22 @@ func updateStack(stackName, projectName string, deployFunc pulumi.RunFunc) (auto
 	klog.V(4).InfoS("Stack update succeeded!", "name", stackName)
 	klog.V(4).InfoS("Stack results", "name", stackName, "Outputs", res.Outputs)
 
+	if imports.needsPostImportUpdate() {
+		// The imported resources are managed now, so this second update no longer ignores the inputs
+		// that were allowed to drift while importing them (see importResource) and converges them.
+		if err := imports.loadManagedResources(ctx, s); err != nil {
+			klog.ErrorS(err, "Failed to load managed resources", "name", stackName)
+			return auto.UpResult{}, err
+		}
+		klog.V(4).InfoS("Starting post-import stack update", "name", stackName)
+		if _, err := s.Up(ctx, stdoutStreamer); err != nil {
+			klog.ErrorS(err, "Failed post-import stack update", "name", stackName)
+			return auto.UpResult{}, err
+		}
+		klog.V(4).InfoS("Post-import stack update succeeded!", "name", stackName)
+	}
+
+	// The first update's summary is the one that reports the imports as changes.
 	return res, err
 }
 
@@ -308,9 +331,11 @@ func deployResource(target provisioning.ProvisioningTarget,
 	rgName *pulumi.StringOutput,
 	res provisioning.ProvisioningResource,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (pulumi.Resource, error) {
 
 	kind := res.GetObjectKind().GroupVersionKind().Kind
+	imports = imports.forResource(res.GetProvisioningMeta())
 
 	// https://github.com/kubernetes/client-go/issues/308
 	if kind == "" {
@@ -321,13 +346,13 @@ func deployResource(target provisioning.ProvisioningTarget,
 	case string(provisioning.ProvisioningResourceKindKeycloakClient):
 		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMinioBucket):
-		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, ctx)
+		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):
 		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureDatabase):
-		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, ctx)
+		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureManagedDatabase):
-		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, ctx)
+		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzurePowerShellScript):
 		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindHelmRelease):
@@ -339,7 +364,7 @@ func deployResource(target provisioning.ProvisioningTarget,
 	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):
 		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMsSqlDatabase):
-		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, ctx)
+		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindLocalScript):
 		return deployLocalScript(target, res.(*provisioningv1.LocalScript), dependencies, ctx)
 	default:
@@ -347,7 +372,7 @@ func deployResource(target provisioning.ProvisioningTarget,
 	}
 }
 
-func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulumi.StringOutput, res provisioning.ProvisioningResource, provisionedRes provisionedResourceMap, infra *provisioning.InfrastructureManifests, ctx *pulumi.Context) (pulumi.Resource, error) {
+func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulumi.StringOutput, res provisioning.ProvisioningResource, provisionedRes provisionedResourceMap, infra *provisioning.InfrastructureManifests, imports *importOptions, ctx *pulumi.Context) (pulumi.Resource, error) {
 
 	id := provisioningv1.ProvisioningResourceIdendtifier{Name: res.GetName(), Kind: provisioningv1.ProvisioningResourceKind(res.GetObjectKind().GroupVersionKind().Kind)}
 	if pulumiRes, found := provisionedRes[id]; found {
@@ -358,7 +383,7 @@ func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulu
 
 	for _, dep := range res.GetProvisioningMeta().DependsOn {
 		if provRes, found := infra.Get(dep); found {
-			pulumiRes, err := deployResourceWithDeps(target, rgName, provRes, provisionedRes, infra, ctx)
+			pulumiRes, err := deployResourceWithDeps(target, rgName, provRes, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -366,7 +391,7 @@ func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulu
 		}
 	}
 
-	pulumiRes, err := deployResource(target, rgName, res, pulumiDeps, ctx)
+	pulumiRes, err := deployResource(target, rgName, res, pulumiDeps, imports, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -377,7 +402,7 @@ func deployResourceWithDeps(target provisioning.ProvisioningTarget, rgName *pulu
 }
 
 func deployFunc(target provisioning.ProvisioningTarget, domain string,
-	infra *provisioning.InfrastructureManifests, needsResourceGroup bool) pulumi.RunFunc {
+	infra *provisioning.InfrastructureManifests, needsResourceGroup bool, imports *importOptions) pulumi.RunFunc {
 
 	return func(ctx *pulumi.Context) error {
 
@@ -386,7 +411,7 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 		var rgName *pulumi.StringOutput
 
 		if needsResourceGroup {
-			resGroupName, err := deployAzureRG(target, domain)(ctx)
+			resGroupName, err := deployAzureRG(target, domain, imports)(ctx)
 			if err != nil {
 				return err
 			}
@@ -395,84 +420,84 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 		}
 
 		for _, user := range infra.EntraUsers {
-			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, user := range infra.MinioBuckets {
-			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, keycloakClient := range infra.KeycloakClients {
-			_, err := deployResourceWithDeps(target, rgName, keycloakClient, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, keycloakClient, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, db := range infra.AzureDbs {
-			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, db := range infra.AzureManagedDbs {
-			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, db := range infra.AzurePowerShellScripts {
-			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, hr := range infra.HelmReleases {
-			_, err := deployResourceWithDeps(target, rgName, hr, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, hr, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, hrV2 := range infra.HelmReleaseV2s {
-			_, err := deployResourceWithDeps(target, rgName, hrV2, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, hrV2, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, vm := range infra.AzureVirtualMachines {
-			_, err := deployResourceWithDeps(target, rgName, vm, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, vm, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, avd := range infra.AzureVirtualDesktops {
-			_, err := deployResourceWithDeps(target, rgName, avd, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, avd, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, db := range infra.MsSqlDbs {
-			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, db, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}
 		}
 
 		for _, ls := range infra.LocalScripts {
-			_, err := deployResourceWithDeps(target, rgName, ls, provisionedRes, infra, ctx)
+			_, err := deployResourceWithDeps(target, rgName, ls, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}

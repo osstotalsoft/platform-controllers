@@ -368,3 +368,11 @@ func (b *KeycloakClientSpecApplyConfiguration) WithDependsOn(values ...*Provisio
 	}
 	return b
 }
+
+// WithImport sets the Import field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Import field is set to the value of the last call.
+func (b *KeycloakClientSpecApplyConfiguration) WithImport(value bool) *KeycloakClientSpecApplyConfiguration {
+	b.Import = &value
+	return b
+}

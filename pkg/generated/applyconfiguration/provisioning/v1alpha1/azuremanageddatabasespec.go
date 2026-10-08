@@ -185,3 +185,11 @@ func (b *AzureManagedDatabaseSpecApplyConfiguration) WithDependsOn(values ...*Pr
 	}
 	return b
 }
+
+// WithImport sets the Import field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Import field is set to the value of the last call.
+func (b *AzureManagedDatabaseSpecApplyConfiguration) WithImport(value bool) *AzureManagedDatabaseSpecApplyConfiguration {
+	b.Import = &value
+	return b
+}

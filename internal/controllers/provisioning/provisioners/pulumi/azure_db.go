@@ -15,6 +15,7 @@ import (
 func deployAzureDb(target provisioning.ProvisioningTarget,
 	azureDb *provisioningv1.AzureDatabase,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*azureSql.Database, error) {
 
 	valueExporter := handleValueExport(target)
@@ -91,11 +92,17 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 	)
 
 	dbName := strings.ReplaceAll(dbNameV1, ".", "_")
+
+	importDatabaseId := azureDb.Spec.ImportDatabaseId
+	if importDatabaseId == "" && imports.shouldImport(azureSqlDatabaseType, dbName, dbNameV1) {
+		importDatabaseId = fmt.Sprintf("%s/databases/%s", server.Id, dbName)
+	}
+
 	db, err := azureSql.NewDatabase(ctx, dbName, dbArgs,
 		pulumi.RetainOnDelete(pulumiRetainOnDelete),
 		pulumi.IgnoreChanges(ignoreChanges),
 		pulumi.Aliases([]pulumi.Alias{{Name: pulumi.String(dbNameV1)}}),
-		pulumi.Import(pulumi.ID(azureDb.Spec.ImportDatabaseId)),
+		pulumi.Import(pulumi.ID(importDatabaseId)),
 		pulumi.DependsOn(dependencies),
 	)
 	if err != nil {
@@ -130,7 +137,7 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 		for i := range azureDb.Spec.ManagedIdentities {
 			identity := azureDb.Spec.ManagedIdentities[i]
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
-				&identity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete)
+				&identity, dbName, []pulumi.Resource{db}, pulumiRetainOnDelete, imports)
 			if err != nil {
 				return nil, err
 			}

@@ -1739,6 +1739,11 @@ func (in *ProvisioningMeta) DeepCopyInto(out *ProvisioningMeta) {
 		*out = make([]ProvisioningResourceIdendtifier, len(*in))
 		copy(*out, *in)
 	}
+	if in.Import != nil {
+		in, out := &in.Import, &out.Import
+		*out = new(bool)
+		**out = **in
+	}
 	return
 }
 
