@@ -1,6 +1,10 @@
 package pulumi
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -138,4 +142,89 @@ func TestDeployMinioBucketImport(t *testing.T) {
 		assert.Equal(t, "buc1-dev-tenant1", bucket.Inputs["bucket"].StringValue())
 		assert.NotContains(t, bucket.RegisterRPC.GetIgnoreChanges(), "forceDestroy")
 	})
+}
+
+func TestCheckMinioReachable(t *testing.T) {
+	newBucket := func(server string) *provisioningv1.MinioBucket {
+		return &provisioningv1.MinioBucket{
+			Spec: provisioningv1.MinioBucketSpec{
+				MinioServer: &provisioningv1.MinioServerSpec{Server: server},
+			},
+		}
+	}
+	newMinio := func(status int) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/minio/health/live" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			w.WriteHeader(status)
+		}))
+	}
+
+	t.Run("passes when the server is live", func(t *testing.T) {
+		srv := newMinio(http.StatusOK)
+		defer srv.Close()
+
+		assert.NoError(t, checkMinioReachable(context.Background(), []*provisioningv1.MinioBucket{newBucket(srv.URL)}))
+	})
+
+	t.Run("adds the http scheme to a host:port server", func(t *testing.T) {
+		srv := newMinio(http.StatusOK)
+		defer srv.Close()
+
+		hostPort := strings.TrimPrefix(srv.URL, "http://")
+		assert.NoError(t, checkMinioReachable(context.Background(), []*provisioningv1.MinioBucket{newBucket(hostPort)}))
+	})
+
+	t.Run("fails when the server is not healthy", func(t *testing.T) {
+		srv := newMinio(http.StatusServiceUnavailable)
+		defer srv.Close()
+
+		err := checkMinioReachable(context.Background(), []*provisioningv1.MinioBucket{newBucket(srv.URL)})
+		assert.ErrorContains(t, err, "is not healthy")
+	})
+
+	t.Run("fails when the server refuses the connection", func(t *testing.T) {
+		srv := newMinio(http.StatusOK)
+		srv.Close()
+
+		err := checkMinioReachable(context.Background(), []*provisioningv1.MinioBucket{newBucket(srv.URL)})
+		assert.ErrorContains(t, err, "is unreachable")
+	})
+
+	t.Run("checks every server the buckets use", func(t *testing.T) {
+		live := newMinio(http.StatusOK)
+		defer live.Close()
+		down := newMinio(http.StatusOK)
+		down.Close()
+
+		err := checkMinioReachable(context.Background(), []*provisioningv1.MinioBucket{newBucket(live.URL), newBucket(down.URL)})
+		assert.ErrorContains(t, err, down.URL)
+	})
+
+	t.Run("passes when there are no buckets", func(t *testing.T) {
+		t.Setenv("MINIO_ENDPOINT", "127.0.0.1:1")
+
+		assert.NoError(t, checkMinioReachable(context.Background(), nil))
+	})
+}
+
+func TestMinioEndpoints(t *testing.T) {
+	t.Setenv("MINIO_ENDPOINT", "minio.default:9000")
+
+	endpoints := minioEndpoints([]*provisioningv1.MinioBucket{
+		{},
+		{Spec: provisioningv1.MinioBucketSpec{MinioServer: &provisioningv1.MinioServerSpec{Server: "minio.custom:9000"}}},
+		{},
+		{Spec: provisioningv1.MinioBucketSpec{MinioServer: &provisioningv1.MinioServerSpec{Server: "minio.custom:9000"}}},
+	})
+
+	assert.Equal(t, []string{"minio.default:9000", "minio.custom:9000"}, endpoints)
+}
+
+func TestMinioEndpointsWithoutDefaultServer(t *testing.T) {
+	t.Setenv("MINIO_ENDPOINT", "")
+
+	assert.Empty(t, minioEndpoints([]*provisioningv1.MinioBucket{{}}))
 }
