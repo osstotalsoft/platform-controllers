@@ -64,6 +64,14 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	)
 
 	if anyResource {
+		// The minio provider's bucket refresh treats an unreachable server as a deleted bucket and drops
+		// it from the stack state (pulumi-minio is stuck on terraform-provider-minio v1.20.1, which lacks
+		// the upstream fix), so don't let the refresh run while a MinIO server is down.
+		if anyMinioBucket {
+			if result.Error = checkMinioReachable(context.Background(), infra.MinioBuckets); result.Error != nil {
+				return result
+			}
+		}
 		imports := newImportOptions(target, infra)
 		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, deployFunc(target, domain, infra, needsResourceGroup, imports))
 		if result.Error != nil {

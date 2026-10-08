@@ -1,7 +1,12 @@
 package pulumi
 
 import (
+	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/pulumi/pulumi-minio/sdk/go/minio"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -149,4 +154,46 @@ func minioResourceOptions(providerOptions []pulumi.ResourceOption, resourceOptio
 	options = append(options, providerOptions...)
 	options = append(options, resourceOptions...)
 	return options
+}
+
+// checkMinioReachable fails fast when a MinIO server the buckets use is down: the minio provider's
+// bucket refresh mistakes a refused connection for a deleted bucket and drops it from the stack state.
+func checkMinioReachable(ctx context.Context, buckets []*provisioningv1.MinioBucket) error {
+	client := &http.Client{Timeout: 5 * time.Second}
+	for _, server := range minioEndpoints(buckets) {
+		endpoint := server
+		if !strings.Contains(endpoint, "://") {
+			endpoint = "http://" + endpoint
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimSuffix(endpoint, "/")+"/minio/health/live", nil)
+		if err != nil {
+			return fmt.Errorf("invalid minio server %q: %w", server, err)
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return fmt.Errorf("minio server %s is unreachable: %w", server, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("minio server %s is not healthy: %s", server, resp.Status)
+		}
+	}
+	return nil
+}
+
+// minioEndpoints returns the distinct MinIO servers the buckets are provisioned on.
+func minioEndpoints(buckets []*provisioningv1.MinioBucket) []string {
+	seen := map[string]bool{}
+	var endpoints []string
+	for _, b := range buckets {
+		server := os.Getenv("MINIO_ENDPOINT")
+		if b.Spec.MinioServer != nil {
+			server = b.Spec.MinioServer.Server
+		}
+		if server != "" && !seen[server] {
+			seen[server] = true
+			endpoints = append(endpoints, server)
+		}
+	}
+	return endpoints
 }
