@@ -336,7 +336,7 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db", []pulumi.Resource{}, false, nil)
+				"my-db", "", []pulumi.Resource{}, false, nil)
 			assert.NoError(t, err)
 			assert.NotNil(t, clientId)
 			assert.NotNil(t, principalId)
@@ -357,7 +357,7 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db-retain", []pulumi.Resource{}, true, nil)
+				"my-db-retain", "", []pulumi.Resource{}, true, nil)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)

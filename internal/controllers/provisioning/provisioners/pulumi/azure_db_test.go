@@ -437,3 +437,27 @@ func TestDeployAzureDbIdentityNameIsTenantScoped(t *testing.T) {
 		assert.True(t, strings.HasPrefix(name, "identity1_"), "identity resource name %q must be tenant-scoped", name)
 	}
 }
+
+// AzureDatabase shares deployManagedIdentity with AzureManagedDatabase, so it gets the same
+// federated credentials.
+func TestDeployAzureDbFederatedCredentials(t *testing.T) {
+	setAzureMssqlAuthEnv(t)
+	t.Setenv(EnvAzureAksOidcIssuerUrl, testOidcIssuer)
+	tenant := newTenant("tenant1", "dev")
+	azureDb := newAzureDb("azure-db-fic")
+	azureDb.Namespace = "my-ns"
+	azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+		{Name: "app", ResourceGroupName: "SQL_RG", Location: "westeurope",
+			ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "app-sa"}}},
+	}
+	capture := newResourceCaptureMocks()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		_, err := deployAzureDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	credentials := capture.byType[federatedCredentialType]
+	assert.Len(t, credentials, 1)
+	assert.Equal(t, "system:serviceaccount:my-ns:app-sa", credentials[0].Inputs["subject"].StringValue())
+}

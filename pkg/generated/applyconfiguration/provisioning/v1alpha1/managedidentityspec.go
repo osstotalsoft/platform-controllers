@@ -21,12 +21,13 @@ package v1alpha1
 // ManagedIdentitySpecApplyConfiguration represents an declarative configuration of the ManagedIdentitySpec type for use
 // with apply.
 type ManagedIdentitySpecApplyConfiguration struct {
-	Name              *string             `json:"name,omitempty"`
-	ResourceGroupName *string             `json:"resourceGroupName,omitempty"`
-	Location          *string             `json:"location,omitempty"`
-	Roles             []string            `json:"roles,omitempty"`
-	Permissions       []string            `json:"permissions,omitempty"`
-	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
+	Name              *string                                     `json:"name,omitempty"`
+	ResourceGroupName *string                                     `json:"resourceGroupName,omitempty"`
+	Location          *string                                     `json:"location,omitempty"`
+	Roles             []string                                    `json:"roles,omitempty"`
+	Permissions       []string                                    `json:"permissions,omitempty"`
+	SchemaPermissions map[string][]string                         `json:"schemaPermissions,omitempty"`
+	ServiceAccounts   []FederatedServiceAccountApplyConfiguration `json:"serviceAccounts,omitempty"`
 }
 
 // ManagedIdentitySpecApplyConfiguration constructs an declarative configuration of the ManagedIdentitySpec type for use with
@@ -89,6 +90,19 @@ func (b *ManagedIdentitySpecApplyConfiguration) WithSchemaPermissions(entries ma
 	}
 	for k, v := range entries {
 		b.SchemaPermissions[k] = v
+	}
+	return b
+}
+
+// WithServiceAccounts adds the given value to the ServiceAccounts field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the ServiceAccounts field.
+func (b *ManagedIdentitySpecApplyConfiguration) WithServiceAccounts(values ...*FederatedServiceAccountApplyConfiguration) *ManagedIdentitySpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithServiceAccounts")
+		}
+		b.ServiceAccounts = append(b.ServiceAccounts, *values[i])
 	}
 	return b
 }
