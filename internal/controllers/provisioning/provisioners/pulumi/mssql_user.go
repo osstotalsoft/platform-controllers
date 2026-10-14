@@ -460,16 +460,16 @@ const maxFederatedCredentialsPerIdentity = 20
 var federatedCredentialNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{2,119}$`)
 
 // federatedCredentialName is the Azure name of the federated identity credential trusting the
-// ServiceAccount namespace/serviceAccount. Azure allows only letters, digits, '-' and '_' in it, so
-// the dots a ServiceAccount name may contain become '-'.
+// ServiceAccount namespace/serviceAccount. Azure allows only letters, digits, '-' and '_' in it: the
+// two are joined with '_', which Kubernetes names can't contain, so distinct ServiceAccounts get
+// distinct names (only dots, which become '-', can collide; validateServiceAccounts rejects that).
 func federatedCredentialName(namespace, serviceAccount string) string {
-	return strings.ReplaceAll(namespace+"-"+serviceAccount, ".", "-")
+	return namespace + "_" + strings.ReplaceAll(serviceAccount, ".", "-")
 }
 
 // deployFederatedCredentials creates on identity a federated identity credential for each of
-// identitySpec.ServiceAccounts, so that ServiceAccount can
-// authenticate as the identity through AKS Workload Identity. A ServiceAccount without a namespace
-// is in ownerNamespace. The credentials trust EnvAzureAksOidcIssuerUrl, passed through verbatim: Entra
+// identitySpec.ServiceAccounts, so that ServiceAccount can authenticate as the identity through AKS
+// Workload Identity. A ServiceAccount without a namespace is in ownerNamespace. The credentials trust EnvAzureAksOidcIssuerUrl, passed through verbatim: Entra
 // compares it with the token's iss claim exactly, trailing slash included.
 //
 // Unlike the identity, the credentials are never retained on delete: they hold no state and are
@@ -511,7 +511,7 @@ func deployFederatedCredentials(ctx *pulumi.Context, identity *managedidentity.U
 }
 
 // validateServiceAccounts checks every managedIdentities[].serviceAccounts list before anything is
-// deployed: EnvAzureAksOidcIssuerUrl must be set, each entry needs a name and a namespace (its own or
+// deployed: EnvAzureAksOidcIssuerUrl must be an https URL, each entry needs a name and a namespace (its own or
 // ownerNamespace), its federated credential name must be valid and unique within the identity, and
 // an identity can't have more than Azure's maxFederatedCredentialsPerIdentity credentials.
 func validateServiceAccounts(identities []provisioningv1.ManagedIdentitySpec, ownerNamespace string) error {
@@ -519,8 +519,12 @@ func validateServiceAccounts(identities []provisioningv1.ManagedIdentitySpec, ow
 		if len(identity.ServiceAccounts) == 0 {
 			continue
 		}
-		if os.Getenv(EnvAzureAksOidcIssuerUrl) == "" {
+		issuer := os.Getenv(EnvAzureAksOidcIssuerUrl)
+		if issuer == "" {
 			return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts requires %s to be set", identity.Name, EnvAzureAksOidcIssuerUrl)
+		}
+		if !strings.HasPrefix(issuer, "https://") {
+			return fmt.Errorf("%s must be an https URL (the AKS cluster's oidcIssuerProfile.issuerUrl), got %q", EnvAzureAksOidcIssuerUrl, issuer)
 		}
 		if len(identity.ServiceAccounts) > maxFederatedCredentialsPerIdentity {
 			return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts has %d entries, Azure allows at most %d federated credentials per identity",

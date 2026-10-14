@@ -59,20 +59,20 @@ func TestDeployFederatedCredentials(t *testing.T) {
 
 		assert.Len(t, capture.byType[federatedCredentialType], 2)
 
-		first := capture.byName["my-db-app-identity-fic-qa-hcm-charisma-hcm"].Inputs
+		first := capture.byName["my-db-app-identity-fic-qa-hcm_charisma-hcm"].Inputs
 		assert.Equal(t, testOidcIssuer, first["issuer"].StringValue(), "the issuer must be passed through verbatim, trailing slash included")
 		assert.Equal(t, "system:serviceaccount:qa-hcm:charisma-hcm", first["subject"].StringValue(),
 			"a service account without namespace must default to the owning resource's namespace")
-		assert.Equal(t, "qa-hcm-charisma-hcm", first["federatedIdentityCredentialResourceName"].StringValue())
+		assert.Equal(t, "qa-hcm_charisma-hcm", first["federatedIdentityCredentialResourceName"].StringValue())
 		assert.Equal(t, "app_my-db_qa_mf", first["resourceName"].StringValue(), "the credential must be created on the tenant-scoped identity")
 		assert.Equal(t, "my-rg", first["resourceGroupName"].StringValue())
 		audiences := first["audiences"].ArrayValue()
 		assert.Len(t, audiences, 1)
 		assert.Equal(t, "api://AzureADTokenExchange", audiences[0].StringValue())
 
-		second := capture.byName["my-db-app-identity-fic-other-ns-worker"].Inputs
+		second := capture.byName["my-db-app-identity-fic-other-ns_worker"].Inputs
 		assert.Equal(t, "system:serviceaccount:other-ns:worker", second["subject"].StringValue())
-		assert.Equal(t, "other-ns-worker", second["federatedIdentityCredentialResourceName"].StringValue())
+		assert.Equal(t, "other-ns_worker", second["federatedIdentityCredentialResourceName"].StringValue())
 	})
 
 	t.Run("credentials are created one after another, starting after the identity", func(t *testing.T) {
@@ -84,10 +84,10 @@ func TestDeployFederatedCredentials(t *testing.T) {
 		}, "ns", false)
 		assert.NoError(t, err)
 
-		assert.True(t, capture.dependsOnResource("my-db-app-identity-fic-ns-sa1", "my-db-app-identity"))
-		assert.True(t, capture.dependsOnResource("my-db-app-identity-fic-ns-sa2", "my-db-app-identity-fic-ns-sa1"),
+		assert.True(t, capture.dependsOnResource("my-db-app-identity-fic-ns_sa1", "my-db-app-identity"))
+		assert.True(t, capture.dependsOnResource("my-db-app-identity-fic-ns_sa2", "my-db-app-identity-fic-ns_sa1"),
 			"Azure rejects concurrent credential writes on the same identity")
-		assert.True(t, capture.dependsOnResource("my-db-app-identity-fic-ns-sa3", "my-db-app-identity-fic-ns-sa2"))
+		assert.True(t, capture.dependsOnResource("my-db-app-identity-fic-ns_sa3", "my-db-app-identity-fic-ns_sa2"))
 	})
 
 	t.Run("credentials are never retained on delete, unlike the identity", func(t *testing.T) {
@@ -100,7 +100,7 @@ func TestDeployFederatedCredentials(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, capture.retainOnDelete("my-db-app-identity"))
-		assert.False(t, capture.retainOnDelete("my-db-app-identity-fic-ns-sa1"),
+		assert.False(t, capture.retainOnDelete("my-db-app-identity-fic-ns_sa1"),
 			"a retained identity must not stay usable from the cluster once its owner is gone")
 	})
 
@@ -113,8 +113,8 @@ func TestDeployFederatedCredentials(t *testing.T) {
 		}, "ns", false)
 		assert.NoError(t, err)
 
-		credential := capture.byName["my-db-app-identity-fic-ns-my-app"].Inputs
-		assert.Equal(t, "ns-my-app", credential["federatedIdentityCredentialResourceName"].StringValue())
+		credential := capture.byName["my-db-app-identity-fic-ns_my-app"].Inputs
+		assert.Equal(t, "ns_my-app", credential["federatedIdentityCredentialResourceName"].StringValue())
 		assert.Equal(t, "system:serviceaccount:ns:my.app", credential["subject"].StringValue(), "the subject keeps the real service account name")
 	})
 
@@ -159,6 +159,14 @@ func TestValidateServiceAccounts(t *testing.T) {
 		), "qa-hcm"))
 	})
 
+	t.Run("service accounts whose namespace and name only differ in where they are split are distinct", func(t *testing.T) {
+		t.Setenv(EnvAzureAksOidcIssuerUrl, testOidcIssuer)
+		assert.NoError(t, validateServiceAccounts(identity(
+			provisioningv1.FederatedServiceAccount{Name: "hcm-api", Namespace: "qa"},
+			provisioningv1.FederatedServiceAccount{Name: "api", Namespace: "qa-hcm"},
+		), ""))
+	})
+
 	t.Run("20 service accounts are allowed", func(t *testing.T) {
 		t.Setenv(EnvAzureAksOidcIssuerUrl, testOidcIssuer)
 		assert.NoError(t, validateServiceAccounts(identity(manyServiceAccounts(20)...), "ns"))
@@ -178,6 +186,13 @@ func TestValidateServiceAccounts(t *testing.T) {
 			wantErr:         "spec.managedIdentities[app].serviceAccounts requires AZURE_AKS_OIDC_ISSUER_URL to be set",
 		},
 		{
+			name:            "issuer that is not an https URL",
+			issuer:          "westeurope.oic.prod-aks.azure.com/tenant/cluster/",
+			serviceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "sa1"}},
+			ownerNamespace:  "ns",
+			wantErr:         `AZURE_AKS_OIDC_ISSUER_URL must be an https URL (the AKS cluster's oidcIssuerProfile.issuerUrl), got "westeurope.oic.prod-aks.azure.com/tenant/cluster/"`,
+		},
+		{
 			name:            "missing name",
 			issuer:          testOidcIssuer,
 			serviceAccounts: []provisioningv1.FederatedServiceAccount{{Namespace: "ns"}},
@@ -195,14 +210,14 @@ func TestValidateServiceAccounts(t *testing.T) {
 			issuer:          testOidcIssuer,
 			serviceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "sa1"}, {Name: "sa1", Namespace: "ns"}},
 			ownerNamespace:  "ns",
-			wantErr:         `spec.managedIdentities[app].serviceAccounts[ns/sa1] is duplicated (federated credential name "ns-sa1")`,
+			wantErr:         `spec.managedIdentities[app].serviceAccounts[ns/sa1] is duplicated (federated credential name "ns_sa1")`,
 		},
 		{
 			name:            "different service accounts with the same credential name",
 			issuer:          testOidcIssuer,
 			serviceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "my.app"}, {Name: "my-app"}},
 			ownerNamespace:  "ns",
-			wantErr:         `spec.managedIdentities[app].serviceAccounts[ns/my-app] is duplicated (federated credential name "ns-my-app")`,
+			wantErr:         `spec.managedIdentities[app].serviceAccounts[ns/my-app] is duplicated (federated credential name "ns_my-app")`,
 		},
 		{
 			name:            "credential name too long",
