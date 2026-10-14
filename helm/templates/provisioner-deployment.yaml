@@ -82,6 +82,12 @@ spec:
             configMapKeyRef:
               name: azure-config
               key: managedIdentityName
+        - name: AZURE_AKS_OIDC_ISSUER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: aksOidcIssuerUrl
+              optional: true
         {{- if not .Values.global.azure.useWorkloadIdentity }}
         - name: ARM_CLIENT_ID
           valueFrom:
