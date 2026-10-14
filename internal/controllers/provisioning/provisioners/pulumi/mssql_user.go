@@ -3,6 +3,7 @@ package pulumi
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -377,7 +378,7 @@ ELSE
 // tenant). identitySpec.Name stays the stable, tenant-independent key used for
 // managedIdentities[].name uniqueness and exports[].identityRef matching.
 func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
-	databaseId pulumi.StringInput, identitySpec *provisioningv1.ManagedIdentitySpec, tenantScope string,
+	databaseId pulumi.StringInput, identitySpec *provisioningv1.ManagedIdentitySpec, tenantScope, ownerNamespace string,
 	dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.StringOutput, pulumi.StringOutput, error) {
 
 	name := fmt.Sprintf("%s_%s", identitySpec.Name, tenantScope)
@@ -399,6 +400,11 @@ func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resour
 		ResourceGroupName: pulumi.String(identitySpec.ResourceGroupName),
 		Location:          pulumi.String(identitySpec.Location),
 	}, identityOpts...)
+	if err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+
+	err = deployFederatedCredentials(ctx, identity, identitySpec, resourceNamePrefix, ownerNamespace)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
@@ -440,6 +446,112 @@ func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resour
 	}
 
 	return identity.ClientId, identity.PrincipalId, nil
+}
+
+// workloadIdentityAudience is the audience AKS Workload Identity requests ServiceAccount tokens
+// for, and so the one every federated identity credential it uses must accept.
+const workloadIdentityAudience = "api://AzureADTokenExchange"
+
+// maxFederatedCredentialsPerIdentity is Azure's limit of federated identity credentials on one
+// user-assigned managed identity.
+const maxFederatedCredentialsPerIdentity = 20
+
+// federatedCredentialNamePattern is Azure's naming rule for federated identity credentials.
+var federatedCredentialNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]{2,119}$`)
+
+// federatedCredentialName is the Azure name of the federated identity credential trusting the
+// ServiceAccount namespace/serviceAccount. Azure allows only letters, digits, '-' and '_' in it: the
+// two are joined with '_', which Kubernetes names can't contain, so distinct ServiceAccounts get
+// distinct names (only dots, which become '-', can collide; validateServiceAccounts rejects that).
+func federatedCredentialName(namespace, serviceAccount string) string {
+	return namespace + "_" + strings.ReplaceAll(serviceAccount, ".", "-")
+}
+
+// deployFederatedCredentials creates on identity a federated identity credential for each of
+// identitySpec.ServiceAccounts, so that ServiceAccount can authenticate as the identity through AKS
+// Workload Identity. A ServiceAccount without a namespace is in ownerNamespace. The credentials trust EnvAzureAksOidcIssuerUrl, passed through verbatim: Entra
+// compares it with the token's iss claim exactly, trailing slash included.
+//
+// Unlike the identity, the credentials are never retained on delete: they hold no state and are
+// recreated from the spec, and an identity retained after its owner is gone must not stay usable
+// from the cluster. For the same reason they are not imported. Azure rejects concurrent credential
+// writes on the same identity, so each credential depends on the previous one; the first waits for
+// the identity through its Name.
+func deployFederatedCredentials(ctx *pulumi.Context, identity *managedidentity.UserAssignedIdentity,
+	identitySpec *provisioningv1.ManagedIdentitySpec, resourceNamePrefix, ownerNamespace string) error {
+
+	if len(identitySpec.ServiceAccounts) == 0 {
+		return nil
+	}
+	issuer := os.Getenv(EnvAzureAksOidcIssuerUrl)
+	if issuer == "" {
+		return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts requires %s to be set", identitySpec.Name, EnvAzureAksOidcIssuerUrl)
+	}
+
+	var previous []pulumi.Resource
+	for _, sa := range identitySpec.ServiceAccounts {
+		namespace := resolveName(sa.Namespace, ownerNamespace)
+		credentialName := federatedCredentialName(namespace, sa.Name)
+		credential, err := managedidentity.NewFederatedIdentityCredential(ctx,
+			fmt.Sprintf("%s-identity-fic-%s", resourceNamePrefix, credentialName),
+			&managedidentity.FederatedIdentityCredentialArgs{
+				ResourceGroupName:                       pulumi.String(identitySpec.ResourceGroupName),
+				ResourceName:                            identity.Name,
+				FederatedIdentityCredentialResourceName: pulumi.String(credentialName),
+				Issuer:                                  pulumi.String(issuer),
+				Subject:                                 pulumi.String(fmt.Sprintf("system:serviceaccount:%s:%s", namespace, sa.Name)),
+				Audiences:                               pulumi.StringArray{pulumi.String(workloadIdentityAudience)},
+			}, pulumi.DependsOn(previous))
+		if err != nil {
+			return err
+		}
+		previous = []pulumi.Resource{credential}
+	}
+	return nil
+}
+
+// validateServiceAccounts checks every managedIdentities[].serviceAccounts list before anything is
+// deployed: EnvAzureAksOidcIssuerUrl must be an https URL, each entry needs a name and a namespace (its own or
+// ownerNamespace), its federated credential name must be valid and unique within the identity, and
+// an identity can't have more than Azure's maxFederatedCredentialsPerIdentity credentials.
+func validateServiceAccounts(identities []provisioningv1.ManagedIdentitySpec, ownerNamespace string) error {
+	for _, identity := range identities {
+		if len(identity.ServiceAccounts) == 0 {
+			continue
+		}
+		issuer := os.Getenv(EnvAzureAksOidcIssuerUrl)
+		if issuer == "" {
+			return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts requires %s to be set", identity.Name, EnvAzureAksOidcIssuerUrl)
+		}
+		if !strings.HasPrefix(issuer, "https://") {
+			return fmt.Errorf("%s must be an https URL (the AKS cluster's oidcIssuerProfile.issuerUrl), got %q", EnvAzureAksOidcIssuerUrl, issuer)
+		}
+		if len(identity.ServiceAccounts) > maxFederatedCredentialsPerIdentity {
+			return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts has %d entries, Azure allows at most %d federated credentials per identity",
+				identity.Name, len(identity.ServiceAccounts), maxFederatedCredentialsPerIdentity)
+		}
+		seen := make(map[string]bool, len(identity.ServiceAccounts))
+		for _, sa := range identity.ServiceAccounts {
+			if sa.Name == "" {
+				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[].name is required", identity.Name)
+			}
+			namespace := resolveName(sa.Namespace, ownerNamespace)
+			if namespace == "" {
+				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%s].namespace is required", identity.Name, sa.Name)
+			}
+			credentialName := federatedCredentialName(namespace, sa.Name)
+			if !federatedCredentialNamePattern.MatchString(credentialName) {
+				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%s/%s]: federated credential name %q must be 3-120 letters, digits, '-' or '_', starting with a letter or digit",
+					identity.Name, namespace, sa.Name, credentialName)
+			}
+			if seen[credentialName] {
+				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%s/%s] is duplicated (federated credential name %q)",
+					identity.Name, namespace, sa.Name, credentialName)
+			}
+			seen[credentialName] = true
+		}
+	}
+	return nil
 }
 
 // deployedUser holds the credentials deployContainedUser/deployLoginUser produced for one

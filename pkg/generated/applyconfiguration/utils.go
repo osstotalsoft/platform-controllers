@@ -125,6 +125,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.EntraUserExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("EntraUserSpec"):
 		return &applyconfigurationprovisioningv1alpha1.EntraUserSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("FederatedServiceAccount"):
+		return &applyconfigurationprovisioningv1alpha1.FederatedServiceAccountApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmRelease"):
 		return &applyconfigurationprovisioningv1alpha1.HelmReleaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("HelmReleaseExportsSpec"):

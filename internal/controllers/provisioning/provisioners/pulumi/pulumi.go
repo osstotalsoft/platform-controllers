@@ -27,6 +27,7 @@ var (
 	EnvPulumiSkipRefresh        = "PULUMI_SKIP_REFRESH"
 	EnvAzureEnabled             = "AZURE_ENABLED"
 	EnvAzureUseWorkloadIdentity = "AZURE_USE_WORKLOAD_IDENTITY"
+	EnvAzureAksOidcIssuerUrl    = "AZURE_AKS_OIDC_ISSUER_URL"
 )
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource

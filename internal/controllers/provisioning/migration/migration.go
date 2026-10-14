@@ -3,6 +3,7 @@ package migration
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/batch/v1"
@@ -61,6 +62,10 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 				Spec: v1.JobSpec{
 					TTLSecondsAfterFinished: &ttlSecondsAfterFinished,
 					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Labels:      workloadIdentityMetadata(job.Spec.Template.Labels),
+							Annotations: workloadIdentityMetadata(job.Spec.Template.Annotations),
+						},
 						Spec: job.Spec.Template.Spec,
 					},
 				},
@@ -82,4 +87,26 @@ func KubeJobsMigrationForTenant(kubeClient kubernetes.Interface,
 
 		return err
 	}
+}
+
+// workloadIdentityPrefix prefixes the AKS Workload Identity pod labels and annotations, e.g. the
+// azure.workload.identity/use label the webhook selects the pods to inject tokens into by.
+const workloadIdentityPrefix = "azure.workload.identity/"
+
+// workloadIdentityMetadata returns the entries of a template Job's pod labels or annotations that
+// a per-tenant clone must keep for its pods to authenticate through AKS Workload Identity, or nil
+// if there are none. Nothing else is copied: the template is a live Job, so its pod labels include
+// its own controller-uid / job-name, which would make the API server reject the clone, and any
+// other metadata (app labels, sidecar annotations) has never been copied to clones.
+func workloadIdentityMetadata(metadata map[string]string) map[string]string {
+	var result map[string]string
+	for key, value := range metadata {
+		if strings.HasPrefix(key, workloadIdentityPrefix) {
+			if result == nil {
+				result = map[string]string{}
+			}
+			result[key] = value
+		}
+	}
+	return result
 }

@@ -84,6 +84,7 @@ kubectl create secret generic provisioner-secrets \
 | `tenantId` | both modes | Azure AD tenant ID |
 | `managedIdentityRG` | both modes | Resource group of the managed identity |
 | `managedIdentityName` | both modes | Name of the managed identity |
+| `aksOidcIssuerUrl` | both modes, optional | OIDC issuer URL of the AKS cluster (`az aks show -g <rg> -n <aks> --query oidcIssuerProfile.issuerUrl -o tsv`). Required only when a database's `managedIdentities[].serviceAccounts` is set |
 
 ```bash
 kubectl create configmap azure-config \
@@ -207,6 +208,7 @@ All values below are injected by the Helm chart. This table is useful when runni
 | `AZURE_TENANT_ID` | `azure-config` | Azure AD tenant |
 | `AZURE_MANAGED_IDENTITY_RG` | `azure-config` | Resource group of the managed identity |
 | `AZURE_MANAGED_IDENTITY_NAME` | `azure-config` | Name of the managed identity |
+| `AZURE_AKS_OIDC_ISSUER_URL` | `azure-config` (optional) | AKS cluster OIDC issuer trusted by the federated identity credentials created for `managedIdentities[].serviceAccounts` |
 | `ARM_CLIENT_ID` | `azure-config` | Client ID for the `azuread` Pulumi provider (service principal mode only) |
 | `ARM_CLIENT_SECRET` | `azure-secret` | Secret for the `azuread` provider (service principal mode only) |
 | `ARM_TENANT_ID` | `azure-config` | Tenant for the `azuread` provider |

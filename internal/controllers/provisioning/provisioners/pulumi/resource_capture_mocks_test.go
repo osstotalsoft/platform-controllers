@@ -55,6 +55,8 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 	case "random:index/randomPassword:RandomPassword":
 		outputs["result"] = resource.NewStringProperty("Test-Password-123!")
 	case "azure-native:managedidentity:UserAssignedIdentity":
+		// The Azure name, like ARM returns it, for resources that reference the identity by Name.
+		outputs["name"] = args.Inputs["resourceName"]
 		outputs["clientId"] = resource.NewStringProperty("11111111-1111-1111-1111-111111111111")
 		outputs["principalId"] = resource.NewStringProperty("22222222-2222-2222-2222-222222222222")
 	}

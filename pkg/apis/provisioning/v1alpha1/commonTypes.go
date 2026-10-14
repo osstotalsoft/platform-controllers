@@ -161,6 +161,22 @@ type ManagedIdentitySpec struct {
 	// identity — narrower blast radius than Permissions, which applies to every schema in the database.
 	// +optional
 	SchemaPermissions map[string][]string `json:"schemaPermissions,omitempty"`
+	// ServiceAccounts that may authenticate as this identity via AKS Workload Identity: each gets a
+	// federated credential trusting AZURE_AKS_OIDC_ISSUER_URL.
+	// +optional
+	// +listType=atomic
+	ServiceAccounts []FederatedServiceAccount `json:"serviceAccounts,omitempty"`
+}
+
+// FederatedServiceAccount is a Kubernetes ServiceAccount trusted to authenticate as a managed
+// identity, through a federated identity credential on that identity.
+type FederatedServiceAccount struct {
+	// ServiceAccount name.
+	// +required
+	Name string `json:"name"`
+	// ServiceAccount namespace. Defaults to the owning resource's namespace.
+	// +optional
+	Namespace string `json:"namespace,omitempty"`
 }
 
 // GetName returns the managed identity's name, satisfying the resolveRef/validateUniqueNames

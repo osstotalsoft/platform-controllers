@@ -357,6 +357,8 @@ spec:
       location: westeurope
       roles:
         - db_owner
+      serviceAccounts: # optional, AKS Workload Identity
+        - name: origination-api # namespace defaults to this resource's namespace
   exports:
     - domain: origination
       dbName:
@@ -369,6 +371,10 @@ spec:
       password:
         toVault:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
+      identityRef: origination_app_identity # optional here since managedIdentities has exactly one entry
+      identityClientId:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__IdentityClientId
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
@@ -381,6 +387,12 @@ spec:
 ```
 
 > _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
+
+#### Managed identities
+
+Each `managedIdentities` entry (also available on `AzureDatabase`) creates, per tenant, an Azure user-assigned managed identity named `<name>_<database name>` and adds it to the database as an Entra user with the given `roles`, `permissions` and `schemaPermissions`. Its client and principal ids can be exported with `identityClientId` and `identityPrincipalId` (`identityRef` selects the identity).
+
+`serviceAccounts` lets Kubernetes workloads authenticate as the identity through [AKS Workload Identity](https://learn.microsoft.com/azure/aks/workload-identity-overview): a federated identity credential is created on the identity for each ServiceAccount, with subject `system:serviceaccount:<namespace>:<name>`, the cluster's OIDC issuer (`AZURE_AKS_OIDC_ISSUER_URL`, required when any `serviceAccounts` is set) and audience `api://AzureADTokenExchange`. The ServiceAccount is not created and needs no `azure.workload.identity/client-id` annotation; its pods need the label `azure.workload.identity/use: "true"` and select the identity by its exported client id, e.g. with Microsoft.Data.SqlClient `Authentication=Active Directory Workload Identity;User Id=<client id>`. Federated credentials are named `<namespace>_<name>` and are never retained on delete nor imported: they are recreated from the spec. So after a lost Pulumi state, `PULUMI_IMPORT_ALL` can't adopt them: delete the existing ones (`az identity federated-credential delete`) and the next reconcile recreates them. A `serviceAccounts` entry on a cluster without a valid `AZURE_AKS_OIDC_ISSUER_URL` fails the reconcile of the whole tenant/domain stack, like any other spec validation error.
 
 ### HelmRelease
 

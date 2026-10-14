@@ -2,6 +2,7 @@ package migration
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	v1 "k8s.io/api/batch/v1"
@@ -52,6 +53,80 @@ func TestKubeJobsMigrationForTenant(t *testing.T) {
 			t.Errorf("Expected 2 new jobs to be created but found %d", newJobsCount)
 		}
 	})
+}
+
+// The pod metadata of a live template Job, as found in qa-hcm (charisma-hcm-migrations): the Job
+// controller added its own controller-uid / job-name labels, the chart added app labels.
+func liveTemplatePodMetadata() metav1.ObjectMeta {
+	return metav1.ObjectMeta{
+		Labels: map[string]string{
+			"app.kubernetes.io/instance":         "charisma-hcm",
+			"app.kubernetes.io/name":             "charisma-hcm-migrations",
+			"batch.kubernetes.io/controller-uid": "963d14ad-e3cd-409c-8b51-364b6a93d903",
+			"batch.kubernetes.io/job-name":       "charisma-hcm-migrations",
+			"controller-uid":                     "963d14ad-e3cd-409c-8b51-364b6a93d903",
+			"job-name":                           "charisma-hcm-migrations",
+		},
+		Annotations: map[string]string{
+			"rusi.io/enabled": "true",
+		},
+	}
+}
+
+func TestKubeJobsMigrationForTenantPodMetadata(t *testing.T) {
+	domain := "test-domain"
+
+	t.Run("workload identity labels and annotations are copied, nothing else", func(t *testing.T) {
+		template := newJob("wi", domain, true)
+		template.Spec.Template.ObjectMeta = liveTemplatePodMetadata()
+		template.Spec.Template.Labels["azure.workload.identity/use"] = "true"
+		template.Spec.Template.Annotations["azure.workload.identity/skip-containers"] = "istio-proxy"
+
+		clone := migrateSingleTemplate(t, template, domain)
+
+		expectedLabels := map[string]string{"azure.workload.identity/use": "true"}
+		if !reflect.DeepEqual(clone.Spec.Template.Labels, expectedLabels) {
+			t.Errorf("expected clone pod labels %v but got %v", expectedLabels, clone.Spec.Template.Labels)
+		}
+		expectedAnnotations := map[string]string{"azure.workload.identity/skip-containers": "istio-proxy"}
+		if !reflect.DeepEqual(clone.Spec.Template.Annotations, expectedAnnotations) {
+			t.Errorf("expected clone pod annotations %v but got %v", expectedAnnotations, clone.Spec.Template.Annotations)
+		}
+	})
+
+	t.Run("a template without workload identity metadata is cloned as before", func(t *testing.T) {
+		template := newJob("no-wi", domain, true)
+		template.Spec.Template.ObjectMeta = liveTemplatePodMetadata()
+
+		clone := migrateSingleTemplate(t, template, domain)
+
+		if clone.Spec.Template.Labels != nil || clone.Spec.Template.Annotations != nil {
+			t.Errorf("expected no clone pod metadata but got labels %v, annotations %v",
+				clone.Spec.Template.Labels, clone.Spec.Template.Annotations)
+		}
+	})
+}
+
+// migrateSingleTemplate runs the migration for one tenant against the single template Job given,
+// and returns the per-tenant clone it created.
+func migrateSingleTemplate(t *testing.T, template *v1.Job, domain string) v1.Job {
+	t.Helper()
+	kubeClient := fake.NewSimpleClientset(template)
+	migrator := KubeJobsMigrationForTenant(kubeClient, func(string, string) bool { return true }, DefaultTTLSecondsAfterFinished)
+	if err := migrator("test", newTenant("mf", "qa"), domain); err != nil {
+		t.Fatalf("migration failed: %v", err)
+	}
+	jobs, _ := kubeClient.BatchV1().Jobs(metav1.NamespaceDefault).List(context.TODO(), metav1.ListOptions{})
+	var clones []v1.Job
+	for _, job := range jobs.Items {
+		if hasTenantIDEnvVar(&job) {
+			clones = append(clones, job)
+		}
+	}
+	if len(clones) != 1 {
+		t.Fatalf("expected 1 clone but found %d", len(clones))
+	}
+	return clones[0]
 }
 
 func hasTenantIDEnvVar(job *v1.Job) bool {

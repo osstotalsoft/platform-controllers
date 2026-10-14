@@ -533,3 +533,51 @@ func TestDeployAzureManagedDbIdentityNameIsTenantScoped(t *testing.T) {
 		assert.True(t, strings.HasPrefix(name, "identity1_"), "identity resource name %q must be tenant-scoped", name)
 	}
 }
+
+// The ServiceAccounts of a managed identity default to the AzureManagedDatabase's own namespace,
+// where the workloads using it normally run.
+func TestDeployAzureManagedDbFederatedCredentials(t *testing.T) {
+	platform := "dev"
+	tenant := newTenant("mf", platform)
+
+	t.Run("service accounts get a federated credential in the CR namespace", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		t.Setenv(EnvAzureAksOidcIssuerUrl, testOidcIssuer)
+		azureDb := newAzureManagedDb("mi-db-fic")
+		azureDb.Namespace = "qa-hcm"
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+			{Name: "charisma-hcm", ResourceGroupName: "SQLMI_RG", Location: "westeurope",
+				ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "charisma-hcm"}}},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		credentials := capture.byType[federatedCredentialType]
+		assert.Len(t, credentials, 1)
+		assert.Equal(t, "system:serviceaccount:qa-hcm:charisma-hcm", credentials[0].Inputs["subject"].StringValue())
+		assert.Equal(t, "charisma-hcm_mi-db-fic_dev_mf", credentials[0].Inputs["resourceName"].StringValue())
+	})
+
+	t.Run("invalid service accounts fail fast, before any pulumi resource is created", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		t.Setenv(EnvAzureAksOidcIssuerUrl, "")
+		azureDb := newAzureManagedDb("mi-db-fic-no-issuer")
+		azureDb.Namespace = "qa-hcm"
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+			{Name: "charisma-hcm", ResourceGroupName: "SQLMI_RG", Location: "westeurope",
+				ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "charisma-hcm"}}},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, "requires AZURE_AKS_OIDC_ISSUER_URL to be set")
+		assert.Empty(t, capture.byType["azure-native:sql:ManagedDatabase"], "no resource must be created once validation fails")
+		assert.Empty(t, capture.byType["azure-native:managedidentity:UserAssignedIdentity"])
+	})
+}
