@@ -781,7 +781,11 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 		ShareName:         pulumi.String("profiles"),
 		ShareQuota:        pulumi.Int(100),
 		SignedIdentifiers: storage.SignedIdentifierArray{},
-	}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(pulumiRetainOnDelete))
+		EnabledProtocols:  pulumi.String(storage.EnabledProtocolsSMB),
+	}, pulumi.Parent(storageAccount), pulumi.RetainOnDelete(pulumiRetainOnDelete),
+		// enabledProtocols is create-only: a refresh that reads it back from Azure would otherwise
+		// make Pulumi replace the existing share, which fails with "cannot create already existing resource"
+		pulumi.IgnoreChanges([]string{"enabledProtocols"}))
 	if err != nil {
 		return nil, err
 	}
