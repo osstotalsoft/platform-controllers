@@ -501,6 +501,11 @@ func deployAzureadServicePrincipal(ctx *pulumi.Context, provider *mssql.Provider
 // tenant-scoped identity name is. The Script is never imported: IF NOT EXISTS adopts a user that
 // already exists (lost Pulumi state, PULUMI_IMPORT_ALL, manual creation).
 //
+// The identity is created moments before, and the managed instance only finds it once Entra ID has
+// replicated it: until then CREATE USER fails with principalNotFoundError. The Script retries just
+// that error, externalProviderUserAttempts times externalProviderUserRetryDelay apart, then re-raises
+// it; the provisioner doesn't retry a failed stack, and a failed tenant gets no migration jobs.
+//
 // When lookupMemberId is set (the identity has grants), the member id is looked up by name once the
 // Script has run: the lookup is gated on the Script with gateOn, since an invoke's DependsOn is
 // ignored. Otherwise the returned member id is empty.
@@ -513,9 +518,24 @@ func deployExternalProviderUser(ctx *pulumi.Context, provider *mssql.Provider, r
 		ReadScript: pulumi.String(fmt.Sprintf(
 			"SELECT ISNULL((SELECT 'Present' FROM sys.database_principals WHERE name = %s), 'Absent') AS [UserStatus]",
 			sqlStringLiteral(name))),
-		UpdateScript: pulumi.String(fmt.Sprintf(
-			"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = %s) CREATE USER %s FROM EXTERNAL PROVIDER;",
-			sqlStringLiteral(name), sqlQuotedIdentifier(name))),
+		UpdateScript: pulumi.String(fmt.Sprintf(`IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = %s)
+BEGIN
+    DECLARE @attempt int = 1;
+    WHILE 1 = 1
+    BEGIN
+        BEGIN TRY
+            CREATE USER %s FROM EXTERNAL PROVIDER;
+            BREAK;
+        END TRY
+        BEGIN CATCH
+            IF ERROR_NUMBER() <> %d OR @attempt >= %d THROW;
+            SET @attempt += 1;
+            WAITFOR DELAY '%s';
+        END CATCH
+    END
+END`,
+			sqlStringLiteral(name), sqlQuotedIdentifier(name),
+			principalNotFoundError, externalProviderUserAttempts, externalProviderUserRetryDelay)),
 		DeleteScript: pulumi.String(fmt.Sprintf("DROP USER IF EXISTS %s;", sqlQuotedIdentifier(name))),
 		State: pulumi.StringMap{
 			"UserStatus": pulumi.String("Present"),
@@ -540,6 +560,19 @@ func deployExternalProviderUser(ctx *pulumi.Context, provider *mssql.Provider, r
 	}).(pulumi.StringOutput)
 	return script, memberId, nil
 }
+
+// principalNotFoundError is the SQL Server error CREATE USER … FROM EXTERNAL PROVIDER raises when
+// Entra ID has no principal of that name (yet): "Principal '…' could not be found or this principal
+// type is not supported."
+const principalNotFoundError = 33130
+
+// externalProviderUserAttempts and externalProviderUserRetryDelay (a WAITFOR DELAY time) bound how
+// long deployExternalProviderUser waits for a new identity to replicate: 24 attempts 5s apart, about
+// 2 minutes. It usually takes seconds.
+const (
+	externalProviderUserAttempts   = 24
+	externalProviderUserRetryDelay = "00:00:05"
+)
 
 // sqlQuotedIdentifier quotes name as a T-SQL delimited identifier: [name], with ] doubled.
 func sqlQuotedIdentifier(name string) string {

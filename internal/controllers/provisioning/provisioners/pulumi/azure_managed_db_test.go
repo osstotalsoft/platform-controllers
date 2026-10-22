@@ -629,9 +629,24 @@ func TestDeployAzureManagedDbIdentityUser(t *testing.T) {
 		assert.Equal(t,
 			"SELECT ISNULL((SELECT 'Present' FROM sys.database_principals WHERE name = N'charisma-hcm_hcm-charisma-online_one-dev_qa_mf'), 'Absent') AS [UserStatus]",
 			script["readScript"].StringValue())
-		assert.Equal(t,
-			"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'charisma-hcm_hcm-charisma-online_one-dev_qa_mf') CREATE USER [charisma-hcm_hcm-charisma-online_one-dev_qa_mf] FROM EXTERNAL PROVIDER;",
-			script["updateScript"].StringValue())
+		assert.Equal(t, `IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'charisma-hcm_hcm-charisma-online_one-dev_qa_mf')
+BEGIN
+    DECLARE @attempt int = 1;
+    WHILE 1 = 1
+    BEGIN
+        BEGIN TRY
+            CREATE USER [charisma-hcm_hcm-charisma-online_one-dev_qa_mf] FROM EXTERNAL PROVIDER;
+            BREAK;
+        END TRY
+        BEGIN CATCH
+            IF ERROR_NUMBER() <> 33130 OR @attempt >= 24 THROW;
+            SET @attempt += 1;
+            WAITFOR DELAY '00:00:05';
+        END CATCH
+    END
+END`,
+			script["updateScript"].StringValue(),
+			"only 'principal not found' (33130) is retried, 24 times 5s apart, while the new identity replicates in Entra ID; anything else, or the last attempt, re-raises")
 		assert.Equal(t, "DROP USER IF EXISTS [charisma-hcm_hcm-charisma-online_one-dev_qa_mf];", script["deleteScript"].StringValue())
 		assert.Equal(t, map[string]interface{}{"UserStatus": "Present"}, script["state"].Mappable())
 		assert.True(t, capture.dependsOnResource(scriptName, "hcm-charisma-online-charisma-hcm-identity"),
