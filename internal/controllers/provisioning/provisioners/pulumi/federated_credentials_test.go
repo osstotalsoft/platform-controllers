@@ -37,7 +37,7 @@ func deployTestManagedIdentity(t *testing.T, capture *resourceCaptureMocks, iden
 	return pulumi.RunErr(func(ctx *pulumi.Context) error {
 		provider := newTestProvider(t, ctx, "test-provider-fic")
 		_, _, err := deployManagedIdentity(ctx, provider, "my-db-app", pulumi.String("1").ToStringOutput(),
-			identitySpec, "my-db_qa_mf", ownerNamespace, []pulumi.Resource{}, retainOnDelete, nil)
+			identitySpec, "my-db_qa_mf", ownerNamespace, identityUserBySid, []pulumi.Resource{}, retainOnDelete, nil)
 		return err
 	}, pulumi.WithMocks("project", "stack", capture))
 }

@@ -151,6 +151,7 @@ func TestDeployAzureManagedDb(t *testing.T) {
 			},
 		}
 		capture := newResourceCaptureMocks()
+		stubIdentityUserLookup(capture, "12/7")
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			db, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
@@ -159,7 +160,9 @@ func TestDeployAzureManagedDb(t *testing.T) {
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
 
-		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/azureadServicePrincipal:AzureadServicePrincipal"))
+		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/azureadServicePrincipal:AzureadServicePrincipal"),
+			"Managed Instance doesn't support the CREATE USER ... TYPE = E that AzureadServicePrincipal emits")
+		assert.Len(t, capture.byType["mssql:index/script:Script"], 1)
 		assert.True(t, capture.hasAnyTypeWithPrefix("azure-native:managedidentity"))
 	})
 
@@ -196,6 +199,7 @@ func TestDeployAzureManagedDb(t *testing.T) {
 		}
 
 		capture := newResourceCaptureMocks()
+		stubIdentityUserLookup(capture, "12/7")
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			db, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
@@ -513,6 +517,7 @@ func TestDeployAzureManagedDbIdentityNameIsTenantScoped(t *testing.T) {
 	}
 
 	capture := newResourceCaptureMocks()
+	stubIdentityUserLookup(capture, "12/7")
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 		if _, err := deployAzureManagedDb(tenantA, dbA, []pulumi.Resource{}, nil, ctx); err != nil {
 			return err
@@ -580,4 +585,85 @@ func TestDeployAzureManagedDbFederatedCredentials(t *testing.T) {
 		assert.Empty(t, capture.byType["azure-native:sql:ManagedDatabase"], "no resource must be created once validation fails")
 		assert.Empty(t, capture.byType["azure-native:managedidentity:UserAssignedIdentity"])
 	})
+}
+
+// stubIdentityUserLookup stubs the lookup of a managed identity's database user by name, which on
+// Managed Instance gives the identity's grants their member id.
+func stubIdentityUserLookup(capture *resourceCaptureMocks, id string) {
+	capture.stubCall("mssql:index/getAzureadServicePrincipal:getAzureadServicePrincipal", resource.PropertyMap{
+		"id": resource.NewStringProperty(id),
+	})
+}
+
+// On Managed Instance the identity's database user is created by a Script with CREATE USER … FROM
+// EXTERNAL PROVIDER, since the CREATE USER … TYPE = E that AzureadServicePrincipal emits isn't
+// supported there. The names are those of the QA pilot, so the SQL is the one checked on r7d-mi.
+func TestDeployAzureManagedDbIdentityUser(t *testing.T) {
+	const scriptName = "hcm-charisma-online-charisma-hcm-identity-user"
+	deploy := func(t *testing.T, capture *resourceCaptureMocks) error {
+		setAzureMssqlAuthEnv(t)
+		azureDb := newAzureManagedDb("hcm-charisma-online")
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{{
+			Name:              "charisma-hcm",
+			ResourceGroupName: "SQL_Managed_Instance",
+			Location:          "westeurope",
+			Roles:             []string{"db_datareader"},
+			Permissions:       []string{"EXECUTE"},
+			SchemaPermissions: map[string][]string{"dbo": {"SELECT"}},
+		}}
+		return pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureManagedDb(newTenant("mf", "one-dev_qa"), azureDb, []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+	}
+
+	t.Run("creates the user from the external provider", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		stubIdentityUserLookup(capture, "12/7")
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{"id": resource.NewStringProperty("12/1")})
+		assert.NoError(t, deploy(t, capture))
+
+		assert.Empty(t, capture.byType["mssql:index/azureadServicePrincipal:AzureadServicePrincipal"])
+		assert.Len(t, capture.byType["mssql:index/script:Script"], 1)
+		script := capture.byName[scriptName].Inputs
+		assert.Equal(t,
+			"SELECT ISNULL((SELECT 'Present' FROM sys.database_principals WHERE name = N'charisma-hcm_hcm-charisma-online_one-dev_qa_mf'), 'Absent') AS [UserStatus]",
+			script["readScript"].StringValue())
+		assert.Equal(t,
+			"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = N'charisma-hcm_hcm-charisma-online_one-dev_qa_mf') CREATE USER [charisma-hcm_hcm-charisma-online_one-dev_qa_mf] FROM EXTERNAL PROVIDER;",
+			script["updateScript"].StringValue())
+		assert.Equal(t, "DROP USER IF EXISTS [charisma-hcm_hcm-charisma-online_one-dev_qa_mf];", script["deleteScript"].StringValue())
+		assert.Equal(t, map[string]interface{}{"UserStatus": "Present"}, script["state"].Mappable())
+		assert.True(t, capture.dependsOnResource(scriptName, "hcm-charisma-online-charisma-hcm-identity"),
+			"the user can only be created once the identity exists in Entra ID")
+	})
+
+	t.Run("grants use the looked-up member id and depend on the script", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		stubIdentityUserLookup(capture, "12/7")
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{"id": resource.NewStringProperty("12/1")})
+		assert.NoError(t, deploy(t, capture))
+
+		grants := map[string]string{
+			"hcm-charisma-online-charisma-hcm-identity-role-db_datareader":           "memberId",
+			"hcm-charisma-online-charisma-hcm-identity-permission-EXECUTE":           "principalId",
+			"hcm-charisma-online-charisma-hcm-identity-schema-dbo-permission-SELECT": "principalId",
+		}
+		for name, memberKey := range grants {
+			grant, ok := capture.byName[name]
+			if assert.True(t, ok, "grant %s was not registered", name) {
+				assert.Equal(t, "12/7", grant.Inputs[resource.PropertyKey(memberKey)].StringValue(), name)
+				assert.True(t, capture.dependsOnResource(name, scriptName), "%s must depend on the script", name)
+			}
+		}
+	})
+
+	t.Run("clear error when the created user can't be looked up", func(t *testing.T) {
+		capture := newResourceCaptureMocks()
+		stubIdentityUserLookup(capture, "")
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{"id": resource.NewStringProperty("12/1")})
+		assert.ErrorContains(t, deploy(t, capture),
+			"database user charisma-hcm_hcm-charisma-online_one-dev_qa_mf not found after creating it from the external provider")
+	})
+
 }

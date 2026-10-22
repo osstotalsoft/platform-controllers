@@ -126,6 +126,8 @@ func TestDeployAzureDb(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/azureadServicePrincipal:AzureadServicePrincipal"))
+		assert.Empty(t, capture.byType["mssql:index/script:Script"],
+			"on Azure SQL Database the identity's user is still created by AzureadServicePrincipal, not by a Script")
 		assert.True(t, capture.hasAnyTypeWithPrefix("azure-native:managedidentity"))
 	})
 
