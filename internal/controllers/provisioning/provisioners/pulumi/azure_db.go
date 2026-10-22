@@ -140,7 +140,7 @@ func deployAzureDb(target provisioning.ProvisioningTarget,
 		for i := range azureDb.Spec.ManagedIdentities {
 			identity := azureDb.Spec.ManagedIdentities[i]
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
-				&identity, dbName, azureDb.Namespace, []pulumi.Resource{db}, pulumiRetainOnDelete, imports)
+				&identity, dbName, azureDb.Namespace, identityUserBySid, []pulumi.Resource{db}, pulumiRetainOnDelete, imports)
 			if err != nil {
 				return nil, err
 			}

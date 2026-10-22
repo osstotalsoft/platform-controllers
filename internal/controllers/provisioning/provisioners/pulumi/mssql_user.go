@@ -367,6 +367,18 @@ ELSE
 	return username, password, nil
 }
 
+// identityUserKind selects how deployManagedIdentity creates the identity's database user.
+type identityUserKind int
+
+const (
+	// identityUserBySid creates it with AzureadServicePrincipal (CREATE USER … WITH SID = …,
+	// TYPE = E), supported on Azure SQL Database only.
+	identityUserBySid identityUserKind = iota
+	// identityUserFromExternalProvider creates it with CREATE USER … FROM EXTERNAL PROVIDER, for
+	// Azure SQL Managed Instance (see deployExternalProviderUser).
+	identityUserFromExternalProvider
+)
+
 // deployManagedIdentity creates an Azure user-assigned managed identity and wires it into the
 // database as a contained AAD service-principal user, granting identitySpec.Roles.
 //
@@ -377,9 +389,12 @@ ELSE
 // identitySpec.Name is the same across tenants (the common case — it names an application, not a
 // tenant). identitySpec.Name stays the stable, tenant-independent key used for
 // managedIdentities[].name uniqueness and exports[].identityRef matching.
+//
+// userKind selects how the database user is created: identityUserBySid on Azure SQL Database,
+// identityUserFromExternalProvider on Azure SQL Managed Instance.
 func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resourceNamePrefix string,
 	databaseId pulumi.StringInput, identitySpec *provisioningv1.ManagedIdentitySpec, tenantScope, ownerNamespace string,
-	dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.StringOutput, pulumi.StringOutput, error) {
+	userKind identityUserKind, dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.StringOutput, pulumi.StringOutput, error) {
 
 	name := fmt.Sprintf("%s_%s", identitySpec.Name, tenantScope)
 
@@ -409,43 +424,131 @@ func deployManagedIdentity(ctx *pulumi.Context, provider *mssql.Provider, resour
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
-	principalResourceName := fmt.Sprintf("%s-identity-user", resourceNamePrefix)
-	principalOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, identity)), pulumi.RetainOnDelete(retainOnDelete)}
-	if imports.shouldImport(mssqlAzureadPrincipalType, principalResourceName) {
-		existing := mssql.LookupAzureadServicePrincipalOutput(ctx, mssql.LookupAzureadServicePrincipalOutputArgs{
-			DatabaseId: databaseId,
-			Name:       pulumi.String(name),
-		}, pulumi.Provider(provider))
-		principalOpts = append(principalOpts, imports.importResource(lookedUpImportId(existing.Id(), fmt.Sprintf("database user %s", name)))...)
+	userResourceName := fmt.Sprintf("%s-identity-user", resourceNamePrefix)
+	userDependencies := append(dependencies, identity)
+	var user pulumi.Resource
+	var memberId pulumi.StringOutput
+	switch userKind {
+	case identityUserFromExternalProvider:
+		hasGrants := len(identitySpec.Roles) > 0 || len(identitySpec.Permissions) > 0 || len(identitySpec.SchemaPermissions) > 0
+		user, memberId, err = deployExternalProviderUser(ctx, provider, userResourceName, databaseId, name,
+			hasGrants, userDependencies, retainOnDelete)
+	default:
+		user, memberId, err = deployAzureadServicePrincipal(ctx, provider, userResourceName, databaseId, name,
+			identity.ClientId, userDependencies, retainOnDelete, imports)
 	}
-
-	principal, err := mssql.NewAzureadServicePrincipal(ctx, principalResourceName, &mssql.AzureadServicePrincipalArgs{
-		DatabaseId: databaseId,
-		ClientId:   identity.ClientId,
-		Name:       pulumi.String(name),
-	}, principalOpts...)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
-	memberId := principal.ID().ToStringOutput()
 	err = deployDatabaseRoleGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, memberId,
-		identitySpec.Roles, append(dependencies, principal), retainOnDelete)
+		identitySpec.Roles, append(dependencies, user), retainOnDelete)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 	err = deployDatabasePermissionGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, memberId,
-		identitySpec.Permissions, append(dependencies, principal), retainOnDelete)
+		identitySpec.Permissions, append(dependencies, user), retainOnDelete)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 	err = deploySchemaPermissionGrants(ctx, provider, resourceNamePrefix+"-identity", databaseId, memberId,
-		identitySpec.SchemaPermissions, append(dependencies, principal), retainOnDelete)
+		identitySpec.SchemaPermissions, append(dependencies, user), retainOnDelete)
 	if err != nil {
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
 	return identity.ClientId, identity.PrincipalId, nil
+}
+
+// deployAzureadServicePrincipal creates the managed identity's database user name with pulumi-mssql's
+// AzureadServicePrincipal (identityUserBySid), importing an existing one when imports say so, and
+// returns it with its member id for the grants.
+func deployAzureadServicePrincipal(ctx *pulumi.Context, provider *mssql.Provider, resourceName string,
+	databaseId pulumi.StringInput, name string, clientId pulumi.StringInput,
+	dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.Resource, pulumi.StringOutput, error) {
+
+	opts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete)}
+	if imports.shouldImport(mssqlAzureadPrincipalType, resourceName) {
+		existing := mssql.LookupAzureadServicePrincipalOutput(ctx, mssql.LookupAzureadServicePrincipalOutputArgs{
+			DatabaseId: databaseId,
+			Name:       pulumi.String(name),
+		}, pulumi.Provider(provider))
+		opts = append(opts, imports.importResource(lookedUpImportId(existing.Id(), fmt.Sprintf("database user %s", name)))...)
+	}
+
+	principal, err := mssql.NewAzureadServicePrincipal(ctx, resourceName, &mssql.AzureadServicePrincipalArgs{
+		DatabaseId: databaseId,
+		ClientId:   clientId,
+		Name:       pulumi.String(name),
+	}, opts...)
+	if err != nil {
+		return nil, pulumi.StringOutput{}, err
+	}
+	return principal, principal.ID().ToStringOutput(), nil
+}
+
+// deployExternalProviderUser creates the managed identity's database user name with
+// CREATE USER … FROM EXTERNAL PROVIDER (identityUserFromExternalProvider), through an idempotent
+// Script like deployContainedUser's, and returns it with its member id for the grants.
+//
+// A Script and not AzureadServicePrincipal: the provider only emits CREATE USER … WITH SID = …,
+// TYPE = E, and Azure SQL Managed Instance doesn't support TYPE ("Incorrect syntax near 'type'"); it
+// has no option for FROM EXTERNAL PROVIDER. pulumi-mssql v0.1.0 / terraform-provider-mssql v0.6.0
+// are the latest versions. Replace this Script with AzureadServicePrincipal once the provider
+// supports it: https://github.com/PGSSoft/terraform-provider-mssql/issues/129
+//
+// FROM EXTERNAL PROVIDER looks name up in Entra ID by display name, so it must be unique there: the
+// tenant-scoped identity name is. The Script is never imported: IF NOT EXISTS adopts a user that
+// already exists (lost Pulumi state, PULUMI_IMPORT_ALL, manual creation).
+//
+// When lookupMemberId is set (the identity has grants), the member id is looked up by name once the
+// Script has run: the lookup is gated on the Script with gateOn, since an invoke's DependsOn is
+// ignored. Otherwise the returned member id is empty.
+func deployExternalProviderUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName string,
+	databaseId pulumi.StringInput, name string, lookupMemberId bool,
+	dependencies []pulumi.Resource, retainOnDelete bool) (pulumi.Resource, pulumi.StringOutput, error) {
+
+	script, err := mssql.NewScript(ctx, resourceName, &mssql.ScriptArgs{
+		DatabaseId: databaseId,
+		ReadScript: pulumi.String(fmt.Sprintf(
+			"SELECT ISNULL((SELECT 'Present' FROM sys.database_principals WHERE name = %s), 'Absent') AS [UserStatus]",
+			sqlStringLiteral(name))),
+		UpdateScript: pulumi.String(fmt.Sprintf(
+			"IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = %s) CREATE USER %s FROM EXTERNAL PROVIDER;",
+			sqlStringLiteral(name), sqlQuotedIdentifier(name))),
+		DeleteScript: pulumi.String(fmt.Sprintf("DROP USER IF EXISTS %s;", sqlQuotedIdentifier(name))),
+		State: pulumi.StringMap{
+			"UserStatus": pulumi.String("Present"),
+		},
+	}, pulumi.Provider(provider), pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete))
+	if err != nil {
+		return nil, pulumi.StringOutput{}, err
+	}
+	if !lookupMemberId {
+		return script, pulumi.StringOutput{}, nil
+	}
+
+	lookup := mssql.LookupAzureadServicePrincipalOutput(ctx, mssql.LookupAzureadServicePrincipalOutputArgs{
+		DatabaseId: gateOn(databaseId, []pulumi.Resource{script}),
+		Name:       pulumi.String(name),
+	}, pulumi.Provider(provider))
+	memberId := lookup.ApplyT(func(r mssql.LookupAzureadServicePrincipalResult) (string, error) {
+		if r.Id == "" {
+			return "", fmt.Errorf("database user %s not found after creating it from the external provider", name)
+		}
+		return r.Id, nil
+	}).(pulumi.StringOutput)
+	return script, memberId, nil
+}
+
+// sqlQuotedIdentifier quotes name as a T-SQL delimited identifier: [name], with ] doubled.
+func sqlQuotedIdentifier(name string) string {
+	return "[" + strings.ReplaceAll(name, "]", "]]") + "]"
+}
+
+// sqlStringLiteral quotes s as a T-SQL Unicode string literal: N's', with ' doubled.
+func sqlStringLiteral(s string) string {
+	return "N'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // workloadIdentityAudience is the audience AKS Workload Identity requests ServiceAccount tokens

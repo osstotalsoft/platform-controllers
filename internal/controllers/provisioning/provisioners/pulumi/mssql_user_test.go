@@ -1,7 +1,9 @@
 package pulumi
 
 import (
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -336,7 +338,7 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db", "", []pulumi.Resource{}, false, nil)
+				"my-db", "", identityUserBySid, []pulumi.Resource{}, false, nil)
 			assert.NoError(t, err)
 			assert.NotNil(t, clientId)
 			assert.NotNil(t, principalId)
@@ -357,7 +359,7 @@ func TestDeployManagedIdentity(t *testing.T) {
 					Location:          "westeurope",
 					Roles:             []string{"db_owner"},
 				},
-				"my-db-retain", "", []pulumi.Resource{}, true, nil)
+				"my-db-retain", "", identityUserBySid, []pulumi.Resource{}, true, nil)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
 		assert.NoError(t, err)
@@ -606,4 +608,111 @@ func TestDeployContainedUserPermissionLookupWaitsForScript(t *testing.T) {
 		return err
 	}, pulumi.WithMocks("project", "stack", mocks))
 	assert.NoError(t, err)
+}
+
+// identityLookupOrderingMocks asserts, on the getAzureadServicePrincipal invoke, that the identity's
+// user Script has already been registered: the member id lookup must not race ahead of the user's
+// creation (see gateOn's doc comment in mssql_user.go). The Script's registration is delayed, so an
+// ungated lookup, whose args are already known, reliably runs first.
+type identityLookupOrderingMocks struct {
+	*resourceCaptureMocks
+	t      *testing.T
+	looked atomic.Bool
+}
+
+func (m *identityLookupOrderingMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
+	if args.TypeToken == "mssql:index/script:Script" {
+		time.Sleep(200 * time.Millisecond)
+	}
+	return m.resourceCaptureMocks.NewResource(args)
+}
+
+func (m *identityLookupOrderingMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
+	if args.Token == "mssql:index/getAzureadServicePrincipal:getAzureadServicePrincipal" {
+		m.looked.Store(true)
+		assert.True(m.t, m.hasAnyTypeWithPrefix("mssql:index/script:Script"),
+			"getAzureadServicePrincipal was invoked before the identity's user Script was registered — the lookup is racing ahead of user creation")
+	}
+	return m.resourceCaptureMocks.Call(args)
+}
+
+func TestDeployManagedIdentityFromExternalProvider(t *testing.T) {
+	identitySpec := &provisioningv1.ManagedIdentitySpec{
+		ResourceGroupName: "my-rg",
+		Location:          "westeurope",
+		Roles:             []string{"db_owner"},
+		Permissions:       []string{"EXECUTE"},
+		SchemaPermissions: map[string][]string{"dbo": {"SELECT"}},
+	}
+	deploy := func(t *testing.T, mocks pulumi.MockResourceMonitor, retainOnDelete bool) error {
+		return pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployManagedIdentity(ctx, provider, "my-db-app", pulumi.String("1").ToStringOutput(),
+				identitySpec, "my-db", "", identityUserFromExternalProvider, []pulumi.Resource{}, retainOnDelete, nil)
+			return err
+		}, pulumi.WithMocks("project", "stack", mocks))
+	}
+	stub := func(capture *resourceCaptureMocks) *resourceCaptureMocks {
+		stubIdentityUserLookup(capture, "1/5")
+		capture.stubCall("mssql:index/getSchema:getSchema", resource.PropertyMap{"id": resource.NewStringProperty("1/1")})
+		return capture
+	}
+
+	t.Run("the member id lookup waits for the script", func(t *testing.T) {
+		mocks := &identityLookupOrderingMocks{resourceCaptureMocks: stub(newResourceCaptureMocks()), t: t}
+		assert.NoError(t, deploy(t, mocks, false))
+		assert.True(t, mocks.looked.Load(), "the grants' member id must be looked up")
+	})
+
+	t.Run("no grants, no lookup", func(t *testing.T) {
+		mocks := &identityLookupOrderingMocks{resourceCaptureMocks: newResourceCaptureMocks(), t: t}
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployManagedIdentity(ctx, provider, "my-db-app", pulumi.String("1").ToStringOutput(),
+				&provisioningv1.ManagedIdentitySpec{ResourceGroupName: "my-rg", Location: "westeurope"},
+				"my-db", "", identityUserFromExternalProvider, []pulumi.Resource{}, false, nil)
+			return err
+		}, pulumi.WithMocks("project", "stack", mocks))
+		assert.NoError(t, err)
+		assert.Len(t, mocks.byType["mssql:index/script:Script"], 1)
+		assert.False(t, mocks.looked.Load(), "without grants the member id isn't needed")
+	})
+
+	t.Run("retainOnDelete propagates to the identity, the script and the grants", func(t *testing.T) {
+		capture := stub(newResourceCaptureMocks())
+		assert.NoError(t, deploy(t, capture, true))
+		for _, name := range []string{
+			"my-db-app-identity",
+			"my-db-app-identity-user",
+			"my-db-app-identity-role-db_owner",
+			"my-db-app-identity-permission-EXECUTE",
+			"my-db-app-identity-schema-dbo-permission-SELECT",
+		} {
+			assert.True(t, capture.retainOnDelete(name), name)
+		}
+	})
+
+	t.Run("retainOnDelete false leaves the script and the grants non-retained", func(t *testing.T) {
+		capture := stub(newResourceCaptureMocks())
+		assert.NoError(t, deploy(t, capture, false))
+		assert.False(t, capture.retainOnDelete("my-db-app-identity-user"))
+		assert.False(t, capture.retainOnDelete("my-db-app-identity-role-db_owner"))
+	})
+}
+
+func TestSqlQuoting(t *testing.T) {
+	tests := []struct {
+		name, identifier, literal string
+	}{
+		{"app_my-db_dev_mf", "[app_my-db_dev_mf]", "N'app_my-db_dev_mf'"},
+		{"a]b", "[a]]b]", "N'a]b'"},
+		{"o'neil", "[o'neil]", "N'o''neil'"},
+		{"x]'];DROP USER y;--", "[x]]']];DROP USER y;--]", "N'x]''];DROP USER y;--'"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.identifier, sqlQuotedIdentifier(tt.name))
+			assert.Equal(t, tt.literal, sqlStringLiteral(tt.name))
+		})
+	}
 }

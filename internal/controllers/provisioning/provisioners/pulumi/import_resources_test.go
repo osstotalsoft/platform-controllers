@@ -300,3 +300,35 @@ func TestImportResourceLevelOverride(t *testing.T) {
 		assert.Empty(t, capture.importId(t, "my-bucket"))
 	})
 }
+
+// On Managed Instance the identity's database user is a Script, which adopts an existing user
+// through its IF NOT EXISTS instead of being imported. Only the identity itself is imported.
+func TestImportAzureManagedDbIdentityUser(t *testing.T) {
+	tenant := newTenant("tenant1", "dev")
+	setAzureMssqlAuthEnv(t)
+
+	azureDb := newAzureManagedDb("my-db")
+	azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+		{Name: "app", ResourceGroupName: "ID_RG", Location: "westeurope", Roles: []string{"db_owner"}},
+	}
+
+	capture := newResourceCaptureMocks()
+	stubSubscription(capture)
+	capture.stubCall("azure-native:sql:getManagedInstance", resource.PropertyMap{
+		"fullyQualifiedDomainName": resource.NewStringProperty("incubsqlmi.zone.database.windows.net"),
+	})
+	stubIdentityUserLookup(capture, "12/7")
+
+	imports := importAll()
+	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+		_, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, imports, ctx)
+		return err
+	}, pulumi.WithMocks("project", "stack", capture))
+	assert.NoError(t, err)
+
+	assert.Equal(t, "/subscriptions/sub-1/resourceGroups/ID_RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/app_my-db_dev_tenant1",
+		capture.importId(t, "my-db-app-identity"))
+	assert.Empty(t, capture.byType["mssql:index/azureadServicePrincipal:AzureadServicePrincipal"], "no principal is imported")
+	assert.Empty(t, capture.importId(t, "my-db-app-identity-user"), "the script is never imported")
+	assert.Equal(t, "12/7", capture.byName["my-db-app-identity-role-db_owner"].Inputs["memberId"].StringValue())
+}
