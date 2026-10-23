@@ -31,7 +31,11 @@ func deployAzureManagedDb(
 	if err := validateNoCrossListNameCollision(azureDb.Spec.Users, azureDb.Spec.ManagedIdentities); err != nil {
 		return nil, err
 	}
-	if err := validateServiceAccounts(azureDb.Spec.ManagedIdentities, azureDb.Namespace); err != nil {
+	identities, err := renderServiceAccounts(azureDb.Spec.ManagedIdentities, target)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateServiceAccounts(identities, azureDb.Namespace); err != nil {
 		return nil, err
 	}
 	if err := validateUniqueDomains(azureDb.Spec.Exports, "exports"); err != nil {
@@ -136,8 +140,8 @@ func deployAzureManagedDb(
 			usersByName[user.Name] = deployedUser{username: username, password: password}
 		}
 
-		for i := range azureDb.Spec.ManagedIdentities {
-			identity := azureDb.Spec.ManagedIdentities[i]
+		for i := range identities {
+			identity := identities[i]
 			clientId, principalId, err := deployManagedIdentity(ctx, provider, fmt.Sprintf("%s-%s", azureDb.Name, identity.Name), databaseId,
 				&identity, dbName, azureDb.Namespace, identityUserFromExternalProvider, []pulumi.Resource{db}, pulumiRetainOnDelete, imports)
 			if err != nil {
