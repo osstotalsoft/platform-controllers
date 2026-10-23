@@ -171,10 +171,11 @@ type ManagedIdentitySpec struct {
 // FederatedServiceAccount is a Kubernetes ServiceAccount trusted to authenticate as a managed
 // identity, through a federated identity credential on that identity.
 type FederatedServiceAccount struct {
-	// ServiceAccount name.
+	// ServiceAccount name. A template rendered with the tenant context, like exports' keyTemplate,
+	// e.g. "app-{{ .Tenant.Code }}" for a ServiceAccount per tenant.
 	// +required
 	Name string `json:"name"`
-	// ServiceAccount namespace. Defaults to the owning resource's namespace.
+	// ServiceAccount namespace, a template like Name. Defaults to the owning resource's namespace.
 	// +optional
 	Namespace string `json:"namespace,omitempty"`
 }

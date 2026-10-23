@@ -227,6 +227,20 @@ func TestValidateServiceAccounts(t *testing.T) {
 			wantErr:         "must be 3-120 letters, digits",
 		},
 		{
+			name:            "invalid service account name",
+			issuer:          testOidcIssuer,
+			serviceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "My_App"}},
+			ownerNamespace:  "ns",
+			wantErr:         "spec.managedIdentities[app].serviceAccounts[My_App].name is not a valid ServiceAccount name",
+		},
+		{
+			name:            "invalid namespace",
+			issuer:          testOidcIssuer,
+			serviceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "sa1", Namespace: "qa.hcm"}},
+			ownerNamespace:  "ns",
+			wantErr:         `spec.managedIdentities[app].serviceAccounts[sa1].namespace "qa.hcm" is not a valid namespace`,
+		},
+		{
 			name:            "more than 20 service accounts",
 			issuer:          testOidcIssuer,
 			serviceAccounts: manyServiceAccounts(21),
@@ -240,6 +254,49 @@ func TestValidateServiceAccounts(t *testing.T) {
 			assert.ErrorContains(t, validateServiceAccounts(identity(tt.serviceAccounts...), tt.ownerNamespace), tt.wantErr)
 		})
 	}
+}
+
+func TestRenderServiceAccounts(t *testing.T) {
+	tenant := newTenant("mf", "dev")
+
+	t.Run("names and namespaces are rendered with the tenant context", func(t *testing.T) {
+		identities := []provisioningv1.ManagedIdentitySpec{{Name: "app", Roles: []string{"db_datareader"},
+			ServiceAccounts: []provisioningv1.FederatedServiceAccount{
+				{Name: "app-{{ .Tenant.Code }}"},
+				{Name: "worker", Namespace: "{{ .Tenant.Code }}-jobs"},
+			}}}
+		rendered, err := renderServiceAccounts(identities, tenant)
+		assert.NoError(t, err)
+		assert.Equal(t, []provisioningv1.FederatedServiceAccount{
+			{Name: "app-mf"},
+			{Name: "worker", Namespace: "mf-jobs"},
+		}, rendered[0].ServiceAccounts)
+		assert.Equal(t, []string{"db_datareader"}, rendered[0].Roles, "the rest of the identity is kept")
+		assert.Equal(t, "app-{{ .Tenant.Code }}", identities[0].ServiceAccounts[0].Name, "the spec itself must not be modified")
+	})
+
+	t.Run("names without a template are kept as they are", func(t *testing.T) {
+		identities := []provisioningv1.ManagedIdentitySpec{{Name: "app",
+			ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "charisma-hcm"}}}}
+		rendered, err := renderServiceAccounts(identities, tenant)
+		assert.NoError(t, err)
+		assert.Equal(t, identities, rendered)
+	})
+
+	t.Run("identities without service accounts", func(t *testing.T) {
+		rendered, err := renderServiceAccounts([]provisioningv1.ManagedIdentitySpec{{Name: "app"}}, tenant)
+		assert.NoError(t, err)
+		assert.Equal(t, []provisioningv1.ManagedIdentitySpec{{Name: "app"}}, rendered)
+		rendered, err = renderServiceAccounts(nil, tenant)
+		assert.NoError(t, err)
+		assert.Empty(t, rendered)
+	})
+
+	t.Run("an invalid template fails", func(t *testing.T) {
+		_, err := renderServiceAccounts([]provisioningv1.ManagedIdentitySpec{{Name: "app",
+			ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "app-{{ .Tenant.Unknown }}"}}}}, tenant)
+		assert.ErrorContains(t, err, "spec.managedIdentities[app].serviceAccounts[0].name")
+	})
 }
 
 func manyServiceAccounts(n int) []provisioningv1.FederatedServiceAccount {

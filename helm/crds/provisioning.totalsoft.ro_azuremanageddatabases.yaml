@@ -292,11 +292,13 @@ spec:
                           identity, through a federated identity credential on that identity.
                         properties:
                           name:
-                            description: ServiceAccount name.
+                            description: |-
+                              ServiceAccount name. A template rendered with the tenant context, like exports' keyTemplate,
+                              e.g. "app-{{ .Tenant.Code }}" for a ServiceAccount per tenant.
                             type: string
                           namespace:
-                            description: ServiceAccount namespace. Defaults to the
-                              owning resource's namespace.
+                            description: ServiceAccount namespace, a template like
+                              Name. Defaults to the owning resource's namespace.
                             type: string
                         required:
                         - name

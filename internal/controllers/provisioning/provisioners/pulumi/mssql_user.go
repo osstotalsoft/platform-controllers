@@ -10,6 +10,9 @@ import (
 	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	mssql "github.com/pulumiverse/pulumi-mssql/sdk/go/mssql"
+	"k8s.io/apimachinery/pkg/util/validation"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	"totalsoft.ro/platform-controllers/internal/template"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -646,10 +649,42 @@ func deployFederatedCredentials(ctx *pulumi.Context, identity *managedidentity.U
 	return nil
 }
 
-// validateServiceAccounts checks every managedIdentities[].serviceAccounts list before anything is
-// deployed: EnvAzureAksOidcIssuerUrl must be an https URL, each entry needs a name and a namespace (its own or
-// ownerNamespace), its federated credential name must be valid and unique within the identity, and
-// an identity can't have more than Azure's maxFederatedCredentialsPerIdentity credentials.
+// renderServiceAccounts returns identities with every serviceAccounts[].name and .namespace rendered
+// as a template with target's context, like exports[].keyTemplate, so one spec can give each tenant
+// its own ServiceAccount, e.g. name: "app-{{ .Tenant.Code }}". A value without a template renders to
+// itself. identities itself is left unchanged.
+func renderServiceAccounts(identities []provisioningv1.ManagedIdentitySpec, target provisioning.ProvisioningTarget) ([]provisioningv1.ManagedIdentitySpec, error) {
+	if len(identities) == 0 {
+		return identities, nil
+	}
+	templateContext := provisioning.GetTemplateContext(target)
+	rendered := make([]provisioningv1.ManagedIdentitySpec, len(identities))
+	for i, identity := range identities {
+		if len(identity.ServiceAccounts) > 0 {
+			serviceAccounts := make([]provisioningv1.FederatedServiceAccount, len(identity.ServiceAccounts))
+			for j, sa := range identity.ServiceAccounts {
+				name, err := template.ParseTemplate(sa.Name, templateContext)
+				if err != nil {
+					return nil, fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%d].name: %w", identity.Name, j, err)
+				}
+				namespace, err := template.ParseTemplate(sa.Namespace, templateContext)
+				if err != nil {
+					return nil, fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%d].namespace: %w", identity.Name, j, err)
+				}
+				serviceAccounts[j] = provisioningv1.FederatedServiceAccount{Name: name, Namespace: namespace}
+			}
+			identity.ServiceAccounts = serviceAccounts
+		}
+		rendered[i] = identity
+	}
+	return rendered, nil
+}
+
+// validateServiceAccounts checks every managedIdentities[].serviceAccounts list, as rendered by
+// renderServiceAccounts, before anything is deployed: EnvAzureAksOidcIssuerUrl must be an https URL,
+// each entry needs a valid ServiceAccount name and a valid namespace (its own or ownerNamespace), its
+// federated credential name must be valid and unique within the identity, and an identity can't have
+// more than Azure's maxFederatedCredentialsPerIdentity credentials.
 func validateServiceAccounts(identities []provisioningv1.ManagedIdentitySpec, ownerNamespace string) error {
 	for _, identity := range identities {
 		if len(identity.ServiceAccounts) == 0 {
@@ -671,9 +706,17 @@ func validateServiceAccounts(identities []provisioningv1.ManagedIdentitySpec, ow
 			if sa.Name == "" {
 				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[].name is required", identity.Name)
 			}
+			if errs := validation.IsDNS1123Subdomain(sa.Name); len(errs) > 0 {
+				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%s].name is not a valid ServiceAccount name: %s",
+					identity.Name, sa.Name, strings.Join(errs, "; "))
+			}
 			namespace := resolveName(sa.Namespace, ownerNamespace)
 			if namespace == "" {
 				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%s].namespace is required", identity.Name, sa.Name)
+			}
+			if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+				return fmt.Errorf("spec.managedIdentities[%s].serviceAccounts[%s].namespace %q is not a valid namespace: %s",
+					identity.Name, sa.Name, namespace, strings.Join(errs, "; "))
 			}
 			credentialName := federatedCredentialName(namespace, sa.Name)
 			if !federatedCredentialNamePattern.MatchString(credentialName) {

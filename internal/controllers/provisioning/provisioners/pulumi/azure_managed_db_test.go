@@ -567,6 +567,33 @@ func TestDeployAzureManagedDbFederatedCredentials(t *testing.T) {
 		assert.Equal(t, "charisma-hcm_mi-db-fic_dev_mf", credentials[0].Inputs["resourceName"].StringValue())
 	})
 
+	// One release per tenant, each with its own ServiceAccount: the tenant's identity must trust only
+	// that tenant's ServiceAccount.
+	t.Run("a templated service account name gives each tenant its own service account", func(t *testing.T) {
+		setAzureMssqlAuthEnv(t)
+		t.Setenv(EnvAzureAksOidcIssuerUrl, testOidcIssuer)
+		azureDb := newAzureManagedDb("mi-db-fic-per-tenant")
+		azureDb.Namespace = "qa-hcm"
+		azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
+			{Name: "charisma-online", ResourceGroupName: "SQLMI_RG", Location: "westeurope",
+				ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "charisma-online-{{ .Tenant.Code }}"}}},
+		}
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployAzureManagedDb(tenant, azureDb, []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+
+		credentials := capture.byType[federatedCredentialType]
+		assert.Len(t, credentials, 1)
+		assert.Equal(t, "system:serviceaccount:qa-hcm:charisma-online-mf", credentials[0].Inputs["subject"].StringValue())
+		assert.Equal(t, "qa-hcm_charisma-online-mf", credentials[0].Inputs["federatedIdentityCredentialResourceName"].StringValue())
+		assert.Equal(t, "charisma-online_mi-db-fic-per-tenant_dev_mf", credentials[0].Inputs["resourceName"].StringValue())
+		assert.Equal(t, "charisma-online-{{ .Tenant.Code }}", azureDb.Spec.ManagedIdentities[0].ServiceAccounts[0].Name,
+			"the CR spec must not be modified")
+	})
+
 	t.Run("invalid service accounts fail fast, before any pulumi resource is created", func(t *testing.T) {
 		setAzureMssqlAuthEnv(t)
 		t.Setenv(EnvAzureAksOidcIssuerUrl, "")

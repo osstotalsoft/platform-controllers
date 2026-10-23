@@ -450,7 +450,7 @@ func TestDeployAzureDbFederatedCredentials(t *testing.T) {
 	azureDb.Namespace = "my-ns"
 	azureDb.Spec.ManagedIdentities = []provisioningv1.ManagedIdentitySpec{
 		{Name: "app", ResourceGroupName: "SQL_RG", Location: "westeurope",
-			ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "app-sa"}}},
+			ServiceAccounts: []provisioningv1.FederatedServiceAccount{{Name: "app-sa"}, {Name: "app-{{ .Tenant.Code }}"}}},
 	}
 	capture := newResourceCaptureMocks()
 	err := pulumi.RunErr(func(ctx *pulumi.Context) error {
@@ -460,6 +460,8 @@ func TestDeployAzureDbFederatedCredentials(t *testing.T) {
 	assert.NoError(t, err)
 
 	credentials := capture.byType[federatedCredentialType]
-	assert.Len(t, credentials, 1)
-	assert.Equal(t, "system:serviceaccount:my-ns:app-sa", credentials[0].Inputs["subject"].StringValue())
+	assert.Len(t, credentials, 2)
+	assert.Equal(t, "system:serviceaccount:my-ns:app-sa", capture.byName["azure-db-fic-app-identity-fic-my-ns_app-sa"].Inputs["subject"].StringValue())
+	assert.Equal(t, "system:serviceaccount:my-ns:app-tenant1", capture.byName["azure-db-fic-app-identity-fic-my-ns_app-tenant1"].Inputs["subject"].StringValue(),
+		"service account names are rendered with the tenant context")
 }
