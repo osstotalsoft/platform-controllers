@@ -21,14 +21,16 @@ package v1alpha1
 // AzureManagedDatabaseExportsSpecApplyConfiguration represents an declarative configuration of the AzureManagedDatabaseExportsSpec type for use
 // with apply.
 type AzureManagedDatabaseExportsSpecApplyConfiguration struct {
-	Domain              *string                        `json:"domain,omitempty"`
-	DbName              *ValueExportApplyConfiguration `json:"dbName,omitempty"`
-	UserRef             *string                        `json:"userRef,omitempty"`
-	Username            *ValueExportApplyConfiguration `json:"username,omitempty"`
-	Password            *ValueExportApplyConfiguration `json:"password,omitempty"`
-	IdentityRef         *string                        `json:"identityRef,omitempty"`
-	IdentityClientId    *ValueExportApplyConfiguration `json:"identityClientId,omitempty"`
-	IdentityPrincipalId *ValueExportApplyConfiguration `json:"identityPrincipalId,omitempty"`
+	Domain              *string                                  `json:"domain,omitempty"`
+	DbName              *ValueExportApplyConfiguration           `json:"dbName,omitempty"`
+	Users               []ExportedUserSpecApplyConfiguration     `json:"users,omitempty"`
+	Identities          []ExportedIdentitySpecApplyConfiguration `json:"identities,omitempty"`
+	UserRef             *string                                  `json:"userRef,omitempty"`
+	Username            *ValueExportApplyConfiguration           `json:"username,omitempty"`
+	Password            *ValueExportApplyConfiguration           `json:"password,omitempty"`
+	IdentityRef         *string                                  `json:"identityRef,omitempty"`
+	IdentityClientId    *ValueExportApplyConfiguration           `json:"identityClientId,omitempty"`
+	IdentityPrincipalId *ValueExportApplyConfiguration           `json:"identityPrincipalId,omitempty"`
 }
 
 // AzureManagedDatabaseExportsSpecApplyConfiguration constructs an declarative configuration of the AzureManagedDatabaseExportsSpec type for use with
@@ -50,6 +52,32 @@ func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithDomain(value str
 // If called multiple times, the DbName field is set to the value of the last call.
 func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithDbName(value *ValueExportApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
 	b.DbName = value
+	return b
+}
+
+// WithUsers adds the given value to the Users field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Users field.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithUsers(values ...*ExportedUserSpecApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithUsers")
+		}
+		b.Users = append(b.Users, *values[i])
+	}
+	return b
+}
+
+// WithIdentities adds the given value to the Identities field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Identities field.
+func (b *AzureManagedDatabaseExportsSpecApplyConfiguration) WithIdentities(values ...*ExportedIdentitySpecApplyConfiguration) *AzureManagedDatabaseExportsSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithIdentities")
+		}
+		b.Identities = append(b.Identities, *values[i])
+	}
 	return b
 }
 

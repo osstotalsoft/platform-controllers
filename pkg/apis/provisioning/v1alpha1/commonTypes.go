@@ -183,3 +183,30 @@ type FederatedServiceAccount struct {
 // GetName returns the managed identity's name, satisfying the resolveRef/validateUniqueNames
 // helpers' named[T] constraint (internal/controllers/provisioning/provisioners/pulumi/mssql_user.go).
 func (m ManagedIdentitySpec) GetName() string { return m.Name }
+
+// ExportedUserSpec exports the username and password of one users[] entry, as an item of an
+// exports[] entry's users list.
+type ExportedUserSpec struct {
+	// Name of the users[] entry whose username/password are exported. Optional when users has exactly
+	// one entry (defaults to it); required to disambiguate when users has more than one entry. Each
+	// users[] entry can be exported at most once per exports[] entry.
+	// +optional
+	UserRef string `json:"userRef,omitempty"`
+	// +optional
+	Username ValueExport `json:"username,omitempty"`
+	// +optional
+	Password ValueExport `json:"password,omitempty"`
+}
+
+// ExportedIdentitySpec exports the client and principal ids of one managedIdentities[] entry, as an
+// item of an exports[] entry's identities list.
+type ExportedIdentitySpec struct {
+	// Name of the managedIdentities[] entry whose ids are exported. Same defaulting rule as userRef.
+	// Each managedIdentities[] entry can be exported at most once per exports[] entry.
+	// +optional
+	IdentityRef string `json:"identityRef,omitempty"`
+	// +optional
+	IdentityClientId ValueExport `json:"identityClientId,omitempty"`
+	// +optional
+	IdentityPrincipalId ValueExport `json:"identityPrincipalId,omitempty"`
+}

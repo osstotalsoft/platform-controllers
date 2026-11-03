@@ -115,7 +115,74 @@ spec:
                       description: The domain or bounded-context in which this database
                         will be used.
                       type: string
+                    identities:
+                      description: |-
+                        Managed identities whose client/principal ids are exported to this domain, one item per
+                        managedIdentities[] entry. All their values go into the domain's single ConfigMap/Secret/vault
+                        secret, so their keys must be distinct. Replaces identityRef/identityClientId/
+                        identityPrincipalId, which it can be combined with.
+                      items:
+                        description: |-
+                          ExportedIdentitySpec exports the client and principal ids of one managedIdentities[] entry, as an
+                          item of an exports[] entry's identities list.
+                        properties:
+                          identityClientId:
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                          identityPrincipalId:
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                          identityRef:
+                            description: |-
+                              Name of the managedIdentities[] entry whose ids are exported. Same defaulting rule as userRef.
+                              Each managedIdentities[] entry can be exported at most once per exports[] entry.
+                            type: string
+                        type: object
+                      type: array
                     identityClientId:
+                      description: 'Deprecated: use identities instead.'
                       properties:
                         toConfigMap:
                           properties:
@@ -140,6 +207,7 @@ spec:
                           type: object
                       type: object
                     identityPrincipalId:
+                      description: 'Deprecated: use identities instead.'
                       properties:
                         toConfigMap:
                           properties:
@@ -167,8 +235,11 @@ spec:
                       description: |-
                         Name of the managedIdentities[] entry whose identity is exported below. Same defaulting rule
                         as userRef.
+
+                        Deprecated: use identities instead.
                       type: string
                     password:
+                      description: 'Deprecated: use users instead.'
                       properties:
                         toConfigMap:
                           properties:
@@ -196,8 +267,11 @@ spec:
                       description: |-
                         Name of the users[] entry whose username/password are exported below. Optional when users has
                         exactly one entry (defaults to it); required to disambiguate when users has more than one entry.
+
+                        Deprecated: use users instead.
                       type: string
                     username:
+                      description: 'Deprecated: use users instead.'
                       properties:
                         toConfigMap:
                           properties:
@@ -221,6 +295,72 @@ spec:
                           - keyTemplate
                           type: object
                       type: object
+                    users:
+                      description: |-
+                        Users whose username/password are exported to this domain, one item per users[] entry. All
+                        their values go into the domain's single ConfigMap/Secret/vault secret, so their keys must be
+                        distinct. Replaces userRef/username/password, which it can be combined with.
+                      items:
+                        description: |-
+                          ExportedUserSpec exports the username and password of one users[] entry, as an item of an
+                          exports[] entry's users list.
+                        properties:
+                          password:
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                          userRef:
+                            description: |-
+                              Name of the users[] entry whose username/password are exported. Optional when users has exactly
+                              one entry (defaults to it); required to disambiguate when users has more than one entry. Each
+                              users[] entry can be exported at most once per exports[] entry.
+                            type: string
+                          username:
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                        type: object
+                      type: array
                   required:
                   - domain
                   type: object

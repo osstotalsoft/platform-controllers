@@ -78,20 +78,39 @@ type AzureManagedDatabaseExportsSpec struct {
 	Domain string `json:"domain"`
 	// +optional
 	DbName ValueExport `json:"dbName,omitempty"`
+	// Users whose username/password are exported to this domain, one item per users[] entry. All
+	// their values go into the domain's single ConfigMap/Secret/vault secret, so their keys must be
+	// distinct. Replaces userRef/username/password, which it can be combined with.
+	// +optional
+	Users []ExportedUserSpec `json:"users,omitempty"`
+	// Managed identities whose client/principal ids are exported to this domain, one item per
+	// managedIdentities[] entry. All their values go into the domain's single ConfigMap/Secret/vault
+	// secret, so their keys must be distinct. Replaces identityRef/identityClientId/
+	// identityPrincipalId, which it can be combined with.
+	// +optional
+	Identities []ExportedIdentitySpec `json:"identities,omitempty"`
 	// Name of the users[] entry whose username/password are exported below. Optional when users has
 	// exactly one entry (defaults to it); required to disambiguate when users has more than one entry.
+	//
+	// Deprecated: use users instead.
 	// +optional
 	UserRef string `json:"userRef,omitempty"`
+	// Deprecated: use users instead.
 	// +optional
 	Username ValueExport `json:"username,omitempty"`
+	// Deprecated: use users instead.
 	// +optional
 	Password ValueExport `json:"password,omitempty"`
 	// Name of the managedIdentities[] entry whose identity is exported below. Same defaulting rule
 	// as userRef.
+	//
+	// Deprecated: use identities instead.
 	// +optional
 	IdentityRef string `json:"identityRef,omitempty"`
+	// Deprecated: use identities instead.
 	// +optional
 	IdentityClientId ValueExport `json:"identityClientId,omitempty"`
+	// Deprecated: use identities instead.
 	// +optional
 	IdentityPrincipalId ValueExport `json:"identityPrincipalId,omitempty"`
 }
