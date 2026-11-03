@@ -52,6 +52,9 @@ test-linux:
 test-windows:
 	powershell -NoProfile -ExecutionPolicy Bypass -Command "$$env:CGO_ENABLED='0'; $$packages = go list ./... | Where-Object { $$_ -notmatch 'platform-controllers/pkg/generated' }; go test -v $$packages"
 
+vet:
+	go vet ./...
+
 lint:
 	go tool staticcheck ./...
 
