@@ -21,11 +21,12 @@ package v1alpha1
 // MsSqlDatabaseExportsSpecApplyConfiguration represents an declarative configuration of the MsSqlDatabaseExportsSpec type for use
 // with apply.
 type MsSqlDatabaseExportsSpecApplyConfiguration struct {
-	Domain   *string                        `json:"domain,omitempty"`
-	DbName   *ValueExportApplyConfiguration `json:"dbName,omitempty"`
-	UserRef  *string                        `json:"userRef,omitempty"`
-	Username *ValueExportApplyConfiguration `json:"username,omitempty"`
-	Password *ValueExportApplyConfiguration `json:"password,omitempty"`
+	Domain   *string                              `json:"domain,omitempty"`
+	DbName   *ValueExportApplyConfiguration       `json:"dbName,omitempty"`
+	Users    []ExportedUserSpecApplyConfiguration `json:"users,omitempty"`
+	UserRef  *string                              `json:"userRef,omitempty"`
+	Username *ValueExportApplyConfiguration       `json:"username,omitempty"`
+	Password *ValueExportApplyConfiguration       `json:"password,omitempty"`
 }
 
 // MsSqlDatabaseExportsSpecApplyConfiguration constructs an declarative configuration of the MsSqlDatabaseExportsSpec type for use with
@@ -47,6 +48,19 @@ func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithDomain(value string) *M
 // If called multiple times, the DbName field is set to the value of the last call.
 func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithDbName(value *ValueExportApplyConfiguration) *MsSqlDatabaseExportsSpecApplyConfiguration {
 	b.DbName = value
+	return b
+}
+
+// WithUsers adds the given value to the Users field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the Users field.
+func (b *MsSqlDatabaseExportsSpecApplyConfiguration) WithUsers(values ...*ExportedUserSpecApplyConfiguration) *MsSqlDatabaseExportsSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithUsers")
+		}
+		b.Users = append(b.Users, *values[i])
+	}
 	return b
 }
 

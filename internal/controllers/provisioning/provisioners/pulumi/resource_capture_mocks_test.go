@@ -25,6 +25,7 @@ type resourceCaptureMocks struct {
 	byType      map[string][]pulumi.MockResourceArgs
 	byName      map[string]pulumi.MockResourceArgs
 	callResults map[string]resource.PropertyMap
+	identityIds map[string][2]string
 }
 
 func newResourceCaptureMocks() *resourceCaptureMocks {
@@ -32,6 +33,7 @@ func newResourceCaptureMocks() *resourceCaptureMocks {
 		byType:      map[string][]pulumi.MockResourceArgs{},
 		byName:      map[string]pulumi.MockResourceArgs{},
 		callResults: map[string]resource.PropertyMap{},
+		identityIds: map[string][2]string{},
 	}
 }
 
@@ -39,6 +41,7 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 	m.mu.Lock()
 	m.byType[args.TypeToken] = append(m.byType[args.TypeToken], args)
 	m.byName[args.Name] = args
+	ids, stubbedIds := m.identityIds[args.Name]
 	m.mu.Unlock()
 
 	// The default WithMocks convention is to echo Inputs back as the resource's outputs. That's not
@@ -59,6 +62,10 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 		outputs["name"] = args.Inputs["resourceName"]
 		outputs["clientId"] = resource.NewStringProperty("11111111-1111-1111-1111-111111111111")
 		outputs["principalId"] = resource.NewStringProperty("22222222-2222-2222-2222-222222222222")
+		if stubbedIds {
+			outputs["clientId"] = resource.NewStringProperty(ids[0])
+			outputs["principalId"] = resource.NewStringProperty(ids[1])
+		}
 	}
 
 	return args.Name + "_id", outputs, nil
@@ -80,6 +87,15 @@ func (m *resourceCaptureMocks) stubCall(token string, result resource.PropertyMa
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.callResults[token] = result
+}
+
+// stubIdentityIds makes the UserAssignedIdentity registered under name return the given client and
+// principal ids instead of the shared defaults, so a test with several identities can tell which
+// identity's id ended up where. Must be called before the test's pulumi.RunErr starts.
+func (m *resourceCaptureMocks) stubIdentityIds(name, clientId, principalId string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.identityIds[name] = [2]string{clientId, principalId}
 }
 
 // hasAnyTypeWithPrefix reports whether any registered resource's TypeToken starts with prefix

@@ -154,22 +154,20 @@ func deployAzureManagedDb(
 	for _, exp := range azureDb.Spec.Exports {
 		values := map[string]exportTemplateWithValue{"dbname": {exp.DbName, db.Name}}
 
-		if exp.UserRef != "" || exp.Username != (provisioningv1.ValueExport{}) || exp.Password != (provisioningv1.ValueExport{}) {
-			user, err := resolveRef(usersByName, exp.UserRef, exp.Domain, "userRef", "users")
-			if err != nil {
-				return nil, err
-			}
-			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(user.username)}
-			values["password"] = exportTemplateWithValue{exp.Password, user.password}
+		//lint:ignore SA1019 the deprecated single fields stay supported for backward compatibility
+		userExp := userExports{exp.UserRef, exp.Username, exp.Password, exp.Users}
+		if err := addUserExports(values, usersByName, userExp, exp.Domain); err != nil {
+			return nil, err
 		}
-
-		if exp.IdentityRef != "" || exp.IdentityClientId != (provisioningv1.ValueExport{}) || exp.IdentityPrincipalId != (provisioningv1.ValueExport{}) {
-			identity, err := resolveRef(identitiesByName, exp.IdentityRef, exp.Domain, "identityRef", "managedIdentities")
-			if err != nil {
+		//lint:ignore SA1019 the deprecated single fields stay supported for backward compatibility
+		identityExp := identityExports{exp.IdentityRef, exp.IdentityClientId, exp.IdentityPrincipalId, exp.Identities}
+		if err := addIdentityExports(values, identitiesByName, identityExp, exp.Domain); err != nil {
+			return nil, err
+		}
+		if len(exp.Users) > 0 || len(exp.Identities) > 0 {
+			if err := validateExportKeys(values, provisioning.GetTemplateContext(target), exp.Domain); err != nil {
 				return nil, err
 			}
-			values["identityClientId"] = exportTemplateWithValue{exp.IdentityClientId, identity.clientId}
-			values["identityPrincipalId"] = exportTemplateWithValue{exp.IdentityPrincipalId, identity.principalId}
 		}
 
 		err = valueExporter(newExportContext(ctx, exp.Domain, azureDb.Name, azureDb.ObjectMeta, gvk),

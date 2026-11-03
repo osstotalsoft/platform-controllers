@@ -312,13 +312,19 @@ spec:
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
-      userRef: origination_app_user # optional here since users has exactly one entry
-      username:
-        toConfigMap:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
-      password:
-        toVault:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
+      users:
+        - userRef: origination_app_user # optional here since users has exactly one entry
+          username:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+          password:
+            toVault:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
+      identities:
+        - identityRef: origination_app_identity # optional here since managedIdentities has exactly one entry
+          identityClientId:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__IdentityClientId
   platformRef: charismaonline.qa
   sourceDatabaseId: /subscriptions/XXXXXX-b8a5-4967-a05a-2fa3c4295710/resourceGroups/SQLMI_RG/providers/Microsoft.Sql/servers/r7ddbsrv/databases/insurance_db
   sqlServer:
@@ -326,6 +332,8 @@ spec:
     resourceGroupName: SQL_RG
     serverName: r7ddbsrv
 ```
+
+`exports[].users` and `exports[].identities` work as described in [Exporting users and identities](#exporting-users-and-identities).
 
 > _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
@@ -359,22 +367,33 @@ spec:
         - db_owner
       serviceAccounts: # optional, AKS Workload Identity
         - name: origination-api # namespace defaults to this resource's namespace
+    - name: origination_migrations_identity
+      resourceGroupName: SQL_RG
+      location: westeurope
+      roles:
+        - db_owner
   exports:
     - domain: origination
       dbName:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database
-      userRef: origination_app_user # optional here since users has exactly one entry
-      username:
-        toConfigMap:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
-      password:
-        toVault:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
-      identityRef: origination_app_identity # optional here since managedIdentities has exactly one entry
-      identityClientId:
-        toConfigMap:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__IdentityClientId
+      users:
+        - userRef: origination_app_user # optional here since users has exactly one entry
+          username:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+          password:
+            toVault:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
+      identities: # required here since managedIdentities has more than one entry
+        - identityRef: origination_app_identity
+          identityClientId:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__IdentityClientId
+        - identityRef: origination_migrations_identity
+          identityClientId:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__MigrationClientId
   managedInstance:
     name: incubsqlmi
     resourceGroup: SQLMI_RG
@@ -388,9 +407,20 @@ spec:
 
 > _Note_ You can skip provisioning for some tenant by adding the label `provisioning.totalsoft.ro/skip-tenant-SOME_TENANT_CODE`="true"
 
+#### Exporting users and identities
+
+An `exports[]` entry publishes values into its `domain`'s ConfigMap, Secret and vault secret — one of each per domain. `users` and `identities` (`identities` only on `AzureManagedDatabase` and `AzureDatabase`; `users` also on `MsSqlDatabase`) let one entry publish several of them there:
+
+- Each `users` item exports one `users` entry's `username` and/or `password`; each `identities` item exports one `managedIdentities` entry's `identityClientId` and/or `identityPrincipalId`. An item must export at least one value.
+- `userRef` / `identityRef` select the entry. They are optional only when the list they point to has exactly one entry.
+- An entry can export the same user or identity only once.
+- All the entry's values end up side by side in the same objects, so their `keyTemplate`s must render distinct, non-empty keys in each destination. An entry that sets `users` or `identities` is rejected otherwise; the check covers every value of that entry, `dbName` included.
+
+> _Deprecated_ The single-value fields `userRef`/`username`/`password` and `identityRef`/`identityClientId`/`identityPrincipalId` on an `exports[]` entry still work exactly as before, and can be combined with the lists, but new specs should use `users` and `identities`. Moving a spec to the lists with the same `keyTemplate`s publishes the same keys and values.
+
 #### Managed identities
 
-Each `managedIdentities` entry (also available on `AzureDatabase`) creates, per tenant, an Azure user-assigned managed identity named `<name>_<database name>` and adds it to the database as an Entra user with the given `roles`, `permissions` and `schemaPermissions`. Its client and principal ids can be exported with `identityClientId` and `identityPrincipalId` (`identityRef` selects the identity).
+Each `managedIdentities` entry (also available on `AzureDatabase`) creates, per tenant, an Azure user-assigned managed identity named `<name>_<database name>` and adds it to the database as an Entra user with the given `roles`, `permissions` and `schemaPermissions`. Its client and principal ids are exported with an `exports[].identities` item; see [Exporting users and identities](#exporting-users-and-identities).
 
 On a Managed Instance (`AzureManagedDatabase`) the Entra user is created with `CREATE USER [<name>_<database name>] FROM EXTERNAL PROVIDER`, which looks the identity up in Entra ID by its display name; an existing user with that name is kept as it is. (`AzureDatabase` creates it from the identity's client id, without a directory lookup.) So every Managed Instance used with `managedIdentities` needs:
 
@@ -786,13 +816,14 @@ spec:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Test_Database__Database
       domain: domain1
-      userRef: test_app_user # optional here since users has exactly one entry
-      username:
-        toConfigMap:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
-      password:
-        toVault:
-          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
+      users:
+        - userRef: test_app_user # optional here since users has exactly one entry
+          username:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username
+          password:
+            toVault:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
   platformRef: provisioning.test
   restoreFrom:
     backupFilePath: C:\tmp\test-db\mydb.bak
@@ -805,6 +836,8 @@ spec:
   target:
     category: Tenant
 ```
+
+`exports[].users` works as described in [Exporting users and identities](#exporting-users-and-identities).
 
 ### LocalScript
 

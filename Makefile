@@ -52,6 +52,12 @@ test-linux:
 test-windows:
 	powershell -NoProfile -ExecutionPolicy Bypass -Command "$$env:CGO_ENABLED='0'; $$packages = go list ./... | Where-Object { $$_ -notmatch 'platform-controllers/pkg/generated' }; go test -v $$packages"
 
+vet:
+	go vet ./...
+
+lint:
+	go tool staticcheck ./...
+
 include hack/generate_kube_crd.mk
 include docker/docker.mk
 include internal/controllers/provisioning/provisioners/pulumi/fluxcd/generate_pulumi_fluxcd_apis.mk

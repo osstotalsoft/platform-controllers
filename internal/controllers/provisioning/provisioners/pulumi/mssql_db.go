@@ -161,13 +161,15 @@ ALTER DATABASE [%v] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 	for _, exp := range mssqlDb.Spec.Exports {
 		values := map[string]exportTemplateWithValue{"dbName": {exp.DbName, db.Name}}
 
-		if exp.UserRef != "" || exp.Username != (provisioningv1.ValueExport{}) || exp.Password != (provisioningv1.ValueExport{}) {
-			user, err := resolveRef(usersByName, exp.UserRef, exp.Domain, "userRef", "users")
-			if err != nil {
+		//lint:ignore SA1019 the deprecated single fields stay supported for backward compatibility
+		userExp := userExports{exp.UserRef, exp.Username, exp.Password, exp.Users}
+		if err := addUserExports(values, usersByName, userExp, exp.Domain); err != nil {
+			return nil, err
+		}
+		if len(exp.Users) > 0 {
+			if err := validateExportKeys(values, provisioning.GetTemplateContext(target), exp.Domain); err != nil {
 				return nil, err
 			}
-			values["username"] = exportTemplateWithValue{exp.Username, pulumi.String(user.username)}
-			values["password"] = exportTemplateWithValue{exp.Password, user.password}
 		}
 
 		err = valueExporter(newExportContext(ctx, exp.Domain, mssqlDb.Name, mssqlDb.ObjectMeta, gvk), values)
