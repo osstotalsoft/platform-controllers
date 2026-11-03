@@ -1,6 +1,7 @@
 package pulumi
 
 import (
+	"sort"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	mssql "github.com/pulumiverse/pulumi-mssql/sdk/go/mssql"
 	"github.com/stretchr/testify/assert"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -435,6 +437,234 @@ func TestResolveRef(t *testing.T) {
 	t.Run("empty ref is an error with zero entries", func(t *testing.T) {
 		_, err := resolveRef(map[string]string{}, "", "myDomain", "userRef", "users")
 		assert.ErrorContains(t, err, "userRef is required when spec.users does not have exactly one entry")
+	})
+}
+
+func valueKeys(values map[string]exportTemplateWithValue) []string {
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func TestAddUserExports(t *testing.T) {
+	user := func(name string) deployedUser {
+		return deployedUser{username: name, password: pulumi.String("pwd").ToStringOutput()}
+	}
+	one := map[string]deployedUser{"app": user("app")}
+	two := map[string]deployedUser{"app": user("app"), "migrations": user("migrations")}
+
+	t.Run("nothing exported adds nothing", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		assert.NoError(t, addUserExports(values, two, userExports{}, "d"))
+		assert.Empty(t, values)
+	})
+
+	t.Run("single fields keep their value keys", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addUserExports(values, one, userExports{username: configMapExport("Username")}, "d")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"password", "username"}, valueKeys(values))
+		assert.Equal(t, configMapExport("Username"), values["username"].valueExport)
+	})
+
+	t.Run("users items get indexed value keys", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addUserExports(values, two, userExports{users: []provisioningv1.ExportedUserSpec{
+			{UserRef: "app", Username: configMapExport("Username")},
+			{UserRef: "migrations", Password: vaultExport("MigrationPassword")},
+		}}, "d")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"users[0].password", "users[0].username", "users[1].password", "users[1].username"}, valueKeys(values))
+		assert.Equal(t, vaultExport("MigrationPassword"), values["users[1].password"].valueExport)
+	})
+
+	t.Run("single fields and users combine", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addUserExports(values, two, userExports{
+			userRef: "app", username: configMapExport("Username"),
+			users: []provisioningv1.ExportedUserSpec{{UserRef: "migrations", Username: configMapExport("MigrationUsername")}},
+		}, "d")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"password", "username", "users[0].password", "users[0].username"}, valueKeys(values))
+	})
+
+	t.Run("empty userRef defaults to the sole user", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addUserExports(values, one, userExports{users: []provisioningv1.ExportedUserSpec{{Username: configMapExport("Username")}}}, "d")
+		assert.NoError(t, err)
+		assert.Contains(t, values, "users[0].username")
+	})
+
+	t.Run("empty userRef is ambiguous with more than one user", func(t *testing.T) {
+		err := addUserExports(map[string]exportTemplateWithValue{}, two,
+			userExports{users: []provisioningv1.ExportedUserSpec{{Username: configMapExport("Username")}}}, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: users[].userRef is required when spec.users does not have exactly one entry")
+	})
+
+	t.Run("unknown userRef", func(t *testing.T) {
+		err := addUserExports(map[string]exportTemplateWithValue{}, two,
+			userExports{users: []provisioningv1.ExportedUserSpec{{UserRef: "nope", Username: configMapExport("Username")}}}, "d")
+		assert.ErrorContains(t, err, `exports[domain=d]: users[].userRef "nope" does not match any spec.users[].name`)
+	})
+
+	t.Run("users item without values", func(t *testing.T) {
+		err := addUserExports(map[string]exportTemplateWithValue{}, two,
+			userExports{users: []provisioningv1.ExportedUserSpec{{UserRef: "app"}}}, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: users[0] must export username or password")
+	})
+
+	t.Run("same user twice in users", func(t *testing.T) {
+		err := addUserExports(map[string]exportTemplateWithValue{}, two, userExports{users: []provisioningv1.ExportedUserSpec{
+			{UserRef: "app", Username: configMapExport("Username")},
+			{UserRef: "app", Username: configMapExport("OtherUsername")},
+		}}, "d")
+		assert.ErrorContains(t, err, `exports[domain=d]: users[1] exports spec.users[].name "app", which this exports[] entry already exports`)
+	})
+
+	t.Run("same user in userRef and users, after defaulting", func(t *testing.T) {
+		err := addUserExports(map[string]exportTemplateWithValue{}, one, userExports{
+			username: configMapExport("Username"),
+			users:    []provisioningv1.ExportedUserSpec{{UserRef: "app", Password: vaultExport("Password")}},
+		}, "d")
+		assert.ErrorContains(t, err, `users[0] exports spec.users[].name "app", which this exports[] entry already exports`)
+	})
+}
+
+func TestAddIdentityExports(t *testing.T) {
+	identity := deployedIdentity{
+		clientId:    pulumi.String("client").ToStringOutput(),
+		principalId: pulumi.String("principal").ToStringOutput(),
+	}
+	one := map[string]deployedIdentity{"charisma-online": identity}
+	two := map[string]deployedIdentity{"charisma-online": identity, "charisma-online-migrations": identity}
+
+	t.Run("nothing exported adds nothing", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		assert.NoError(t, addIdentityExports(values, two, identityExports{}, "d"))
+		assert.Empty(t, values)
+	})
+
+	t.Run("single fields keep their value keys", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addIdentityExports(values, one, identityExports{identityClientId: configMapExport("IdentityClientId")}, "d")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"identityClientId", "identityPrincipalId"}, valueKeys(values))
+	})
+
+	t.Run("identities items get indexed value keys", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addIdentityExports(values, two, identityExports{identities: []provisioningv1.ExportedIdentitySpec{
+			{IdentityRef: "charisma-online", IdentityClientId: configMapExport("IdentityClientId")},
+			{IdentityRef: "charisma-online-migrations", IdentityClientId: configMapExport("MigrationClientId")},
+		}}, "hr-admin")
+		assert.NoError(t, err)
+		assert.Equal(t, []string{
+			"identities[0].identityClientId", "identities[0].identityPrincipalId",
+			"identities[1].identityClientId", "identities[1].identityPrincipalId",
+		}, valueKeys(values))
+		assert.Equal(t, configMapExport("MigrationClientId"), values["identities[1].identityClientId"].valueExport)
+	})
+
+	t.Run("single fields and identities combine", func(t *testing.T) {
+		values := map[string]exportTemplateWithValue{}
+		err := addIdentityExports(values, two, identityExports{
+			identityRef: "charisma-online", identityClientId: configMapExport("IdentityClientId"),
+			identities: []provisioningv1.ExportedIdentitySpec{
+				{IdentityRef: "charisma-online-migrations", IdentityClientId: configMapExport("MigrationClientId")},
+			},
+		}, "d")
+		assert.NoError(t, err)
+		assert.Len(t, values, 4)
+	})
+
+	t.Run("empty identityRef is ambiguous with more than one identity", func(t *testing.T) {
+		err := addIdentityExports(map[string]exportTemplateWithValue{}, two, identityExports{identities: []provisioningv1.ExportedIdentitySpec{
+			{IdentityClientId: configMapExport("IdentityClientId")},
+		}}, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: identities[].identityRef is required when spec.managedIdentities does not have exactly one entry")
+	})
+
+	t.Run("unknown identityRef", func(t *testing.T) {
+		err := addIdentityExports(map[string]exportTemplateWithValue{}, two, identityExports{identities: []provisioningv1.ExportedIdentitySpec{
+			{IdentityRef: "nope", IdentityClientId: configMapExport("IdentityClientId")},
+		}}, "d")
+		assert.ErrorContains(t, err, `identities[].identityRef "nope" does not match any spec.managedIdentities[].name`)
+	})
+
+	t.Run("identities item without values", func(t *testing.T) {
+		err := addIdentityExports(map[string]exportTemplateWithValue{}, two, identityExports{identities: []provisioningv1.ExportedIdentitySpec{
+			{IdentityRef: "charisma-online"},
+		}}, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: identities[0] must export identityClientId or identityPrincipalId")
+	})
+
+	t.Run("same identity in identityRef and identities", func(t *testing.T) {
+		err := addIdentityExports(map[string]exportTemplateWithValue{}, two, identityExports{
+			identityRef: "charisma-online", identityClientId: configMapExport("IdentityClientId"),
+			identities: []provisioningv1.ExportedIdentitySpec{
+				{IdentityRef: "charisma-online", IdentityPrincipalId: configMapExport("PrincipalId")},
+			},
+		}, "d")
+		assert.ErrorContains(t, err, `identities[0] exports spec.managedIdentities[].name "charisma-online", which this exports[] entry already exports`)
+	})
+}
+
+func TestValidateExportKeys(t *testing.T) {
+	templateContext := provisioning.GetTemplateContext(newTenant("tenant1", "dev"))
+	value := func(v provisioningv1.ValueExport) exportTemplateWithValue {
+		return exportTemplateWithValue{v, pulumi.String("x")}
+	}
+
+	t.Run("distinct keys are valid", func(t *testing.T) {
+		err := validateExportKeys(map[string]exportTemplateWithValue{
+			"identities[0].identityClientId":    value(configMapExport("T__{{ .Tenant.Code }}__IdentityClientId")),
+			"identities[1].identityClientId":    value(configMapExport("T__{{ .Tenant.Code }}__MigrationClientId")),
+			"identities[0].identityPrincipalId": value(provisioningv1.ValueExport{}),
+		}, templateContext, "hr-admin")
+		assert.NoError(t, err)
+	})
+
+	t.Run("the same key in different destinations is valid", func(t *testing.T) {
+		err := validateExportKeys(map[string]exportTemplateWithValue{
+			"users[0].username": value(configMapExport("Username")),
+			"users[0].password": value(kubeSecretExport("Username")),
+			"users[1].password": value(vaultExport("Username")),
+		}, templateContext, "d")
+		assert.NoError(t, err)
+	})
+
+	for _, tt := range []struct {
+		destination string
+		export      func(string) provisioningv1.ValueExport
+	}{
+		{"toConfigMap", configMapExport},
+		{"toKubeSecret", kubeSecretExport},
+		{"toVault", vaultExport},
+	} {
+		t.Run("colliding rendered keys in "+tt.destination, func(t *testing.T) {
+			err := validateExportKeys(map[string]exportTemplateWithValue{
+				"identityClientId":               value(tt.export("T__{{ .Tenant.Code }}__ClientId")),
+				"identities[0].identityClientId": value(tt.export("T__tenant1__ClientId")),
+			}, templateContext, "hr-admin")
+			assert.ErrorContains(t, err, `exports[domain=hr-admin]: identities[0].identityClientId and identityClientId both render the `+tt.destination+` key "T__tenant1__ClientId"`)
+		})
+	}
+
+	t.Run("key rendering empty", func(t *testing.T) {
+		err := validateExportKeys(map[string]exportTemplateWithValue{
+			"users[0].username": value(configMapExport("{{ if false }}x{{ end }}")),
+		}, templateContext, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: users[0].username.toConfigMap.keyTemplate renders an empty key")
+	})
+
+	t.Run("invalid template", func(t *testing.T) {
+		err := validateExportKeys(map[string]exportTemplateWithValue{
+			"users[0].username": value(configMapExport("{{ .Tenant.Code")),
+		}, templateContext, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: users[0].username.toConfigMap.keyTemplate:")
 	})
 }
 

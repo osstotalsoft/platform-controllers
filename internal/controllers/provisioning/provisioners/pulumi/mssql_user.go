@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -783,21 +784,156 @@ func validateUniqueNames[T named](items []T, listKind string) error {
 // domain identifies the failing exports[] entry, and refKind/listKind name the failing spec fields
 // (e.g. "userRef"/"users"), in the returned error's message.
 func resolveRef[T any](byName map[string]T, ref, domain, refKind, listKind string) (T, error) {
+	name, err := resolveRefName(byName, ref, domain, refKind, listKind)
+	if err != nil {
+		var zero T
+		return zero, err
+	}
+	return byName[name], nil
+}
+
+// resolveRefName is resolveRef returning the resolved entry's name instead of its value, so a caller
+// can tell when two refs (one of them possibly empty) resolve to the same entry.
+func resolveRefName[T any](byName map[string]T, ref, domain, refKind, listKind string) (string, error) {
 	if ref == "" {
 		if len(byName) == 1 {
-			for _, v := range byName {
-				return v, nil
+			for name := range byName {
+				return name, nil
 			}
 		}
-		var zero T
-		return zero, fmt.Errorf("exports[domain=%s]: %s is required when spec.%s does not have exactly one entry", domain, refKind, listKind)
+		return "", fmt.Errorf("exports[domain=%s]: %s is required when spec.%s does not have exactly one entry", domain, refKind, listKind)
 	}
-	v, ok := byName[ref]
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("exports[domain=%s]: %s %q does not match any spec.%s[].name", domain, refKind, ref, listKind)
+	if _, ok := byName[ref]; !ok {
+		return "", fmt.Errorf("exports[domain=%s]: %s %q does not match any spec.%s[].name", domain, refKind, ref, listKind)
 	}
-	return v, nil
+	return ref, nil
+}
+
+// userExports is the user part of one exports[] entry, which every DB kind's *ExportsSpec carries:
+// the deprecated single userRef/username/password fields and the users list.
+type userExports struct {
+	userRef  string
+	username provisioningv1.ValueExport
+	password provisioningv1.ValueExport
+	users    []provisioningv1.ExportedUserSpec
+}
+
+// identityExports is the managed identity part of one exports[] entry: the deprecated single
+// identityRef/identityClientId/identityPrincipalId fields and the identities list.
+type identityExports struct {
+	identityRef         string
+	identityClientId    provisioningv1.ValueExport
+	identityPrincipalId provisioningv1.ValueExport
+	identities          []provisioningv1.ExportedIdentitySpec
+}
+
+// addUserExports adds the usernames and passwords exp exports to values. The single fields keep
+// their "username"/"password" value keys, so existing specs export exactly what they always did;
+// users[i] uses "users[i].username"/"users[i].password". Value keys only pair a value with its
+// keyTemplate and never reach the exported objects. A users[] item must export something, and an
+// exports[] entry can export each spec.users[] entry at most once.
+func addUserExports(values map[string]exportTemplateWithValue, usersByName map[string]deployedUser, exp userExports, domain string) error {
+	exported := map[string]bool{}
+	if exp.userRef != "" || exp.username != (provisioningv1.ValueExport{}) || exp.password != (provisioningv1.ValueExport{}) {
+		name, err := resolveRefName(usersByName, exp.userRef, domain, "userRef", "users")
+		if err != nil {
+			return err
+		}
+		exported[name] = true
+		values["username"] = exportTemplateWithValue{exp.username, pulumi.String(usersByName[name].username)}
+		values["password"] = exportTemplateWithValue{exp.password, usersByName[name].password}
+	}
+	for i, u := range exp.users {
+		if u.Username == (provisioningv1.ValueExport{}) && u.Password == (provisioningv1.ValueExport{}) {
+			return fmt.Errorf("exports[domain=%s]: users[%d] must export username or password", domain, i)
+		}
+		name, err := resolveRefName(usersByName, u.UserRef, domain, "users[].userRef", "users")
+		if err != nil {
+			return err
+		}
+		if exported[name] {
+			return fmt.Errorf("exports[domain=%s]: users[%d] exports spec.users[].name %q, which this exports[] entry already exports", domain, i, name)
+		}
+		exported[name] = true
+		values[fmt.Sprintf("users[%d].username", i)] = exportTemplateWithValue{u.Username, pulumi.String(usersByName[name].username)}
+		values[fmt.Sprintf("users[%d].password", i)] = exportTemplateWithValue{u.Password, usersByName[name].password}
+	}
+	return nil
+}
+
+// addIdentityExports is addUserExports for managed identities: the single fields keep their
+// "identityClientId"/"identityPrincipalId" value keys, identities[i] uses
+// "identities[i].identityClientId"/"identities[i].identityPrincipalId".
+func addIdentityExports(values map[string]exportTemplateWithValue, identitiesByName map[string]deployedIdentity, exp identityExports, domain string) error {
+	exported := map[string]bool{}
+	if exp.identityRef != "" || exp.identityClientId != (provisioningv1.ValueExport{}) || exp.identityPrincipalId != (provisioningv1.ValueExport{}) {
+		name, err := resolveRefName(identitiesByName, exp.identityRef, domain, "identityRef", "managedIdentities")
+		if err != nil {
+			return err
+		}
+		exported[name] = true
+		values["identityClientId"] = exportTemplateWithValue{exp.identityClientId, identitiesByName[name].clientId}
+		values["identityPrincipalId"] = exportTemplateWithValue{exp.identityPrincipalId, identitiesByName[name].principalId}
+	}
+	for i, id := range exp.identities {
+		if id.IdentityClientId == (provisioningv1.ValueExport{}) && id.IdentityPrincipalId == (provisioningv1.ValueExport{}) {
+			return fmt.Errorf("exports[domain=%s]: identities[%d] must export identityClientId or identityPrincipalId", domain, i)
+		}
+		name, err := resolveRefName(identitiesByName, id.IdentityRef, domain, "identities[].identityRef", "managedIdentities")
+		if err != nil {
+			return err
+		}
+		if exported[name] {
+			return fmt.Errorf("exports[domain=%s]: identities[%d] exports spec.managedIdentities[].name %q, which this exports[] entry already exports", domain, i, name)
+		}
+		exported[name] = true
+		values[fmt.Sprintf("identities[%d].identityClientId", i)] = exportTemplateWithValue{id.IdentityClientId, identitiesByName[name].clientId}
+		values[fmt.Sprintf("identities[%d].identityPrincipalId", i)] = exportTemplateWithValue{id.IdentityPrincipalId, identitiesByName[name].principalId}
+	}
+	return nil
+}
+
+// validateExportKeys renders every keyTemplate in values, one exports[] entry's values, and returns
+// an error if a key renders empty or two values render the same key in the same destination
+// (ConfigMap, Secret or vault secret), where one would silently overwrite the other. Callers run it
+// only for entries that set users or identities, so specs written before those lists existed are
+// never rejected by it.
+func validateExportKeys(values map[string]exportTemplateWithValue, templateContext any, domain string) error {
+	valueKeys := make([]string, 0, len(values))
+	for k := range values {
+		valueKeys = append(valueKeys, k)
+	}
+	sort.Strings(valueKeys)
+
+	destinations := []struct {
+		name        string
+		keyTemplate func(provisioningv1.ValueExport) string
+	}{
+		{"toConfigMap", func(v provisioningv1.ValueExport) string { return v.ToConfigMap.KeyTemplate }},
+		{"toKubeSecret", func(v provisioningv1.ValueExport) string { return v.ToKubeSecret.KeyTemplate }},
+		{"toVault", func(v provisioningv1.ValueExport) string { return v.ToVault.KeyTemplate }},
+	}
+	for _, dest := range destinations {
+		rendered := map[string]string{}
+		for _, valueKey := range valueKeys {
+			keyTemplate := dest.keyTemplate(values[valueKey].valueExport)
+			if keyTemplate == "" {
+				continue
+			}
+			key, err := template.ParseTemplate(keyTemplate, templateContext)
+			if err != nil {
+				return fmt.Errorf("exports[domain=%s]: %s.%s.keyTemplate: %w", domain, valueKey, dest.name, err)
+			}
+			if key == "" {
+				return fmt.Errorf("exports[domain=%s]: %s.%s.keyTemplate renders an empty key", domain, valueKey, dest.name)
+			}
+			if other, ok := rendered[key]; ok {
+				return fmt.Errorf("exports[domain=%s]: %s and %s both render the %s key %q", domain, other, valueKey, dest.name, key)
+			}
+			rendered[key] = valueKey
+		}
+	}
+	return nil
 }
 
 // validateNoCrossListNameCollision returns an error if any name in managedIdentities also appears in
