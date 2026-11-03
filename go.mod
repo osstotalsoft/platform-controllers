@@ -43,6 +43,11 @@ require (
 require github.com/pulumiverse/pulumi-time/sdk v0.1.0
 
 require (
+	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
+	honnef.co/go/tools v0.8.2 // indirect
+)
+
+require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
@@ -198,3 +203,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
+
+tool honnef.co/go/tools/cmd/staticcheck
