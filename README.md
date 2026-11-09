@@ -418,6 +418,10 @@ An `exports[]` entry publishes values into its `domain`'s ConfigMap, Secret and 
 
 > _Deprecated_ The single-value fields `userRef`/`username`/`password` and `identityRef`/`identityClientId`/`identityPrincipalId` on an `exports[]` entry still work exactly as before, and can be combined with the lists, but new specs should use `users` and `identities`. Moving a spec to the lists with the same `keyTemplate`s publishes the same keys and values.
 
+#### Server logins
+
+Unless `containedUser` is set, each `users` entry (also on `MsSqlDatabase`) is a server login named `<name>_<database name>`, mapped to a database user. SQL Server refuses to drop a login that still has open sessions, and a tenant's applications are usually still connected when its stack is destroyed. So when a `users` entry, its database or the tenant is deleted, the login is first disabled, so applications can't reconnect, and its open sessions are killed; then it is dropped. Under the `RetainStatefulResources` delete policy the login is kept and stays enabled.
+
 #### Managed identities
 
 Each `managedIdentities` entry (also available on `AzureDatabase`) creates, per tenant, an Azure user-assigned managed identity named `<name>_<database name>` and adds it to the database as an Entra user with the given `roles`, `permissions` and `schemaPermissions`. Its client and principal ids are exported with an `exports[].identities` item; see [Exporting users and identities](#exporting-users-and-identities).

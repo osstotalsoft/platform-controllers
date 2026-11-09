@@ -135,6 +135,56 @@ func TestDeployLoginUser(t *testing.T) {
 	})
 }
 
+// TestDeployLoginUserSessionsGuard checks the Script deployLoginUser pairs with the login so that
+// DROP LOGIN doesn't fail with "Could not drop login ... as the user is currently logged in" when an
+// application is still connected: Pulumi deletes the Script, which depends on the login, first, and
+// its DeleteScript disables the login and kills its sessions.
+func TestDeployLoginUserSessionsGuard(t *testing.T) {
+	deploy := func(t *testing.T, retainOnDelete bool) *scriptCaptureMocks {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployLoginUser(ctx, provider, "my-db-app1", pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Name: "app1", Roles: []string{"db_owner"}},
+				"my-db", []pulumi.Resource{}, retainOnDelete, nil)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		return capture
+	}
+
+	t.Run("delete disables the login and kills its sessions", func(t *testing.T) {
+		capture := deploy(t, false)
+		inputs, ok := capture.resourceInputs["my-db-app1-login-sessions"]
+		if !assert.True(t, ok, "the login's sessions guard Script must be deployed") {
+			return
+		}
+		deleteScript := inputs["deleteScript"].StringValue()
+		assert.Contains(t, deleteScript, "ALTER LOGIN [app1_my-db] DISABLE")
+		assert.Contains(t, deleteScript, "FROM sys.dm_exec_sessions WHERE login_name = N'app1_my-db'")
+		assert.Contains(t, deleteScript, "KILL")
+		assert.Contains(t, inputs["updateScript"].StringValue(), "ALTER LOGIN [app1_my-db] ENABLE")
+		assert.Contains(t, inputs["readScript"].StringValue(), "N'app1_my-db'")
+		assert.Equal(t, "Enabled", inputs["state"].ObjectValue()["LoginStatus"].StringValue())
+	})
+
+	t.Run("is deleted before the login and before being replaced", func(t *testing.T) {
+		capture := deploy(t, false)
+		rpc := capture.registerRPCs["my-db-app1-login-sessions"].RegisterRPC
+		if !assert.NotNil(t, rpc) {
+			return
+		}
+		assert.Contains(t, rpc.GetDependencies(), "urn:pulumi:stack::project::mssql:index/sqlLogin:SqlLogin::my-db-app1-login")
+		assert.True(t, rpc.GetDeleteBeforeReplace(),
+			"a replacement must disable the login before the new Script enables it again, not after")
+	})
+
+	t.Run("retainOnDelete propagates", func(t *testing.T) {
+		assert.True(t, deploy(t, true).retainOnDelete("my-db-app1-login-sessions"))
+		assert.False(t, deploy(t, false).retainOnDelete("my-db-app1-login-sessions"))
+	})
+}
+
 func TestDeployContainedUser(t *testing.T) {
 	t.Run("creates contained user with role grants", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {

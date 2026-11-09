@@ -62,10 +62,13 @@ func TestDeployAzureManagedDb(t *testing.T) {
 		assert.NoError(t, err)
 
 		// Non-contained mode goes through a real server-level login, never the contained-user
-		// Script.
+		// Script: its only Script is the login's sessions guard.
 		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlLogin:SqlLogin"))
 		assert.True(t, capture.hasAnyTypeWithPrefix("mssql:index/sqlUser:SqlUser"))
-		assert.False(t, capture.hasAnyTypeWithPrefix("mssql:index/script:Script"))
+		scripts := capture.byType["mssql:index/script:Script"]
+		if assert.Len(t, scripts, 1) {
+			assert.Equal(t, "my-mi-db-login-user-origination_app-login-sessions", scripts[0].Name)
+		}
 	})
 
 	t.Run("grants permissions and schema permissions to a login-mode user", func(t *testing.T) {
