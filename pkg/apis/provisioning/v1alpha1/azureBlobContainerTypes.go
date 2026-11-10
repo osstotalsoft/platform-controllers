@@ -116,14 +116,6 @@ type AzureBlobContainerExportsSpec struct {
 	// container only. Secret: export it to the vault or a Kubernetes secret.
 	// +optional
 	ContainerSasUrl ValueExport `json:"containerSasUrl,omitempty"`
-	// The storage account's primary access key. Grants access to the whole account, not just this
-	// container. Secret: export it to the vault or a Kubernetes secret.
-	// +optional
-	AccountKey ValueExport `json:"accountKey,omitempty"`
-	// The storage account connection string, with the primary access key. Grants access to the whole
-	// account, not just this container. Secret: export it to the vault or a Kubernetes secret.
-	// +optional
-	ConnectionString ValueExport `json:"connectionString,omitempty"`
 	// Managed identities whose client/principal ids are exported to this domain, one item per
 	// managedIdentities[] entry.
 	// +optional

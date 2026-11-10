@@ -791,21 +791,19 @@ Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azureblobco
   - `serviceAccounts`: ServiceAccounts that may authenticate as the identity through AKS Workload Identity, as for the [database managed identities](#managed-identities).
 - `exports`: Values to export. `domain` defaults to `domainRef`. Each entry can export:
   - `containerName`, `accountName`, `blobEndpoint` (e.g. `https://account.blob.core.windows.net/`), `containerUrl` (e.g. `https://account.blob.core.windows.net/container`);
-  - `containerSasUrl`: the container URL with a SAS token granting read, add, create, write, delete and list on this container only;
-  - `accountKey` and `connectionString`: the storage account's primary access key, and a connection string with it. They grant access to the **whole account**, not just the container, so prefer `containerSasUrl` or a managed identity;
+  - `containerSasUrl`: the container URL with a SAS token granting read, add, create, write, delete and list on this container only. It is a secret: export it `toVault` or `toKubeSecret`;
   - `identities`: client/principal ids of `managedIdentities` entries, like on the databases (see [Exporting users and identities](#exporting-users-and-identities)).
 
-  `containerSasUrl`, `accountKey` and `connectionString` are secrets: export them `toVault` or `toKubeSecret`.
+  Only container scoped credentials are exported. The storage account's keys, which grant access to every container of the account, never are.
 
-The three ways for an application to access the container:
+The two ways for an application to access the container:
 
 | | Scope | Exports | Notes |
 |---|---|---|---|
 | Managed identity | container | `containerUrl` (or `blobEndpoint` + `containerName`), `identities[].identityClientId` | No secret. The app uses `WorkloadIdentityCredential`/`DefaultAzureCredential`. |
 | Container SAS | container | `containerSasUrl` | `new BlobContainerClient(new Uri(sasUrl))`. A new SAS is issued every 30 days, each valid for `sasValidityDays`, so the previous one keeps working while apps pick up the new value; the provisioner must reconcile at least once per `sasValidityDays - 30` days. |
-| Account key | whole account | `accountKey` or `connectionString` | Closest to MinIO's access/secret keys. Rotating the account key invalidates them. |
 
-The container is retained on delete under the `RetainStatefulResources` delete policy, and so are the managed identities; their role assignments and federated credentials are not. The provisioner's identity needs, on the storage account, permission to manage containers, and the `listKeys` permission when `accountKey`, `connectionString` or `containerSasUrl` is exported (e.g. **Storage Account Contributor**); and, to grant the identities their roles, `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator** on the account). `containerSasUrl` and the account key exports need shared key access to be enabled on the account.
+The container is retained on delete under the `RetainStatefulResources` delete policy, and so are the managed identities; their role assignments and federated credentials are not. The provisioner's identity needs, on the storage account, permission to manage containers, and the `listServiceSas` permission when `containerSasUrl` is exported (e.g. **Storage Account Contributor**); and, to grant the identities their roles, `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator** on the account). `containerSasUrl` needs shared key access to be enabled on the account. It is signed with the account's first key (`key1`): rotating that key invalidates it until the next reconcile issues a new one.
 
 ## Example
 

@@ -21,15 +21,13 @@ package v1alpha1
 // AzureBlobContainerExportsSpecApplyConfiguration represents an declarative configuration of the AzureBlobContainerExportsSpec type for use
 // with apply.
 type AzureBlobContainerExportsSpecApplyConfiguration struct {
-	Domain           *string                                  `json:"domain,omitempty"`
-	ContainerName    *ValueExportApplyConfiguration           `json:"containerName,omitempty"`
-	AccountName      *ValueExportApplyConfiguration           `json:"accountName,omitempty"`
-	BlobEndpoint     *ValueExportApplyConfiguration           `json:"blobEndpoint,omitempty"`
-	ContainerUrl     *ValueExportApplyConfiguration           `json:"containerUrl,omitempty"`
-	ContainerSasUrl  *ValueExportApplyConfiguration           `json:"containerSasUrl,omitempty"`
-	AccountKey       *ValueExportApplyConfiguration           `json:"accountKey,omitempty"`
-	ConnectionString *ValueExportApplyConfiguration           `json:"connectionString,omitempty"`
-	Identities       []ExportedIdentitySpecApplyConfiguration `json:"identities,omitempty"`
+	Domain          *string                                  `json:"domain,omitempty"`
+	ContainerName   *ValueExportApplyConfiguration           `json:"containerName,omitempty"`
+	AccountName     *ValueExportApplyConfiguration           `json:"accountName,omitempty"`
+	BlobEndpoint    *ValueExportApplyConfiguration           `json:"blobEndpoint,omitempty"`
+	ContainerUrl    *ValueExportApplyConfiguration           `json:"containerUrl,omitempty"`
+	ContainerSasUrl *ValueExportApplyConfiguration           `json:"containerSasUrl,omitempty"`
+	Identities      []ExportedIdentitySpecApplyConfiguration `json:"identities,omitempty"`
 }
 
 // AzureBlobContainerExportsSpecApplyConfiguration constructs an declarative configuration of the AzureBlobContainerExportsSpec type for use with
@@ -83,22 +81,6 @@ func (b *AzureBlobContainerExportsSpecApplyConfiguration) WithContainerUrl(value
 // If called multiple times, the ContainerSasUrl field is set to the value of the last call.
 func (b *AzureBlobContainerExportsSpecApplyConfiguration) WithContainerSasUrl(value *ValueExportApplyConfiguration) *AzureBlobContainerExportsSpecApplyConfiguration {
 	b.ContainerSasUrl = value
-	return b
-}
-
-// WithAccountKey sets the AccountKey field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the AccountKey field is set to the value of the last call.
-func (b *AzureBlobContainerExportsSpecApplyConfiguration) WithAccountKey(value *ValueExportApplyConfiguration) *AzureBlobContainerExportsSpecApplyConfiguration {
-	b.AccountKey = value
-	return b
-}
-
-// WithConnectionString sets the ConnectionString field in the declarative configuration to the given value
-// and returns the receiver, so that objects can be built by chaining "With" function invocations.
-// If called multiple times, the ConnectionString field is set to the value of the last call.
-func (b *AzureBlobContainerExportsSpecApplyConfiguration) WithConnectionString(value *ValueExportApplyConfiguration) *AzureBlobContainerExportsSpecApplyConfiguration {
-	b.ConnectionString = value
 	return b
 }
 

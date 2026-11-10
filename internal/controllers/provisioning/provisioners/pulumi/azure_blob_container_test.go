@@ -40,14 +40,6 @@ func newBlobContainerMocks() *resourceCaptureMocks {
 			"blob": resource.NewStringProperty("https://mystorage.blob.core.windows.net/"),
 		}),
 	})
-	capture.stubCall("azure-native:storage:listStorageAccountKeys", resource.PropertyMap{
-		"keys": resource.NewArrayProperty([]resource.PropertyValue{
-			resource.NewObjectProperty(resource.PropertyMap{
-				"keyName": resource.NewStringProperty("key1"),
-				"value":   resource.NewStringProperty("a2V5MQ=="),
-			}),
-		}),
-	})
 	capture.stubCall("azure-native:storage:listStorageAccountServiceSAS", resource.PropertyMap{
 		"serviceSasToken": resource.NewStringProperty("sv=2022-11-02&sr=c&sp=racwdl&sig=abc"),
 	})
@@ -104,7 +96,7 @@ func TestDeployAzureBlobContainer(t *testing.T) {
 		assert.Empty(t, capture.byType[roleAssignmentType])
 	})
 
-	t.Run("exports the container's coordinates and credentials", func(t *testing.T) {
+	t.Run("exports the container's coordinates and its SAS URL", func(t *testing.T) {
 		capture := newBlobContainerMocks()
 		container := newBlobContainer("my-container")
 		container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
@@ -112,9 +104,7 @@ func TestDeployAzureBlobContainer(t *testing.T) {
 			AccountName:      toConfigMap("Storage__AccountName"),
 			BlobEndpoint:     toConfigMap("Storage__BlobEndpoint"),
 			ContainerUrl:     toConfigMap("Storage__ContainerUrl"),
-			ContainerSasUrl:  toConfigMap("ObjectStorage__BlobContainerSasUrl"),
-			AccountKey:       toConfigMap("Storage__AccountKey"),
-			ConnectionString: toConfigMap("Storage__ConnectionString"),
+			ContainerSasUrl: toConfigMap("ObjectStorage__BlobContainerSasUrl"),
 		}}
 
 		err := deployTestBlobContainer(t, capture, container, nil)
@@ -127,8 +117,6 @@ func TestDeployAzureBlobContainer(t *testing.T) {
 			"Storage__BlobEndpoint":              "https://mystorage.blob.core.windows.net/",
 			"Storage__ContainerUrl":              "https://mystorage.blob.core.windows.net/files-dev-tenant1",
 			"ObjectStorage__BlobContainerSasUrl": "https://mystorage.blob.core.windows.net/files-dev-tenant1?sv=2022-11-02&sr=c&sp=racwdl&sig=abc",
-			"Storage__AccountKey":                "a2V5MQ==",
-			"Storage__ConnectionString":          "DefaultEndpointsProtocol=https;AccountName=mystorage;AccountKey=a2V5MQ==;EndpointSuffix=core.windows.net",
 		}, data)
 		assert.Equal(t, "example-domain-tenant1-my-container",
 			capture.byType["kubernetes:core/v1:ConfigMap"][0].Inputs["metadata"].ObjectValue()["name"].StringValue(),
@@ -262,11 +250,4 @@ func TestBlobContainerSasExpiry(t *testing.T) {
 		"every update within one rotation window asks for the same SAS")
 	assert.Equal(t, "2027-11-03T00:00:00Z", blobContainerSasExpiry(windowStart.Add(30*24*time.Hour), 365),
 		"the next window issues a new one")
-}
-
-func TestStorageConnectionString(t *testing.T) {
-	assert.Equal(t, "DefaultEndpointsProtocol=https;AccountName=acc;AccountKey=k;EndpointSuffix=core.chinacloudapi.cn",
-		storageConnectionString("acc", "k", "https://acc.blob.core.chinacloudapi.cn/"))
-	assert.Equal(t, "DefaultEndpointsProtocol=https;AccountName=acc;AccountKey=k;BlobEndpoint=https://acc.z12.blob.storage.azure.net/",
-		storageConnectionString("acc", "k", "https://acc.z12.blob.storage.azure.net/"))
 }

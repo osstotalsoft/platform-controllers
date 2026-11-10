@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.21.0
+    controller-gen.kubebuilder.io/version: v0.22.0
   name: azureblobcontainers.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
@@ -90,33 +90,6 @@ spec:
                 description: Export provisioning values spec.
                 items:
                   properties:
-                    accountKey:
-                      description: |-
-                        The storage account's primary access key. Grants access to the whole account, not just this
-                        container. Secret: export it to the vault or a Kubernetes secret.
-                      properties:
-                        toConfigMap:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                        toKubeSecret:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                        toVault:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                      type: object
                     accountName:
                       description: The storage account name.
                       properties:
@@ -144,33 +117,6 @@ spec:
                       type: object
                     blobEndpoint:
                       description: The storage account's blob endpoint, e.g. https://account.blob.core.windows.net/
-                      properties:
-                        toConfigMap:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                        toKubeSecret:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                        toVault:
-                          properties:
-                            keyTemplate:
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
-                      type: object
-                    connectionString:
-                      description: |-
-                        The storage account connection string, with the primary access key. Grants access to the whole
-                        account, not just this container. Secret: export it to the vault or a Kubernetes secret.
                       properties:
                         toConfigMap:
                           properties:

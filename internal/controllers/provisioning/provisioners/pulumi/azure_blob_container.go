@@ -2,7 +2,6 @@ package pulumi
 
 import (
 	"fmt"
-	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -137,15 +136,10 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	blobEndpoint := account.PrimaryEndpoints.Blob
 	containerUrl := strings.TrimSuffix(blobEndpoint, "/") + "/" + containerName
 
-	var accountKey, connectionString, containerSasUrl pulumi.StringOutput
-	if anyBlobContainerExport(spec.Exports, func(e provisioningv1.AzureBlobContainerExportsSpec) provisioningv1.ValueExport { return e.AccountKey }) ||
-		anyBlobContainerExport(spec.Exports, func(e provisioningv1.AzureBlobContainerExportsSpec) provisioningv1.ValueExport { return e.ConnectionString }) {
-		accountKey = storageAccountPrimaryKey(ctx, spec.StorageAccount)
-		connectionString = pulumi.ToSecret(accountKey.ApplyT(func(key string) string {
-			return storageConnectionString(spec.StorageAccount.AccountName, key, blobEndpoint)
-		})).(pulumi.StringOutput)
-	}
-	if anyBlobContainerExport(spec.Exports, func(e provisioningv1.AzureBlobContainerExportsSpec) provisioningv1.ValueExport { return e.ContainerSasUrl }) {
+	// Only container scoped credentials are exported, never the account keys, which grant access to
+	// every container of the account.
+	var containerSasUrl pulumi.StringOutput
+	if anyContainerSasUrlExport(spec.Exports) {
 		sas := storage.ListStorageAccountServiceSASOutput(ctx, storage.ListStorageAccountServiceSASOutputArgs{
 			ResourceGroupName:      pulumi.String(spec.StorageAccount.ResourceGroupName),
 			AccountName:            pulumi.String(spec.StorageAccount.AccountName),
@@ -168,8 +162,6 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 			"blobEndpoint":     {exp.BlobEndpoint, pulumi.String(blobEndpoint)},
 			"containerUrl":     {exp.ContainerUrl, pulumi.String(containerUrl)},
 			"containerSasUrl":  {exp.ContainerSasUrl, containerSasUrl},
-			"accountKey":       {exp.AccountKey, accountKey},
-			"connectionString": {exp.ConnectionString, connectionString},
 		}
 		if err := addIdentityExports(values, identitiesByName, identityExports{identities: exp.Identities}, domain); err != nil {
 			return nil, err
@@ -271,33 +263,6 @@ func blobContainerSasExpiry(now time.Time, validityDays int) string {
 	return time.Unix((windowStart+int64(validityDays))*86400, 0).UTC().Format(time.RFC3339)
 }
 
-// storageAccountPrimaryKey returns the storage account's first access key, as a secret.
-func storageAccountPrimaryKey(ctx *pulumi.Context, account provisioningv1.StorageAccountSpec) pulumi.StringOutput {
-	keys := storage.ListStorageAccountKeysOutput(ctx, storage.ListStorageAccountKeysOutputArgs{
-		ResourceGroupName: pulumi.String(account.ResourceGroupName),
-		AccountName:       pulumi.String(account.AccountName),
-	})
-	return pulumi.ToSecret(keys.ApplyT(func(r storage.ListStorageAccountKeysResult) (string, error) {
-		if len(r.Keys) == 0 || r.Keys[0].Value == "" {
-			return "", fmt.Errorf("storage account %s has no access key; is shared key access disabled?", account.AccountName)
-		}
-		return r.Keys[0].Value, nil
-	})).(pulumi.StringOutput)
-}
-
-// storageConnectionString builds the account's connection string. A blob endpoint in the public
-// cloud's (or a sovereign cloud's) standard <account>.blob.<suffix> form becomes an EndpointSuffix,
-// which gives the clients the account's other services too; any other endpoint is given as is.
-func storageConnectionString(accountName, accountKey, blobEndpoint string) string {
-	prefix := fmt.Sprintf("DefaultEndpointsProtocol=https;AccountName=%s;AccountKey=%s", accountName, accountKey)
-	if u, err := url.Parse(blobEndpoint); err == nil {
-		if suffix, ok := strings.CutPrefix(u.Host, accountName+".blob."); ok && suffix != "" {
-			return fmt.Sprintf("%s;EndpointSuffix=%s", prefix, suffix)
-		}
-	}
-	return fmt.Sprintf("%s;BlobEndpoint=%s", prefix, blobEndpoint)
-}
-
 // subscriptionIdOf returns the subscription in an ARM resource id.
 func subscriptionIdOf(resourceId string) (string, error) {
 	parts := strings.Split(resourceId, "/")
@@ -307,10 +272,9 @@ func subscriptionIdOf(resourceId string) (string, error) {
 	return parts[2], nil
 }
 
-func anyBlobContainerExport(exports []provisioningv1.AzureBlobContainerExportsSpec,
-	field func(provisioningv1.AzureBlobContainerExportsSpec) provisioningv1.ValueExport) bool {
+func anyContainerSasUrlExport(exports []provisioningv1.AzureBlobContainerExportsSpec) bool {
 	for _, e := range exports {
-		if field(e) != (provisioningv1.ValueExport{}) {
+		if e.ContainerSasUrl != (provisioningv1.ValueExport{}) {
 			return true
 		}
 	}

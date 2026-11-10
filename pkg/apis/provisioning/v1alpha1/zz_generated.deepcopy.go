@@ -61,8 +61,6 @@ func (in *AzureBlobContainerExportsSpec) DeepCopyInto(out *AzureBlobContainerExp
 	out.BlobEndpoint = in.BlobEndpoint
 	out.ContainerUrl = in.ContainerUrl
 	out.ContainerSasUrl = in.ContainerSasUrl
-	out.AccountKey = in.AccountKey
-	out.ConnectionString = in.ConnectionString
 	if in.Identities != nil {
 		in, out := &in.Identities, &out.Identities
 		*out = make([]ExportedIdentitySpec, len(*in))
