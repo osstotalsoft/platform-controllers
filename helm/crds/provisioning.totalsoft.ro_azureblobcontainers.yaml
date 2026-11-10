@@ -1,0 +1,506 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.21.0
+  name: azureblobcontainers.provisioning.totalsoft.ro
+spec:
+  group: provisioning.totalsoft.ro
+  names:
+    kind: AzureBlobContainer
+    listKind: AzureBlobContainerList
+    plural: azureblobcontainers
+    singular: azureblobcontainer
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.containerName
+      name: Container name
+      type: string
+    - jsonPath: .spec.storageAccount.accountName
+      name: Storage account
+      type: string
+    - jsonPath: .spec.platformRef
+      name: Platform
+      type: string
+    - jsonPath: .spec.domainRef
+      name: Domain
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          AzureBlobContainer provisions an Azure Blob Storage container in an existing storage account, one
+          per tenant (or platform): the Azure alternative to MinioBucket.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              categoryOverrides:
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: |-
+                  Overrides for tenant category. Dictionary with category value (Tenant.spec.categoryRef) as exact key, spec override as value.
+                  The spec override has the same structure as Spec. Applied before TenantCategory.spec.provisioningOverrides,
+                  TenantOverrides and Tenant.spec.provisioningOverrides, all of which take precedence when they also match.
+                type: object
+              containerName:
+                description: |-
+                  Container name prefix. Will have platform and tenant suffix, e.g. "files-dev-tenant1". Dots and
+                  underscores become hyphens; the result must be a valid container name (3-63 lowercase letters,
+                  digits and single hyphens).
+                type: string
+              dependsOn:
+                description: List of dependencies
+                items:
+                  properties:
+                    kind:
+                      description: Kind is a string value representing the REST resource
+                        this dependency represents.
+                      type: string
+                    name:
+                      description: ' The name of the dependency.'
+                      type: string
+                  required:
+                  - kind
+                  - name
+                  type: object
+                type: array
+              domainRef:
+                description: Business Domain that this resource is provision for.
+                type: string
+              exports:
+                description: Export provisioning values spec.
+                items:
+                  properties:
+                    accountKey:
+                      description: |-
+                        The storage account's primary access key. Grants access to the whole account, not just this
+                        container. Secret: export it to the vault or a Kubernetes secret.
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    accountName:
+                      description: The storage account name.
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    blobEndpoint:
+                      description: The storage account's blob endpoint, e.g. https://account.blob.core.windows.net/
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    connectionString:
+                      description: |-
+                        The storage account connection string, with the primary access key. Grants access to the whole
+                        account, not just this container. Secret: export it to the vault or a Kubernetes secret.
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    containerName:
+                      description: The container name.
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    containerSasUrl:
+                      description: |-
+                        The container URL with a SAS token granting read, add, create, write, delete and list on this
+                        container only. Secret: export it to the vault or a Kubernetes secret.
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    containerUrl:
+                      description: The container URL, e.g. https://account.blob.core.windows.net/container
+                      properties:
+                        toConfigMap:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toKubeSecret:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                        toVault:
+                          properties:
+                            keyTemplate:
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
+                      type: object
+                    domain:
+                      description: The domain or bounded-context in which this container
+                        will be used. Defaults to domainRef.
+                      type: string
+                    identities:
+                      description: |-
+                        Managed identities whose client/principal ids are exported to this domain, one item per
+                        managedIdentities[] entry.
+                      items:
+                        description: |-
+                          ExportedIdentitySpec exports the client and principal ids of one managedIdentities[] entry, as an
+                          item of an exports[] entry's identities list.
+                        properties:
+                          identityClientId:
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                          identityPrincipalId:
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                          identityRef:
+                            description: |-
+                              Name of the managedIdentities[] entry whose ids are exported. Same defaulting rule as userRef.
+                              Each managedIdentities[] entry can be exported at most once per exports[] entry.
+                            type: string
+                        type: object
+                      type: array
+                  type: object
+                type: array
+              import:
+                description: |-
+                  Import this resource's existing stateful parts (databases, buckets, logins, ...) into the
+                  Pulumi stack instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it
+                  overrides the provisioner's global PULUMI_IMPORT_ALL setting for this resource; set it per tenant or tenant
+                  category through the provisioning overrides. Only honored by AzureDatabase, AzureManagedDatabase,
+                  MsSqlDatabase, MinioBucket and AzureBlobContainer.
+                type: boolean
+              importContainerName:
+                description: |-
+                  Existing container to be adopted instead of creating a new one.
+                  When set, it replaces the generated container name.
+                  eg: "my-existing-container"
+                type: string
+              managedIdentities:
+                description: |-
+                  Optional Entra (Azure AD) user-assigned managed identities granted a data-plane role on the
+                  container. One entry per consuming application, each with a unique name.
+                items:
+                  description: |-
+                    BlobContainerIdentitySpec describes an Entra (Azure AD) user-assigned managed identity granted a
+                    role on the container, which AKS Workload Identity ServiceAccounts can authenticate as.
+                  properties:
+                    location:
+                      description: Azure region.
+                      type: string
+                    name:
+                      description: Identity name. Must be unique within the owning
+                        resource's managedIdentities list.
+                      type: string
+                    resourceGroupName:
+                      description: Resource group the managed identity is created
+                        in.
+                      type: string
+                    role:
+                      description: Role granted to this identity on the container.
+                        Defaults to StorageBlobDataContributor.
+                      enum:
+                      - StorageBlobDataContributor
+                      - StorageBlobDataReader
+                      - StorageBlobDataOwner
+                      type: string
+                    serviceAccounts:
+                      description: |-
+                        ServiceAccounts that may authenticate as this identity via AKS Workload Identity: each gets a
+                        federated credential trusting AZURE_AKS_OIDC_ISSUER_URL.
+                      items:
+                        description: |-
+                          FederatedServiceAccount is a Kubernetes ServiceAccount trusted to authenticate as a managed
+                          identity, through a federated identity credential on that identity.
+                        properties:
+                          name:
+                            description: |-
+                              ServiceAccount name. A template rendered with the tenant context, like exports' keyTemplate,
+                              e.g. "app-{{ .Tenant.Code }}" for a ServiceAccount per tenant.
+                            type: string
+                          namespace:
+                            description: ServiceAccount namespace, a template like
+                              Name. Defaults to the owning resource's namespace.
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                  required:
+                  - location
+                  - name
+                  - resourceGroupName
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              platformRef:
+                description: Target platform (custom resource name).
+                type: string
+              sasValidityDays:
+                description: |-
+                  Validity, in days, of the container SAS exported as containerSasUrl. A new SAS is issued every
+                  30 days, each valid for this many days, so the previous one keeps working while apps pick up the
+                  new value. Defaults to 365.
+                minimum: 31
+                type: integer
+              storageAccount:
+                description: The existing storage account the container is created
+                  in.
+                properties:
+                  accountName:
+                    description: Storage account name.
+                    type: string
+                  resourceGroupName:
+                    description: Storage account resource group.
+                    type: string
+                required:
+                - accountName
+                - resourceGroupName
+                type: object
+              target:
+                default:
+                  category: Tenant
+                description: The provisioning target.
+                properties:
+                  category:
+                    default: Tenant
+                    description: 'Provisioning target type. Possible values: Tenant,
+                      Platform'
+                    enum:
+                    - Tenant
+                    - Platform
+                    type: string
+                  filter:
+                    description: |-
+                      Filter targets (applies for category "Tenant").
+                      If ommited all targets are selected.
+                    properties:
+                      by:
+                        default: Name
+                        description: 'What tenant attribute the Values are matched
+                          against. Possible values: Name, Category'
+                        enum:
+                        - Name
+                        - Category
+                        type: string
+                      kind:
+                        default: Blacklist
+                        description: 'Includes or excludes the speciffied targets.
+                          Possibile values: Blacklist, Whitelist'
+                        enum:
+                        - Blacklist
+                        - Whitelist
+                        type: string
+                      values:
+                        description: A list of targets to include or exculde
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - kind
+                    type: object
+                required:
+                - category
+                type: object
+              tenantOverrides:
+                additionalProperties:
+                  x-kubernetes-preserve-unknown-fields: true
+                description: |-
+                  Overrides for tenants. Dictionary with tenant name as key, spec override as value.
+                  The spec override has the same structure as Spec
+                type: object
+            required:
+            - containerName
+            - domainRef
+            - platformRef
+            - storageAccount
+            - target
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources: {}

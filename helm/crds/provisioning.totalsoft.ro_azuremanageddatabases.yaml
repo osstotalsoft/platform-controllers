@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.22.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: azuremanageddatabases.provisioning.totalsoft.ro
 spec:
   group: provisioning.totalsoft.ro
@@ -371,7 +371,7 @@ spec:
                   Pulumi stack instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it
                   overrides the provisioner's global PULUMI_IMPORT_ALL setting for this resource; set it per tenant or tenant
                   category through the provisioning overrides. Only honored by AzureDatabase, AzureManagedDatabase,
-                  MsSqlDatabase and MinioBucket.
+                  MsSqlDatabase, MinioBucket and AzureBlobContainer.
                 type: boolean
               importDatabaseId:
                 description: |-

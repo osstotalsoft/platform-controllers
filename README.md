@@ -246,7 +246,7 @@ If the Pulumi state is lost, the stateful resources it managed (the ones retaine
 - **Per tenant:** set `import: true` or `import: false` on a `Tenant`. It overrides the global setting for all of that tenant's resources.
 - **Per resource:** set `import: true` or `import: false` on a provisioning resource. It overrides both settings above for that resource. Like any spec field, it can be set per tenant or tenant category through the [overrides](#overrides).
 
-Only `AzureDatabase`, `AzureManagedDatabase`, `MsSqlDatabase` and `MinioBucket` honor `import`, together with their SQL logins and users and managed identities. Other kinds ignore the field. A stack's resource group, which isn't a provisioning resource itself, follows the global setting.
+Only `AzureDatabase`, `AzureManagedDatabase`, `MsSqlDatabase`, `MinioBucket` and `AzureBlobContainer` honor `import`, together with their SQL logins and users and managed identities. Other kinds ignore the field. A stack's resource group, which isn't a provisioning resource itself, follows the global setting.
 
 While import is on:
 
@@ -769,6 +769,75 @@ spec:
       secretKey:
         toVault:
           keyTemplate: SecretKey
+```
+
+### AzureBlobContainer
+
+`AzureBlobContainer` provisions an Azure Blob Storage container per tenant (or platform), in an existing storage account: the Azure alternative to [MinioBucket](#miniobucket). Requires `AZURE_ENABLED`.
+
+Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azureblobcontainers.yaml)
+
+## Spec
+
+- `containerName`: Container name prefix. The container is named `<containerName>-<platform>-<tenant>` (`<containerName>-<platform>` for a platform target), lowercased, with dots and underscores turned into hyphens. It must be a valid container name: 3-63 lowercase letters, digits and single hyphens.
+- `importContainerName`: Optional existing container to adopt instead of creating a new one. It replaces the generated name.
+- `storageAccount`: The existing storage account the container is created in.
+  - `resourceGroupName`: The storage account's resource group.
+  - `accountName`: The storage account name.
+- `sasValidityDays`: Optional validity of the exported `containerSasUrl`, in days (default 365, at least 31).
+- `managedIdentities`: Optional user-assigned managed identities, one per consuming application, each granted a role on the container:
+  - `name`, `resourceGroupName`, `location`: as for the [database managed identities](#managed-identities); the identity is named `<name>_<container name>`.
+  - `role`: `StorageBlobDataContributor` (default), `StorageBlobDataReader` or `StorageBlobDataOwner`, assigned on the container only.
+  - `serviceAccounts`: ServiceAccounts that may authenticate as the identity through AKS Workload Identity, as for the [database managed identities](#managed-identities).
+- `exports`: Values to export. `domain` defaults to `domainRef`. Each entry can export:
+  - `containerName`, `accountName`, `blobEndpoint` (e.g. `https://account.blob.core.windows.net/`), `containerUrl` (e.g. `https://account.blob.core.windows.net/container`);
+  - `containerSasUrl`: the container URL with a SAS token granting read, add, create, write, delete and list on this container only;
+  - `accountKey` and `connectionString`: the storage account's primary access key, and a connection string with it. They grant access to the **whole account**, not just the container, so prefer `containerSasUrl` or a managed identity;
+  - `identities`: client/principal ids of `managedIdentities` entries, like on the databases (see [Exporting users and identities](#exporting-users-and-identities)).
+
+  `containerSasUrl`, `accountKey` and `connectionString` are secrets: export them `toVault` or `toKubeSecret`.
+
+The three ways for an application to access the container:
+
+| | Scope | Exports | Notes |
+|---|---|---|---|
+| Managed identity | container | `containerUrl` (or `blobEndpoint` + `containerName`), `identities[].identityClientId` | No secret. The app uses `WorkloadIdentityCredential`/`DefaultAzureCredential`. |
+| Container SAS | container | `containerSasUrl` | `new BlobContainerClient(new Uri(sasUrl))`. A new SAS is issued every 30 days, each valid for `sasValidityDays`, so the previous one keeps working while apps pick up the new value; the provisioner must reconcile at least once per `sasValidityDays - 30` days. |
+| Account key | whole account | `accountKey` or `connectionString` | Closest to MinIO's access/secret keys. Rotating the account key invalidates them. |
+
+The container is retained on delete under the `RetainStatefulResources` delete policy, and so are the managed identities; their role assignments and federated credentials are not. The provisioner's identity needs, on the storage account, permission to manage containers, and the `listKeys` permission when `accountKey`, `connectionString` or `containerSasUrl` is exported (e.g. **Storage Account Contributor**); and, to grant the identities their roles, `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator** on the account). `containerSasUrl` and the account key exports need shared key access to be enabled on the account.
+
+## Example
+
+```yaml
+apiVersion: provisioning.totalsoft.ro/v1alpha1
+kind: AzureBlobContainer
+metadata:
+  name: replenishment-storage
+spec:
+  containerName: replenishment
+  storageAccount:
+    resourceGroupName: storage-rg
+    accountName: chloestorage
+  managedIdentities:
+    - name: replenishment
+      resourceGroupName: identities-rg
+      location: westeurope
+      serviceAccounts:
+        - name: replenishment-{{ .Tenant.Code }}
+  domainRef: replenishment
+  platformRef: qa
+  exports:
+    - containerSasUrl:
+        toVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ObjectStorage__BlobContainerSasUrl
+      containerUrl:
+        toConfigMap:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ObjectStorage__ContainerUrl
+      identities:
+        - identityClientId:
+            toConfigMap:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ObjectStorage__ClientId
 ```
 
 ### MsSqlDatabase

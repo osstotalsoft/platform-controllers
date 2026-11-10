@@ -32,6 +32,7 @@ const (
 	azureSqlDatabaseType          = "azure-native:sql:Database"
 	azureSqlManagedDatabaseType   = "azure-native:sql:ManagedDatabase"
 	azureUserAssignedIdentityType = "azure-native:managedidentity:UserAssignedIdentity"
+	azureBlobContainerType        = "azure-native:storage:BlobContainer"
 	minioBucketType               = "minio:index/s3Bucket:S3Bucket"
 	mssqlDatabaseType             = "mssql:index/database:Database"
 	mssqlSqlLoginType             = "mssql:index/sqlLogin:SqlLogin"
@@ -101,6 +102,9 @@ func statefulResourceMetas(infra *provisioning.InfrastructureManifests) []*provi
 		metas = append(metas, r.GetProvisioningMeta())
 	}
 	for _, r := range infra.MinioBuckets {
+		metas = append(metas, r.GetProvisioningMeta())
+	}
+	for _, r := range infra.AzureBlobContainers {
 		metas = append(metas, r.GetProvisioningMeta())
 	}
 	return metas

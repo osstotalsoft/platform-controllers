@@ -18,6 +18,14 @@ limitations under the License.
 
 package v1alpha1
 
+// AzureBlobContainerListerExpansion allows custom methods to be added to
+// AzureBlobContainerLister.
+type AzureBlobContainerListerExpansion interface{}
+
+// AzureBlobContainerNamespaceListerExpansion allows custom methods to be added to
+// AzureBlobContainerNamespaceLister.
+type AzureBlobContainerNamespaceListerExpansion interface{}
+
 // AzureDatabaseListerExpansion allows custom methods to be added to
 // AzureDatabaseLister.
 type AzureDatabaseListerExpansion interface{}
