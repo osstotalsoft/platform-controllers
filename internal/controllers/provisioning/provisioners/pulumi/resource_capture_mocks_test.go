@@ -25,6 +25,7 @@ type resourceCaptureMocks struct {
 	byType      map[string][]pulumi.MockResourceArgs
 	byName      map[string]pulumi.MockResourceArgs
 	callResults map[string]resource.PropertyMap
+	calls       map[string]resource.PropertyMap
 	identityIds map[string][2]string
 }
 
@@ -33,6 +34,7 @@ func newResourceCaptureMocks() *resourceCaptureMocks {
 		byType:      map[string][]pulumi.MockResourceArgs{},
 		byName:      map[string]pulumi.MockResourceArgs{},
 		callResults: map[string]resource.PropertyMap{},
+		calls:       map[string]resource.PropertyMap{},
 		identityIds: map[string][2]string{},
 	}
 }
@@ -73,6 +75,7 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 
 func (m *resourceCaptureMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
 	m.mu.Lock()
+	m.calls[args.Token] = args.Args
 	result, ok := m.callResults[args.Token]
 	m.mu.Unlock()
 	if ok {
@@ -87,6 +90,13 @@ func (m *resourceCaptureMocks) stubCall(token string, result resource.PropertyMa
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.callResults[token] = result
+}
+
+// callArgs returns the arguments of the last Invoke of the given token (nil if it wasn't invoked).
+func (m *resourceCaptureMocks) callArgs(token string) resource.PropertyMap {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.calls[token]
 }
 
 // stubIdentityIds makes the UserAssignedIdentity registered under name return the given client and

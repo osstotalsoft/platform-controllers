@@ -243,11 +243,36 @@ func TestBlobContainerName(t *testing.T) {
 	assert.Equal(t, "my-files-dev-tenant1", blobContainerName(newTenant("tenant1", "dev"), "my_files"))
 }
 
-func TestBlobContainerSasExpiry(t *testing.T) {
+func TestBlobContainerSasWindow(t *testing.T) {
 	windowStart := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC) // day 20730 since the epoch, a multiple of 30
-	assert.Equal(t, "2027-10-04T00:00:00Z", blobContainerSasExpiry(windowStart, 365))
-	assert.Equal(t, "2027-10-04T00:00:00Z", blobContainerSasExpiry(windowStart.Add(29*24*time.Hour+23*time.Hour), 365),
+	window := func(now time.Time) [2]string {
+		start, expiry := blobContainerSasWindow(now, 365)
+		return [2]string{start, expiry}
+	}
+	assert.Equal(t, [2]string{"2026-10-04T00:00:00Z", "2027-10-04T00:00:00Z"}, window(windowStart))
+	assert.Equal(t, [2]string{"2026-10-04T00:00:00Z", "2027-10-04T00:00:00Z"}, window(windowStart.Add(29*24*time.Hour+23*time.Hour)),
 		"every update within one rotation window asks for the same SAS")
-	assert.Equal(t, "2027-11-03T00:00:00Z", blobContainerSasExpiry(windowStart.Add(30*24*time.Hour), 365),
+	assert.Equal(t, [2]string{"2026-11-03T00:00:00Z", "2027-11-03T00:00:00Z"}, window(windowStart.Add(30*24*time.Hour)),
 		"the next window issues a new one")
+}
+
+func TestBlobContainerSasRequestIsStableWithinWindow(t *testing.T) {
+	defer func(now func() time.Time) { blobContainerNow = now }(blobContainerNow)
+	blobContainerNow = func() time.Time { return time.Date(2026, 11, 10, 13, 18, 52, 0, time.UTC) }
+
+	capture := newBlobContainerMocks()
+	container := newBlobContainer("my-container")
+	container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
+		ContainerSasUrl: toConfigMap("ObjectStorage__BlobContainerSasUrl"),
+	}}
+	assert.NoError(t, deployTestBlobContainer(t, capture, container, nil))
+
+	args := capture.callArgs("azure-native:storage:listStorageAccountServiceSAS")
+	if assert.NotNil(t, args) {
+		// Without a start time Azure would sign from the current time, giving a new SAS on every update.
+		assert.Equal(t, "2026-11-03T00:00:00Z", args["sharedAccessStartTime"].StringValue())
+		assert.Equal(t, "2027-11-03T00:00:00Z", args["sharedAccessExpiryTime"].StringValue())
+		assert.Equal(t, "/blob/mystorage/files-dev-tenant1", args["canonicalizedResource"].StringValue())
+		assert.Equal(t, "racwdl", args["permissions"].StringValue())
+	}
 }

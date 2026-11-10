@@ -140,6 +140,7 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	// every container of the account.
 	var containerSasUrl pulumi.StringOutput
 	if anyContainerSasUrlExport(spec.Exports) {
+		sasStart, sasExpiry := blobContainerSasWindow(blobContainerNow(), sasValidityDays)
 		sas := storage.ListStorageAccountServiceSASOutput(ctx, storage.ListStorageAccountServiceSASOutputArgs{
 			ResourceGroupName:      pulumi.String(spec.StorageAccount.ResourceGroupName),
 			AccountName:            pulumi.String(spec.StorageAccount.AccountName),
@@ -147,7 +148,10 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 			Resource:               pulumi.StringPtr("c"),
 			Permissions:            pulumi.StringPtr(blobContainerSasPermissions),
 			Protocols:              storage.HttpProtocolHttps.ToHttpProtocolPtrOutput(),
-			SharedAccessExpiryTime: pulumi.StringPtr(blobContainerSasExpiry(blobContainerNow(), sasValidityDays)),
+			// Both times are fixed for the whole rotation window: without a start time Azure signs the
+			// SAS from the current time, and every update would export a new SAS.
+			SharedAccessStartTime:  pulumi.StringPtr(sasStart),
+			SharedAccessExpiryTime: pulumi.StringPtr(sasExpiry),
 		})
 		containerSasUrl = pulumi.ToSecret(sas.ServiceSasToken().ApplyT(func(token string) string {
 			return containerUrl + "?" + token
@@ -253,14 +257,15 @@ func validateBlobContainerName(name string) error {
 	return nil
 }
 
-// blobContainerSasExpiry is the expiry of the container SAS issued at now: validityDays after the
-// start of now's rotation window. Every update within one window asks for the same SAS, so the
-// exported value only changes once per window, and the previous SAS stays valid for
+// blobContainerSasWindow returns the start and expiry of the container SAS issued at now: the start
+// of now's rotation window, and validityDays after it. Every update within one window asks for the
+// same SAS, so the exported value only changes once per window, and the previous SAS stays valid for
 // validityDays - blobContainerSasRotationDays days after it's replaced.
-func blobContainerSasExpiry(now time.Time, validityDays int) string {
+func blobContainerSasWindow(now time.Time, validityDays int) (start, expiry string) {
 	day := now.UTC().Unix() / 86400
 	windowStart := day - day%blobContainerSasRotationDays
-	return time.Unix((windowStart+int64(validityDays))*86400, 0).UTC().Format(time.RFC3339)
+	return time.Unix(windowStart*86400, 0).UTC().Format(time.RFC3339),
+		time.Unix((windowStart+int64(validityDays))*86400, 0).UTC().Format(time.RFC3339)
 }
 
 // subscriptionIdOf returns the subscription in an ARM resource id.
