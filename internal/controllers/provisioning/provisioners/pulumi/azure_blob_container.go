@@ -10,6 +10,7 @@ import (
 	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
 	"github.com/pulumi/pulumi-azure-native-sdk/storage/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pulumiTime "github.com/pulumiverse/pulumi-time/sdk/go/time"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
@@ -31,16 +32,13 @@ var blobContainerNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 // write, delete and list, what an app storing its files in the container needs.
 const blobContainerSasPermissions = "racwdl"
 
-// blobContainerSasRotationDays is how often a new container SAS is issued. Within one rotation
-// window the SAS, and so the exported value, stays the same from one update to the next.
+// blobContainerSasRotationDays is how often a new container SAS is issued. Between rotations the
+// SAS, and so the exported value, stays the same from one update to the next.
 const blobContainerSasRotationDays = 30
 
 // defaultBlobContainerSasValidityDays is the validity of the container SAS when spec.sasValidityDays
 // is not set.
 const defaultBlobContainerSasValidityDays = 365
-
-// blobContainerNow is the clock the container SAS expiry is computed from, replaced by tests.
-var blobContainerNow = time.Now
 
 func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	blobContainer *provisioningv1.AzureBlobContainer,
@@ -140,18 +138,21 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	// every container of the account.
 	var containerSasUrl pulumi.StringOutput
 	if anyContainerSasUrlExport(spec.Exports) {
-		sasStart, sasExpiry := blobContainerSasWindow(blobContainerNow(), sasValidityDays)
+		sasStart, sasExpiry, err := deployBlobContainerSasRotation(ctx, blobContainer.Name, sasValidityDays)
+		if err != nil {
+			return nil, err
+		}
 		sas := storage.ListStorageAccountServiceSASOutput(ctx, storage.ListStorageAccountServiceSASOutputArgs{
-			ResourceGroupName:      pulumi.String(spec.StorageAccount.ResourceGroupName),
-			AccountName:            pulumi.String(spec.StorageAccount.AccountName),
-			CanonicalizedResource:  pulumi.String(fmt.Sprintf("/blob/%s/%s", spec.StorageAccount.AccountName, containerName)),
-			Resource:               pulumi.StringPtr("c"),
-			Permissions:            pulumi.StringPtr(blobContainerSasPermissions),
-			Protocols:              storage.HttpProtocolHttps.ToHttpProtocolPtrOutput(),
-			// Both times are fixed for the whole rotation window: without a start time Azure signs the
-			// SAS from the current time, and every update would export a new SAS.
-			SharedAccessStartTime:  pulumi.StringPtr(sasStart),
-			SharedAccessExpiryTime: pulumi.StringPtr(sasExpiry),
+			ResourceGroupName:     pulumi.String(spec.StorageAccount.ResourceGroupName),
+			AccountName:           pulumi.String(spec.StorageAccount.AccountName),
+			CanonicalizedResource: pulumi.String(fmt.Sprintf("/blob/%s/%s", spec.StorageAccount.AccountName, containerName)),
+			Resource:              pulumi.StringPtr("c"),
+			Permissions:           pulumi.StringPtr(blobContainerSasPermissions),
+			Protocols:             storage.HttpProtocolHttps.ToHttpProtocolPtrOutput(),
+			// Both times stay the same until the next rotation: without a start time Azure signs the SAS
+			// from the current time, and every update would export a new SAS.
+			SharedAccessStartTime:  sasStart,
+			SharedAccessExpiryTime: sasExpiry,
 		})
 		containerSasUrl = pulumi.ToSecret(sas.ServiceSasToken().ApplyT(func(token string) string {
 			return containerUrl + "?" + token
@@ -161,11 +162,11 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	for i, exp := range spec.Exports {
 		domain := exportDomains[i]
 		values := map[string]exportTemplateWithValue{
-			"containerName":    {exp.ContainerName, pulumi.String(containerName)},
-			"accountName":      {exp.AccountName, pulumi.String(spec.StorageAccount.AccountName)},
-			"blobEndpoint":     {exp.BlobEndpoint, pulumi.String(blobEndpoint)},
-			"containerUrl":     {exp.ContainerUrl, pulumi.String(containerUrl)},
-			"containerSasUrl":  {exp.ContainerSasUrl, containerSasUrl},
+			"containerName":   {exp.ContainerName, pulumi.String(containerName)},
+			"accountName":     {exp.AccountName, pulumi.String(spec.StorageAccount.AccountName)},
+			"blobEndpoint":    {exp.BlobEndpoint, pulumi.String(blobEndpoint)},
+			"containerUrl":    {exp.ContainerUrl, pulumi.String(containerUrl)},
+			"containerSasUrl": {exp.ContainerSasUrl, containerSasUrl},
 		}
 		if err := addIdentityExports(values, identitiesByName, identityExports{identities: exp.Identities}, domain); err != nil {
 			return nil, err
@@ -257,15 +258,29 @@ func validateBlobContainerName(name string) error {
 	return nil
 }
 
-// blobContainerSasWindow returns the start and expiry of the container SAS issued at now: the start
-// of now's rotation window, and validityDays after it. Every update within one window asks for the
-// same SAS, so the exported value only changes once per window, and the previous SAS stays valid for
-// validityDays - blobContainerSasRotationDays days after it's replaced.
-func blobContainerSasWindow(now time.Time, validityDays int) (start, expiry string) {
-	day := now.UTC().Unix() / 86400
-	windowStart := day - day%blobContainerSasRotationDays
-	return time.Unix(windowStart*86400, 0).UTC().Format(time.RFC3339),
-		time.Unix((windowStart+int64(validityDays))*86400, 0).UTC().Format(time.RFC3339)
+// deployBlobContainerSasRotation returns the start and expiry of the container SAS: the time of the
+// last rotation, kept in the stack state by a pulumi-time Rotating resource, and validityDays after
+// it. Both stay the same from one update to the next, so the exported SAS only changes when the
+// Rotating resource is replaced, blobContainerSasRotationDays after the previous rotation. The
+// previous SAS then stays valid for validityDays - blobContainerSasRotationDays more days.
+//
+// The rotation is detected by the stack refresh, like the AVD registration token's: with
+// PULUMI_SKIP_REFRESH the SAS is never renewed.
+func deployBlobContainerSasRotation(ctx *pulumi.Context, name string, validityDays int) (start, expiry pulumi.StringOutput, err error) {
+	rotation, err := pulumiTime.NewRotating(ctx, fmt.Sprintf("%s-sas-rotation", name), &pulumiTime.RotatingArgs{
+		RotationDays: pulumi.Int(blobContainerSasRotationDays),
+	})
+	if err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+	expiry = rotation.Rfc3339.ApplyT(func(start string) (string, error) {
+		t, err := time.Parse(time.RFC3339, start)
+		if err != nil {
+			return "", fmt.Errorf("invalid SAS rotation time %q: %w", start, err)
+		}
+		return t.AddDate(0, 0, validityDays).UTC().Format(time.RFC3339), nil
+	}).(pulumi.StringOutput)
+	return rotation.Rfc3339, expiry, nil
 }
 
 // subscriptionIdOf returns the subscription in an ARM resource id.

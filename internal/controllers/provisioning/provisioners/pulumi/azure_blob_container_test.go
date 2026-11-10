@@ -2,7 +2,6 @@ package pulumi
 
 import (
 	"testing"
-	"time"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -100,10 +99,10 @@ func TestDeployAzureBlobContainer(t *testing.T) {
 		capture := newBlobContainerMocks()
 		container := newBlobContainer("my-container")
 		container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
-			ContainerName:    toConfigMap("Storage__ContainerName"),
-			AccountName:      toConfigMap("Storage__AccountName"),
-			BlobEndpoint:     toConfigMap("Storage__BlobEndpoint"),
-			ContainerUrl:     toConfigMap("Storage__ContainerUrl"),
+			ContainerName:   toConfigMap("Storage__ContainerName"),
+			AccountName:     toConfigMap("Storage__AccountName"),
+			BlobEndpoint:    toConfigMap("Storage__BlobEndpoint"),
+			ContainerUrl:    toConfigMap("Storage__ContainerUrl"),
 			ContainerSasUrl: toConfigMap("ObjectStorage__BlobContainerSasUrl"),
 		}}
 
@@ -243,36 +242,45 @@ func TestBlobContainerName(t *testing.T) {
 	assert.Equal(t, "my-files-dev-tenant1", blobContainerName(newTenant("tenant1", "dev"), "my_files"))
 }
 
-func TestBlobContainerSasWindow(t *testing.T) {
-	windowStart := time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC) // day 20730 since the epoch, a multiple of 30
-	window := func(now time.Time) [2]string {
-		start, expiry := blobContainerSasWindow(now, 365)
-		return [2]string{start, expiry}
+func TestBlobContainerSasRotation(t *testing.T) {
+	deploy := func(t *testing.T, sasValidityDays int) *resourceCaptureMocks {
+		capture := newBlobContainerMocks()
+		container := newBlobContainer("my-container")
+		container.Spec.SasValidityDays = sasValidityDays
+		container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
+			ContainerSasUrl: toConfigMap("ObjectStorage__BlobContainerSasUrl"),
+		}}
+		assert.NoError(t, deployTestBlobContainer(t, capture, container, nil))
+		return capture
 	}
-	assert.Equal(t, [2]string{"2026-10-04T00:00:00Z", "2027-10-04T00:00:00Z"}, window(windowStart))
-	assert.Equal(t, [2]string{"2026-10-04T00:00:00Z", "2027-10-04T00:00:00Z"}, window(windowStart.Add(29*24*time.Hour+23*time.Hour)),
-		"every update within one rotation window asks for the same SAS")
-	assert.Equal(t, [2]string{"2026-11-03T00:00:00Z", "2027-11-03T00:00:00Z"}, window(windowStart.Add(30*24*time.Hour)),
-		"the next window issues a new one")
-}
 
-func TestBlobContainerSasRequestIsStableWithinWindow(t *testing.T) {
-	defer func(now func() time.Time) { blobContainerNow = now }(blobContainerNow)
-	blobContainerNow = func() time.Time { return time.Date(2026, 11, 10, 13, 18, 52, 0, time.UTC) }
+	t.Run("signs the SAS from the last rotation, which is renewed every 30 days", func(t *testing.T) {
+		capture := deploy(t, 0)
 
-	capture := newBlobContainerMocks()
-	container := newBlobContainer("my-container")
-	container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
-		ContainerSasUrl: toConfigMap("ObjectStorage__BlobContainerSasUrl"),
-	}}
-	assert.NoError(t, deployTestBlobContainer(t, capture, container, nil))
+		rotation := capture.byName["my-container-sas-rotation"]
+		assert.Equal(t, "time:index/rotating:Rotating", rotation.TypeToken)
+		assert.Equal(t, float64(30), rotation.Inputs["rotationDays"].NumberValue())
 
-	args := capture.callArgs("azure-native:storage:listStorageAccountServiceSAS")
-	if assert.NotNil(t, args) {
-		// Without a start time Azure would sign from the current time, giving a new SAS on every update.
-		assert.Equal(t, "2026-11-03T00:00:00Z", args["sharedAccessStartTime"].StringValue())
-		assert.Equal(t, "2027-11-03T00:00:00Z", args["sharedAccessExpiryTime"].StringValue())
-		assert.Equal(t, "/blob/mystorage/files-dev-tenant1", args["canonicalizedResource"].StringValue())
-		assert.Equal(t, "racwdl", args["permissions"].StringValue())
-	}
+		args := capture.callArgs("azure-native:storage:listStorageAccountServiceSAS")
+		if assert.NotNil(t, args) {
+			// Without a start time Azure would sign from the current time, giving a new SAS on every update.
+			assert.Equal(t, testRotationTime, args["sharedAccessStartTime"].StringValue())
+			assert.Equal(t, "2027-11-10T13:18:52Z", args["sharedAccessExpiryTime"].StringValue(), "valid 365 days by default")
+			assert.Equal(t, "/blob/mystorage/files-dev-tenant1", args["canonicalizedResource"].StringValue())
+			assert.Equal(t, "c", args["resource"].StringValue())
+			assert.Equal(t, "racwdl", args["permissions"].StringValue())
+		}
+	})
+
+	t.Run("sasValidityDays sets the expiry", func(t *testing.T) {
+		capture := deploy(t, 90)
+		assert.Equal(t, "2027-02-08T13:18:52Z", capture.callArgs("azure-native:storage:listStorageAccountServiceSAS")["sharedAccessExpiryTime"].StringValue())
+	})
+
+	t.Run("no rotation without a containerSasUrl export", func(t *testing.T) {
+		capture := newBlobContainerMocks()
+		assert.NoError(t, deployTestBlobContainer(t, capture, newBlobContainer("my-container"), nil))
+		assert.Empty(t, capture.byType["time:index/rotating:Rotating"])
+		assert.Nil(t, capture.callArgs("azure-native:storage:listStorageAccountServiceSAS"))
+	})
 }

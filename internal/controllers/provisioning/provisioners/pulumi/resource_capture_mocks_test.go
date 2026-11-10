@@ -29,6 +29,9 @@ type resourceCaptureMocks struct {
 	identityIds map[string][2]string
 }
 
+// testRotationTime is the time every pulumi-time Rotating resource reports it last rotated at.
+const testRotationTime = "2026-11-10T13:18:52Z"
+
 func newResourceCaptureMocks() *resourceCaptureMocks {
 	return &resourceCaptureMocks{
 		byType:      map[string][]pulumi.MockResourceArgs{},
@@ -59,6 +62,8 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 	switch args.TypeToken {
 	case "random:index/randomPassword:RandomPassword":
 		outputs["result"] = resource.NewStringProperty("Test-Password-123!")
+	case "time:index/rotating:Rotating":
+		outputs["rfc3339"] = resource.NewStringProperty(testRotationTime)
 	case "azure-native:managedidentity:UserAssignedIdentity":
 		// The Azure name, like ARM returns it, for resources that reference the identity by Name.
 		outputs["name"] = args.Inputs["resourceName"]
