@@ -252,6 +252,12 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 		return "", pulumi.StringOutput{}, err
 	}
 
+	err = deployLoginSessionsGuard(ctx, provider, fmt.Sprintf("%s-login-sessions", resourceNamePrefix), databaseId,
+		loginName, login, retainOnDelete)
+	if err != nil {
+		return "", pulumi.StringOutput{}, err
+	}
+
 	userResourceName := fmt.Sprintf("%s-user", resourceNamePrefix)
 	userOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, login)), pulumi.RetainOnDelete(retainOnDelete)}
 	if imports.shouldImport(mssqlSqlUserType, userResourceName) {
@@ -290,6 +296,66 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 
 	return loginName, password, nil
 }
+
+// deployLoginSessionsGuard deploys a Script that lets the login named loginName be dropped while
+// applications are still connected with it. The provider's SqlLogin delete is a bare DROP LOGIN,
+// which SQL Server refuses while the login has a session ("Could not drop login … as the user is
+// currently logged in"), and a tenant's applications usually still run when its stack is destroyed.
+//
+// The Script depends on login, so Pulumi deletes it first, both on a stack destroy and when the user
+// is removed from the spec. Its DeleteScript disables the login, so the applications can't reconnect
+// before DROP LOGIN runs, then kills the login's sessions. A session that ended on its own meanwhile
+// (error killedSessionNotActiveError) is skipped. With retainOnDelete, neither is deleted and the
+// login stays enabled.
+//
+// The Script also keeps the login enabled: its UpdateScript enables it, so a login left disabled by a
+// destroy that failed after the Script was deleted is enabled again when the stack is updated and the
+// Script recreated. DeleteBeforeReplace makes a replacement (its database changed) disable the login
+// before the new Script enables it, not after.
+func deployLoginSessionsGuard(ctx *pulumi.Context, provider *mssql.Provider, resourceName string,
+	databaseId pulumi.StringInput, loginName string, login *mssql.SqlLogin, retainOnDelete bool) error {
+
+	name := sqlStringLiteral(loginName)
+	identifier := sqlQuotedIdentifier(loginName)
+
+	_, err := mssql.NewScript(ctx, resourceName, &mssql.ScriptArgs{
+		DatabaseId: databaseId,
+		ReadScript: pulumi.String(fmt.Sprintf(
+			"SELECT CASE WHEN EXISTS (SELECT 1 FROM sys.server_principals WHERE name = %s AND is_disabled = 0) THEN 'Enabled' ELSE 'Disabled' END AS [LoginStatus]",
+			name)),
+		UpdateScript: pulumi.String(fmt.Sprintf(`IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = %[1]s AND is_disabled = 1)
+    ALTER LOGIN %[2]s ENABLE;`, name, identifier)),
+		DeleteScript: pulumi.String(fmt.Sprintf(`IF EXISTS (SELECT 1 FROM sys.server_principals WHERE name = %[1]s)
+BEGIN
+    ALTER LOGIN %[2]s DISABLE;
+    DECLARE @sessions TABLE (session_id int PRIMARY KEY);
+    INSERT INTO @sessions (session_id)
+        SELECT session_id FROM sys.dm_exec_sessions WHERE login_name = %[1]s AND session_id <> @@SPID;
+    DECLARE @session_id int, @kill nvarchar(32);
+    WHILE EXISTS (SELECT 1 FROM @sessions)
+    BEGIN
+        SELECT TOP 1 @session_id = session_id FROM @sessions;
+        DELETE FROM @sessions WHERE session_id = @session_id;
+        SET @kill = N'KILL ' + CAST(@session_id AS nvarchar(10));
+        BEGIN TRY
+            EXEC (@kill);
+        END TRY
+        BEGIN CATCH
+            IF ERROR_NUMBER() <> %[3]d THROW;
+        END CATCH
+    END
+END`, name, identifier, killedSessionNotActiveError)),
+		State: pulumi.StringMap{
+			"LoginStatus": pulumi.String("Enabled"),
+		},
+	}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{login}),
+		pulumi.DeleteBeforeReplace(true), pulumi.RetainOnDelete(retainOnDelete))
+	return err
+}
+
+// killedSessionNotActiveError is the SQL Server error KILL raises for a session that has already
+// ended: "Process ID … is not an active process ID."
+const killedSessionNotActiveError = 6106
 
 // deployContainedUser creates a password-based contained database user (no server-level login) via
 // an idempotent Script, and grants userSpec.Roles. Used when there is no server-login concept

@@ -161,6 +161,8 @@ func TestExportListsMsSqlDbUsers(t *testing.T) {
 		"mssql:index/database:Database lists-mssql-db",
 		"mssql:index/databaseRoleMember:DatabaseRoleMember lists-mssql-db-app_user-role-db_owner",
 		"mssql:index/databaseRoleMember:DatabaseRoleMember lists-mssql-db-reporting_user-role-db_datareader",
+		"mssql:index/script:Script lists-mssql-db-app_user-login-sessions",
+		"mssql:index/script:Script lists-mssql-db-reporting_user-login-sessions",
 		"mssql:index/sqlLogin:SqlLogin lists-mssql-db-app_user-login",
 		"mssql:index/sqlLogin:SqlLogin lists-mssql-db-reporting_user-login",
 		"mssql:index/sqlUser:SqlUser lists-mssql-db-app_user-user",
