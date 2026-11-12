@@ -1,0 +1,381 @@
+package pulumi
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+	"time"
+
+	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/storage/v2"
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	pulumiTime "github.com/pulumiverse/pulumi-time/sdk/go/time"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
+	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
+)
+
+// blobContainerRoleDefinitionIds maps the roles a managed identity can get on a container to the ids
+// of these built-in Azure role definitions, the same in every subscription.
+var blobContainerRoleDefinitionIds = map[provisioningv1.BlobContainerRole]string{
+	provisioningv1.BlobContainerRoleContributor: "ba92f5b4-2d11-453d-a403-e96b0029c9fe",
+	provisioningv1.BlobContainerRoleReader:      "2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
+	provisioningv1.BlobContainerRoleOwner:       "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",
+}
+
+// storageBlobDelegatorRoleDefinitionId is the id of the built-in Storage Blob Delegator role: it only
+// allows requesting a user delegation key, to sign SAS (e.g. download links) as the identity.
+const storageBlobDelegatorRoleDefinitionId = "db58b8e5-c6ad-4a2a-8342-4190687cbf4a"
+
+// blobContainerNamePattern is Azure's naming rule for blob containers: 3-63 lowercase letters,
+// digits and hyphens, starting and ending with a letter or digit, without consecutive hyphens.
+var blobContainerNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// blobContainerSasPermissions are the permissions of the exported container SAS: read, add, create,
+// write, delete and list, what an app storing its files in the container needs.
+const blobContainerSasPermissions = "racwdl"
+
+// blobContainerSasRotationDays is how often a new container SAS is issued. Between rotations the
+// SAS, and so the exported value, stays the same from one update to the next.
+const blobContainerSasRotationDays = 30
+
+// defaultBlobContainerSasValidityDays is the validity of the container SAS when spec.sasValidityDays
+// is not set.
+const defaultBlobContainerSasValidityDays = 365
+
+func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
+	blobContainer *provisioningv1.AzureBlobContainer,
+	dependencies []pulumi.Resource,
+	imports *importOptions,
+	ctx *pulumi.Context) (*storage.BlobContainer, error) {
+
+	valueExporter := handleValueExport(target)
+	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureBlobContainer")
+	spec := blobContainer.Spec
+
+	containerName := blobContainerName(target, spec.ContainerName)
+	if spec.ImportContainerName != "" {
+		containerName = spec.ImportContainerName
+	} else if err := validateBlobContainerName(containerName); err != nil {
+		return nil, err
+	}
+
+	sasValidityDays := spec.SasValidityDays
+	if sasValidityDays == 0 {
+		sasValidityDays = defaultBlobContainerSasValidityDays
+	}
+	if sasValidityDays <= blobContainerSasRotationDays {
+		return nil, fmt.Errorf("spec.sasValidityDays must be more than %d, the SAS rotation period, got %d", blobContainerSasRotationDays, sasValidityDays)
+	}
+
+	if err := validateUniqueNames(spec.ManagedIdentities, "managedIdentities"); err != nil {
+		return nil, err
+	}
+	identities, err := renderBlobContainerIdentities(spec.ManagedIdentities, target)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateServiceAccounts(blobIdentitiesAsManagedIdentities(identities), blobContainer.Namespace); err != nil {
+		return nil, err
+	}
+	for _, identity := range identities {
+		if _, ok := blobContainerRoleDefinitionIds[blobContainerRole(identity)]; !ok {
+			return nil, fmt.Errorf("spec.managedIdentities[%s].role %q is not one of StorageBlobDataContributor, StorageBlobDataReader, StorageBlobDataOwner", identity.Name, identity.Role)
+		}
+	}
+	exportDomains, err := blobContainerExportDomains(blobContainer)
+	if err != nil {
+		return nil, err
+	}
+
+	account, err := storage.LookupStorageAccount(ctx, &storage.LookupStorageAccountArgs{
+		ResourceGroupName: spec.StorageAccount.ResourceGroupName,
+		AccountName:       spec.StorageAccount.AccountName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if account == nil {
+		return nil, fmt.Errorf("storageAccount %s not found", spec.StorageAccount.AccountName)
+	}
+	subscriptionId, err := subscriptionIdOf(account.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	pulumiRetainOnDelete := provisioning.GetDeletePolicy(target) == platformv1.DeletePolicyRetainStatefulResources
+
+	importContainerId := ""
+	if spec.ImportContainerName != "" || imports.shouldImport(azureBlobContainerType, blobContainer.Name) {
+		importContainerId = fmt.Sprintf("%s/blobServices/default/containers/%s", account.Id, containerName)
+	}
+
+	container, err := storage.NewBlobContainer(ctx, blobContainer.Name, &storage.BlobContainerArgs{
+		ResourceGroupName: pulumi.String(spec.StorageAccount.ResourceGroupName),
+		AccountName:       pulumi.String(spec.StorageAccount.AccountName),
+		ContainerName:     pulumi.String(containerName),
+	},
+		pulumi.RetainOnDelete(pulumiRetainOnDelete),
+		pulumi.IgnoreChanges([]string{"resourceGroupName", "accountName", "containerName"}),
+		pulumi.Import(pulumi.ID(importContainerId)),
+		pulumi.DependsOn(dependencies))
+	if err != nil {
+		return nil, err
+	}
+
+	identitiesByName := map[string]deployedIdentity{}
+	for i := range identities {
+		identity := identities[i]
+		clientId, principalId, err := deployBlobContainerIdentity(ctx, fmt.Sprintf("%s-%s-blob", blobContainer.Name, identity.Name),
+			&identity, containerName, subscriptionId, account.Id, blobContainer.Namespace, container, dependencies, pulumiRetainOnDelete, imports)
+		if err != nil {
+			return nil, err
+		}
+		identitiesByName[identity.Name] = deployedIdentity{clientId: clientId, principalId: principalId}
+	}
+
+	blobEndpoint := account.PrimaryEndpoints.Blob
+	containerUrl := strings.TrimSuffix(blobEndpoint, "/") + "/" + containerName
+
+	// Only container scoped credentials are exported, never the account keys, which grant access to
+	// every container of the account.
+	var containerSasUrl pulumi.StringOutput
+	if anyContainerSasUrlExport(spec.Exports) {
+		sasStart, sasExpiry, err := deployBlobContainerSasRotation(ctx, blobContainer.Name, sasValidityDays)
+		if err != nil {
+			return nil, err
+		}
+		sas := storage.ListStorageAccountServiceSASOutput(ctx, storage.ListStorageAccountServiceSASOutputArgs{
+			ResourceGroupName:     pulumi.String(spec.StorageAccount.ResourceGroupName),
+			AccountName:           pulumi.String(spec.StorageAccount.AccountName),
+			CanonicalizedResource: pulumi.String(fmt.Sprintf("/blob/%s/%s", spec.StorageAccount.AccountName, containerName)),
+			Resource:              pulumi.StringPtr("c"),
+			Permissions:           pulumi.StringPtr(blobContainerSasPermissions),
+			Protocols:             storage.HttpProtocolHttps.ToHttpProtocolPtrOutput(),
+			// Both times stay the same until the next rotation: without a start time Azure signs the SAS
+			// from the current time, and every update would export a new SAS.
+			SharedAccessStartTime:  sasStart,
+			SharedAccessExpiryTime: sasExpiry,
+		})
+		containerSasUrl = pulumi.ToSecret(sas.ServiceSasToken().ApplyT(func(token string) string {
+			return containerUrl + "?" + token
+		})).(pulumi.StringOutput)
+	}
+
+	for i, exp := range spec.Exports {
+		domain := exportDomains[i]
+		values := map[string]exportTemplateWithValue{
+			"containerName":   {exp.ContainerName, pulumi.String(containerName)},
+			"accountName":     {exp.AccountName, pulumi.String(spec.StorageAccount.AccountName)},
+			"blobEndpoint":    {exp.BlobEndpoint, pulumi.String(blobEndpoint)},
+			"containerUrl":    {exp.ContainerUrl, pulumi.String(containerUrl)},
+			"containerSasUrl": {exp.ContainerSasUrl, containerSasUrl},
+		}
+		if err := addIdentityExports(values, identitiesByName, identityExports{identities: exp.Identities}, domain); err != nil {
+			return nil, err
+		}
+		if len(exp.Identities) > 0 {
+			if err := validateExportKeys(values, provisioning.GetTemplateContext(target), domain); err != nil {
+				return nil, err
+			}
+		}
+
+		err = valueExporter(newExportContext(ctx, domain, blobContainer.Name, blobContainer.ObjectMeta, gvk), values)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return container, nil
+}
+
+// deployBlobContainerIdentity creates an Azure user-assigned managed identity with a federated
+// credential for each of its ServiceAccounts, grants it its role on container, and Storage Blob
+// Delegator on the storage account accountId.
+//
+// The delegator role lets the identity sign SAS, such as short-lived download links, with a user
+// delegation key. Azure only issues that key to a principal with the role on the storage account (or
+// above), not on a container, but the role grants no data access: a SAS the identity signs can't
+// exceed its own role on the container.
+//
+// Like the database identities (see deployManagedIdentity), the identity lives in a fixed resource
+// group shared by every tenant, so its Azure name gets the tenant-scoped container name appended.
+// The identity is retained with the container; the role assignments, like the federated credentials,
+// hold no state and are not: a retained identity must not keep access once its owner is gone.
+func deployBlobContainerIdentity(ctx *pulumi.Context, resourceNamePrefix string,
+	identitySpec *provisioningv1.BlobContainerIdentitySpec, containerName, subscriptionId, accountId, ownerNamespace string,
+	container *storage.BlobContainer, dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.StringOutput, pulumi.StringOutput, error) {
+
+	name := fmt.Sprintf("%s_%s", identitySpec.Name, containerName)
+
+	identityResourceName := fmt.Sprintf("%s-identity", resourceNamePrefix)
+	identityOpts := []pulumi.ResourceOption{pulumi.DependsOn(dependencies), pulumi.RetainOnDelete(retainOnDelete)}
+	if imports.shouldImport(azureUserAssignedIdentityType, identityResourceName) {
+		identityOpts = append(identityOpts, imports.importResource(pulumi.ID(fmt.Sprintf(
+			"/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s",
+			subscriptionId, identitySpec.ResourceGroupName, name)))...)
+	}
+
+	identity, err := managedidentity.NewUserAssignedIdentity(ctx, identityResourceName, &managedidentity.UserAssignedIdentityArgs{
+		ResourceName:      pulumi.String(name),
+		ResourceGroupName: pulumi.String(identitySpec.ResourceGroupName),
+		Location:          pulumi.String(identitySpec.Location),
+	}, identityOpts...)
+	if err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+
+	managedIdentitySpec := blobIdentityAsManagedIdentity(*identitySpec)
+	if err := deployFederatedCredentials(ctx, identity, &managedIdentitySpec, resourceNamePrefix, ownerNamespace); err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+
+	roleAssignments := []struct {
+		name             string
+		roleDefinitionId string
+		scope            pulumi.StringInput
+	}{
+		{"role-assignment", blobContainerRoleDefinitionIds[blobContainerRole(*identitySpec)], container.ID().ToStringOutput()},
+		{"delegator-role-assignment", storageBlobDelegatorRoleDefinitionId, pulumi.String(accountId)},
+	}
+	for _, ra := range roleAssignments {
+		_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-%s", resourceNamePrefix, ra.name), &authorization.RoleAssignmentArgs{
+			PrincipalId: identity.PrincipalId,
+			// A new identity takes a while to replicate in Entra ID: with the principal type given, Azure
+			// doesn't need to look it up and accepts the assignment right away.
+			PrincipalType: pulumi.String(authorization.PrincipalTypeServicePrincipal),
+			RoleDefinitionId: pulumi.String(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
+				subscriptionId, ra.roleDefinitionId)),
+			Scope: ra.scope,
+		}, pulumi.DependsOn(dependencies))
+		if err != nil {
+			return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+		}
+	}
+
+	return identity.ClientId, identity.PrincipalId, nil
+}
+
+// blobContainerName is the tenant (or platform) scoped name of the container: the prefix, then the
+// platform and tenant names, with dots and underscores, which container names can't contain, turned
+// into hyphens.
+func blobContainerName(target provisioning.ProvisioningTarget, prefix string) string {
+	name := provisioning.MatchTarget(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s-%s-%s", prefix, tenant.Spec.PlatformRef, tenant.GetName())
+		},
+		func(platform *platformv1.Platform) string {
+			return fmt.Sprintf("%s-%s", prefix, platform.GetName())
+		},
+	)
+	return strings.NewReplacer(".", "-", "_", "-").Replace(strings.ToLower(name))
+}
+
+func validateBlobContainerName(name string) error {
+	if len(name) < 3 || len(name) > 63 || !blobContainerNamePattern.MatchString(name) {
+		return fmt.Errorf("container name %q must be 3-63 lowercase letters, digits and single hyphens, starting and ending with a letter or digit; shorten spec.containerName", name)
+	}
+	return nil
+}
+
+// deployBlobContainerSasRotation returns the start and expiry of the container SAS: the time of the
+// last rotation, kept in the stack state by a pulumi-time Rotating resource, and validityDays after
+// it. Both stay the same from one update to the next, so the exported SAS only changes when the
+// Rotating resource is replaced, blobContainerSasRotationDays after the previous rotation. The
+// previous SAS then stays valid for validityDays - blobContainerSasRotationDays more days.
+//
+// The rotation is detected by the stack refresh, like the AVD registration token's: with
+// PULUMI_SKIP_REFRESH the SAS is never renewed.
+func deployBlobContainerSasRotation(ctx *pulumi.Context, name string, validityDays int) (start, expiry pulumi.StringOutput, err error) {
+	rotation, err := pulumiTime.NewRotating(ctx, fmt.Sprintf("%s-sas-rotation", name), &pulumiTime.RotatingArgs{
+		RotationDays: pulumi.Int(blobContainerSasRotationDays),
+	})
+	if err != nil {
+		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	}
+	expiry = rotation.Rfc3339.ApplyT(func(start string) (string, error) {
+		t, err := time.Parse(time.RFC3339, start)
+		if err != nil {
+			return "", fmt.Errorf("invalid SAS rotation time %q: %w", start, err)
+		}
+		return t.AddDate(0, 0, validityDays).UTC().Format(time.RFC3339), nil
+	}).(pulumi.StringOutput)
+	return rotation.Rfc3339, expiry, nil
+}
+
+// subscriptionIdOf returns the subscription in an ARM resource id.
+func subscriptionIdOf(resourceId string) (string, error) {
+	parts := strings.Split(resourceId, "/")
+	if len(parts) < 3 || !strings.EqualFold(parts[1], "subscriptions") || parts[2] == "" {
+		return "", fmt.Errorf("no subscription in resource id %q", resourceId)
+	}
+	return parts[2], nil
+}
+
+func anyContainerSasUrlExport(exports []provisioningv1.AzureBlobContainerExportsSpec) bool {
+	for _, e := range exports {
+		if e.ContainerSasUrl != (provisioningv1.ValueExport{}) {
+			return true
+		}
+	}
+	return false
+}
+
+// blobContainerExportDomains returns the domain of each exports[] entry, domainRef when not set,
+// and fails when two entries export to the same domain, where they would overwrite each other.
+func blobContainerExportDomains(blobContainer *provisioningv1.AzureBlobContainer) ([]string, error) {
+	domains := make([]string, len(blobContainer.Spec.Exports))
+	seen := map[string]bool{}
+	for i, exp := range blobContainer.Spec.Exports {
+		domain := exp.Domain
+		if domain == "" {
+			domain = blobContainer.Spec.DomainRef
+		}
+		if seen[domain] {
+			return nil, fmt.Errorf("spec.exports[].domain %q is duplicated — each domain must appear at most once, since export secret/configmap names and vault paths are keyed by domain alone", domain)
+		}
+		seen[domain] = true
+		domains[i] = domain
+	}
+	return domains, nil
+}
+
+func blobContainerRole(identity provisioningv1.BlobContainerIdentitySpec) provisioningv1.BlobContainerRole {
+	if identity.Role == "" {
+		return provisioningv1.BlobContainerRoleContributor
+	}
+	return identity.Role
+}
+
+// renderBlobContainerIdentities is renderServiceAccounts for the container's identities.
+func renderBlobContainerIdentities(identities []provisioningv1.BlobContainerIdentitySpec, target provisioning.ProvisioningTarget) ([]provisioningv1.BlobContainerIdentitySpec, error) {
+	rendered, err := renderServiceAccounts(blobIdentitiesAsManagedIdentities(identities), target)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]provisioningv1.BlobContainerIdentitySpec, len(identities))
+	for i, identity := range identities {
+		identity.ServiceAccounts = rendered[i].ServiceAccounts
+		result[i] = identity
+	}
+	return result, nil
+}
+
+// blobIdentityAsManagedIdentity returns the parts of identity the shared managed identity helpers
+// (renderServiceAccounts, validateServiceAccounts, deployFederatedCredentials) use.
+func blobIdentityAsManagedIdentity(identity provisioningv1.BlobContainerIdentitySpec) provisioningv1.ManagedIdentitySpec {
+	return provisioningv1.ManagedIdentitySpec{
+		Name:              identity.Name,
+		ResourceGroupName: identity.ResourceGroupName,
+		Location:          identity.Location,
+		ServiceAccounts:   identity.ServiceAccounts,
+	}
+}
+
+func blobIdentitiesAsManagedIdentities(identities []provisioningv1.BlobContainerIdentitySpec) []provisioningv1.ManagedIdentitySpec {
+	result := make([]provisioningv1.ManagedIdentitySpec, len(identities))
+	for i, identity := range identities {
+		result[i] = blobIdentityAsManagedIdentity(identity)
+	}
+	return result
+}

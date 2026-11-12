@@ -71,6 +71,12 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationplatformv1alpha1.TenantStatusApplyConfiguration{}
 
 		// Group=provisioning.totalsoft.ro, Version=v1alpha1
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureBlobContainer"):
+		return &applyconfigurationprovisioningv1alpha1.AzureBlobContainerApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureBlobContainerExportsSpec"):
+		return &applyconfigurationprovisioningv1alpha1.AzureBlobContainerExportsSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureBlobContainerSpec"):
+		return &applyconfigurationprovisioningv1alpha1.AzureBlobContainerSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureDatabase"):
 		return &applyconfigurationprovisioningv1alpha1.AzureDatabaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureDatabaseExportsSpec"):
@@ -115,6 +121,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualMachineExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureVirtualMachineSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualMachineSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("BlobContainerIdentitySpec"):
+		return &applyconfigurationprovisioningv1alpha1.BlobContainerIdentitySpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ConfigMapTemplate"):
 		return &applyconfigurationprovisioningv1alpha1.ConfigMapTemplateApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("DatabaseUserSpec"):
@@ -195,6 +203,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.ServiceAccountClientRoleApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("SqlServerSpec"):
 		return &applyconfigurationprovisioningv1alpha1.SqlServerSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("StorageAccountSpec"):
+		return &applyconfigurationprovisioningv1alpha1.StorageAccountSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ValueExport"):
 		return &applyconfigurationprovisioningv1alpha1.ValueExportApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("VaultSecretTemplate"):

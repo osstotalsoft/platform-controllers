@@ -97,7 +97,7 @@ type ProvisioningMeta struct {
 	// Pulumi stack instead of creating them: the disaster recovery path for a lost Pulumi state. When set, it
 	// overrides the provisioner's global PULUMI_IMPORT_ALL setting for this resource; set it per tenant or tenant
 	// category through the provisioning overrides. Only honored by AzureDatabase, AzureManagedDatabase,
-	// MsSqlDatabase and MinioBucket.
+	// MsSqlDatabase, MinioBucket and AzureBlobContainer.
 	// +optional
 	Import *bool `json:"import,omitempty"`
 }

@@ -28,6 +28,7 @@ import (
 
 type ProvisioningV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	AzureBlobContainersGetter
 	AzureDatabasesGetter
 	AzureManagedDatabasesGetter
 	AzurePowerShellScriptsGetter
@@ -45,6 +46,10 @@ type ProvisioningV1alpha1Interface interface {
 // ProvisioningV1alpha1Client is used to interact with features provided by the provisioning.totalsoft.ro group.
 type ProvisioningV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *ProvisioningV1alpha1Client) AzureBlobContainers(namespace string) AzureBlobContainerInterface {
+	return newAzureBlobContainers(c, namespace)
 }
 
 func (c *ProvisioningV1alpha1Client) AzureDatabases(namespace string) AzureDatabaseInterface {

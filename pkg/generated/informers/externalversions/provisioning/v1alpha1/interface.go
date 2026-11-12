@@ -24,6 +24,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// AzureBlobContainers returns a AzureBlobContainerInformer.
+	AzureBlobContainers() AzureBlobContainerInformer
 	// AzureDatabases returns a AzureDatabaseInformer.
 	AzureDatabases() AzureDatabaseInformer
 	// AzureManagedDatabases returns a AzureManagedDatabaseInformer.
@@ -59,6 +61,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// AzureBlobContainers returns a AzureBlobContainerInformer.
+func (v *version) AzureBlobContainers() AzureBlobContainerInformer {
+	return &azureBlobContainerInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
 }
 
 // AzureDatabases returns a AzureDatabaseInformer.
