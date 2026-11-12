@@ -33,7 +33,20 @@ metadata:
   namespace: qa
 spec:
   platformRef: charismaonline.qa
+  dependsOn:
+    - domain: d1
 ```
+
+#### Domain dependencies
+
+`spec.dependsOn` (optional) orders the provisioning of a tenant's domains. In the example, a tenant's `d3` stack is provisioned only after the same tenant's `d1` stack has been provisioned successfully at least once. The rules:
+
+- A dependency names a `Domain` on the same platform (`metadata.name` + `spec.platformRef`).
+- Dependencies apply only within the same tenant. Platform-level provisioning (`platform-<domain>` stacks) ignores `dependsOn`.
+- A dependency the tenant doesn't have in its `domainRefs` is ignored. Only direct dependencies count: if `d3` depends on `d2` and `d2` on `d1`, a tenant with `d3` and `d1` but not `d2` doesn't order `d3` after `d1`.
+- A dependency is ready when the tenant's stack for it has had at least one successful update, or when it has no resources for that tenant. A later failure of the dependency doesn't block its dependents.
+- While a dependency isn't ready, the dependent domain isn't provisioned and a `WaitingForDomain` warning event is written on the Tenant. This isn't an error and isn't retried: the dependency's successful provisioning starts the dependent domain.
+- A dependency cycle among a tenant's domains is reported as a provisioning failure of the domains in the cycle, with a `DomainDependencyCycle` warning event on the Tenant. It isn't retried; changing the `Domain`'s `dependsOn` re-triggers it.
 
 ### Tenant
 

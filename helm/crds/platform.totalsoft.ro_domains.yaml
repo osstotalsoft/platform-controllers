@@ -37,6 +37,23 @@ spec:
             type: object
           spec:
             properties:
+              dependsOn:
+                description: |-
+                  DependsOn lists the domains that must be provisioned before this one, for the same tenant.
+                  A tenant's stack for this domain is provisioned only after the tenant's stack of every listed domain
+                  has had at least one successful update. Domains the tenant doesn't have are ignored, and platform-level
+                  provisioning ignores DependsOn.
+                items:
+                  description: DomainDependency references a domain that a Domain
+                    depends on.
+                  properties:
+                    domain:
+                      description: Domain is the name of a Domain on the same platform.
+                      type: string
+                  required:
+                  - domain
+                  type: object
+                type: array
               exportActiveDomains:
                 type: boolean
               platformRef:

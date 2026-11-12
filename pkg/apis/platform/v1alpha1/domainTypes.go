@@ -33,6 +33,20 @@ type DomainSpec struct {
 	// +optional
 	// +kubebuilder:default:=false
 	VisibleInPortal bool `json:"visibleInPortal"`
+
+	// DependsOn lists the domains that must be provisioned before this one, for the same tenant.
+	// A tenant's stack for this domain is provisioned only after the tenant's stack of every listed domain
+	// has had at least one successful update. Domains the tenant doesn't have are ignored, and platform-level
+	// provisioning ignores DependsOn.
+	// +optional
+	DependsOn []DomainDependency `json:"dependsOn,omitempty"`
+}
+
+// DomainDependency references a domain that a Domain depends on.
+type DomainDependency struct {
+	// Domain is the name of a Domain on the same platform.
+	// +required
+	Domain string `json:"domain"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

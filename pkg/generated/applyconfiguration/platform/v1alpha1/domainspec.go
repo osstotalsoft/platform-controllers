@@ -21,10 +21,11 @@ package v1alpha1
 // DomainSpecApplyConfiguration represents an declarative configuration of the DomainSpec type for use
 // with apply.
 type DomainSpecApplyConfiguration struct {
-	PlatformRef         *string `json:"platformRef,omitempty"`
-	ExportActiveDomains *bool   `json:"exportActiveDomains,omitempty"`
-	Url                 *string `json:"url,omitempty"`
-	VisibleInPortal     *bool   `json:"visibleInPortal,omitempty"`
+	PlatformRef         *string                              `json:"platformRef,omitempty"`
+	ExportActiveDomains *bool                                `json:"exportActiveDomains,omitempty"`
+	Url                 *string                              `json:"url,omitempty"`
+	VisibleInPortal     *bool                                `json:"visibleInPortal,omitempty"`
+	DependsOn           []DomainDependencyApplyConfiguration `json:"dependsOn,omitempty"`
 }
 
 // DomainSpecApplyConfiguration constructs an declarative configuration of the DomainSpec type for use with
@@ -62,5 +63,18 @@ func (b *DomainSpecApplyConfiguration) WithUrl(value string) *DomainSpecApplyCon
 // If called multiple times, the VisibleInPortal field is set to the value of the last call.
 func (b *DomainSpecApplyConfiguration) WithVisibleInPortal(value bool) *DomainSpecApplyConfiguration {
 	b.VisibleInPortal = &value
+	return b
+}
+
+// WithDependsOn adds the given value to the DependsOn field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the DependsOn field.
+func (b *DomainSpecApplyConfiguration) WithDependsOn(values ...*DomainDependencyApplyConfiguration) *DomainSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithDependsOn")
+		}
+		b.DependsOn = append(b.DependsOn, *values[i])
+	}
 	return b
 }
