@@ -168,6 +168,23 @@ func TestDeployAzureBlobContainer(t *testing.T) {
 		assert.Equal(t, "/subscriptions/sub-1/providers/Microsoft.Authorization/roleDefinitions/2a2b9908-6ea1-4ae2-8e65-a410df84e7d1",
 			readerAssignment.Inputs["roleDefinitionId"].StringValue())
 
+		// Each identity can sign SAS (e.g. download links) with a user delegation key, which Azure
+		// only issues with a role on the storage account.
+		assert.Len(t, capture.byType[roleAssignmentType], 4, "a container role and a delegator role per identity")
+		for _, identity := range []struct{ name, principalId string }{
+			{"app", "22222222-2222-2222-2222-222222222222"},
+			{"reader", "reader-principal"},
+		} {
+			name := "my-container-" + identity.name + "-blob-delegator-role-assignment"
+			delegator := capture.byName[name]
+			assert.Equal(t, testStorageAccountId, delegator.Inputs["scope"].StringValue(), name)
+			assert.Equal(t, identity.principalId, delegator.Inputs["principalId"].StringValue(), name)
+			assert.Equal(t, "ServicePrincipal", delegator.Inputs["principalType"].StringValue(), name)
+			assert.Equal(t, "/subscriptions/sub-1/providers/Microsoft.Authorization/roleDefinitions/db58b8e5-c6ad-4a2a-8342-4190687cbf4a",
+				delegator.Inputs["roleDefinitionId"].StringValue(), name)
+			assert.False(t, capture.retainOnDelete(name), name)
+		}
+
 		credentials := capture.byType[federatedCredentialType]
 		if assert.Len(t, credentials, 1, "only the identity with serviceAccounts gets a federated credential") {
 			assert.Equal(t, "system:serviceaccount:qa:app-tenant1", credentials[0].Inputs["subject"].StringValue())

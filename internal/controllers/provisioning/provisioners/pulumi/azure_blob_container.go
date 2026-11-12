@@ -24,6 +24,10 @@ var blobContainerRoleDefinitionIds = map[provisioningv1.BlobContainerRole]string
 	provisioningv1.BlobContainerRoleOwner:       "b7e6dc6d-f1e8-4753-8033-0f276bb0955b",
 }
 
+// storageBlobDelegatorRoleDefinitionId is the id of the built-in Storage Blob Delegator role: it only
+// allows requesting a user delegation key, to sign SAS (e.g. download links) as the identity.
+const storageBlobDelegatorRoleDefinitionId = "db58b8e5-c6ad-4a2a-8342-4190687cbf4a"
+
 // blobContainerNamePattern is Azure's naming rule for blob containers: 3-63 lowercase letters,
 // digits and hyphens, starting and ending with a letter or digit, without consecutive hyphens.
 var blobContainerNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
@@ -124,7 +128,7 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	for i := range identities {
 		identity := identities[i]
 		clientId, principalId, err := deployBlobContainerIdentity(ctx, fmt.Sprintf("%s-%s-blob", blobContainer.Name, identity.Name),
-			&identity, containerName, subscriptionId, blobContainer.Namespace, container, dependencies, pulumiRetainOnDelete, imports)
+			&identity, containerName, subscriptionId, account.Id, blobContainer.Namespace, container, dependencies, pulumiRetainOnDelete, imports)
 		if err != nil {
 			return nil, err
 		}
@@ -186,14 +190,20 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 }
 
 // deployBlobContainerIdentity creates an Azure user-assigned managed identity with a federated
-// credential for each of its ServiceAccounts, and grants it its role on container.
+// credential for each of its ServiceAccounts, grants it its role on container, and Storage Blob
+// Delegator on the storage account accountId.
+//
+// The delegator role lets the identity sign SAS, such as short-lived download links, with a user
+// delegation key. Azure only issues that key to a principal with the role on the storage account (or
+// above), not on a container, but the role grants no data access: a SAS the identity signs can't
+// exceed its own role on the container.
 //
 // Like the database identities (see deployManagedIdentity), the identity lives in a fixed resource
 // group shared by every tenant, so its Azure name gets the tenant-scoped container name appended.
-// The identity is retained with the container; the role assignment, like the federated credentials,
-// holds no state and is not: a retained identity must not keep access once its owner is gone.
+// The identity is retained with the container; the role assignments, like the federated credentials,
+// hold no state and are not: a retained identity must not keep access once its owner is gone.
 func deployBlobContainerIdentity(ctx *pulumi.Context, resourceNamePrefix string,
-	identitySpec *provisioningv1.BlobContainerIdentitySpec, containerName, subscriptionId, ownerNamespace string,
+	identitySpec *provisioningv1.BlobContainerIdentitySpec, containerName, subscriptionId, accountId, ownerNamespace string,
 	container *storage.BlobContainer, dependencies []pulumi.Resource, retainOnDelete bool, imports *importOptions) (pulumi.StringOutput, pulumi.StringOutput, error) {
 
 	name := fmt.Sprintf("%s_%s", identitySpec.Name, containerName)
@@ -220,17 +230,27 @@ func deployBlobContainerIdentity(ctx *pulumi.Context, resourceNamePrefix string,
 		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
 	}
 
-	_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-role-assignment", resourceNamePrefix), &authorization.RoleAssignmentArgs{
-		PrincipalId: identity.PrincipalId,
-		// A new identity takes a while to replicate in Entra ID: with the principal type given, Azure
-		// doesn't need to look it up and accepts the assignment right away.
-		PrincipalType: pulumi.String(authorization.PrincipalTypeServicePrincipal),
-		RoleDefinitionId: pulumi.String(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
-			subscriptionId, blobContainerRoleDefinitionIds[blobContainerRole(*identitySpec)])),
-		Scope: container.ID(),
-	}, pulumi.DependsOn(dependencies))
-	if err != nil {
-		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+	roleAssignments := []struct {
+		name             string
+		roleDefinitionId string
+		scope            pulumi.StringInput
+	}{
+		{"role-assignment", blobContainerRoleDefinitionIds[blobContainerRole(*identitySpec)], container.ID().ToStringOutput()},
+		{"delegator-role-assignment", storageBlobDelegatorRoleDefinitionId, pulumi.String(accountId)},
+	}
+	for _, ra := range roleAssignments {
+		_, err = authorization.NewRoleAssignment(ctx, fmt.Sprintf("%s-%s", resourceNamePrefix, ra.name), &authorization.RoleAssignmentArgs{
+			PrincipalId: identity.PrincipalId,
+			// A new identity takes a while to replicate in Entra ID: with the principal type given, Azure
+			// doesn't need to look it up and accepts the assignment right away.
+			PrincipalType: pulumi.String(authorization.PrincipalTypeServicePrincipal),
+			RoleDefinitionId: pulumi.String(fmt.Sprintf("/subscriptions/%s/providers/Microsoft.Authorization/roleDefinitions/%s",
+				subscriptionId, ra.roleDefinitionId)),
+			Scope: ra.scope,
+		}, pulumi.DependsOn(dependencies))
+		if err != nil {
+			return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+		}
 	}
 
 	return identity.ClientId, identity.PrincipalId, nil
