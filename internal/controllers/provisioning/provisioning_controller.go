@@ -364,155 +364,12 @@ func (c *ProvisioningController) syncHandler(key string) error {
 }
 
 func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain string) error {
-
-	category, err := c.resolveTenantCategory(target)
+	manifests, err := c.collectManifests(target, domain)
 	if err != nil {
 		return err
 	}
 
-	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	helmReleases = selectItemsInTarget(target.GetPlatformName(), domain, helmReleases, target)
-	helmReleases, err = applyTargetOverrides(helmReleases, target, category)
-	if err != nil {
-		return err
-	}
-
-	helmReleaseV2s, err := c.helmReleaseV2Informer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	helmReleaseV2s = selectItemsInTarget(target.GetPlatformName(), domain, helmReleaseV2s, target)
-	helmReleaseV2s, err = applyTargetOverrides(helmReleaseV2s, target, category)
-	if err != nil {
-		return err
-	}
-
-	mssqlDbs, err := c.mssqlDbInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	mssqlDbs = selectItemsInTarget(target.GetPlatformName(), domain, mssqlDbs, target)
-	mssqlDbs, err = applyTargetOverrides(mssqlDbs, target, category)
-	if err != nil {
-		return err
-	}
-
-	localScripts, err := c.localScriptInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	localScripts = selectItemsInTarget(target.GetPlatformName(), domain, localScripts, target)
-	localScripts, err = applyTargetOverrides(localScripts, target, category)
-	if err != nil {
-		return err
-	}
-
-	azureDbs := []*provisioningv1.AzureDatabase{}
-	azureManagedDbs := []*provisioningv1.AzureManagedDatabase{}
-	azurePowerShellScripts := []*provisioningv1.AzurePowerShellScript{}
-	azureVirtualMachines := []*provisioningv1.AzureVirtualMachine{}
-	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
-	entraUsers := []*provisioningv1.EntraUser{}
-
-	if c.azureEnabled {
-		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		azureDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureDbs, target)
-		azureDbs, err = applyTargetOverrides(azureDbs, target, category)
-		if err != nil {
-			return err
-		}
-
-		azureManagedDbs, err = c.azureManagedDbInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		azureManagedDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureManagedDbs, target)
-		azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target, category)
-		if err != nil {
-			return err
-		}
-
-		azurePowerShellScripts, err = c.azurePowerShellScriptInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		azurePowerShellScripts = selectItemsInTarget(target.GetPlatformName(), domain, azurePowerShellScripts, target)
-		azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target, category)
-		if err != nil {
-			return err
-		}
-
-		azureVirtualMachines, err = c.azureVirtualMachineInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		azureVirtualMachines = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualMachines, target)
-		azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target, category)
-		if err != nil {
-			return err
-		}
-
-		azureVirtualDesktops, err = c.azureVirtualDesktopInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		azureVirtualDesktops = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualDesktops, target)
-		azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target, category)
-		if err != nil {
-			return err
-		}
-
-		entraUsers, err = c.entraUserInformer.Lister().List(labels.Everything())
-		if err != nil {
-			return err
-		}
-		entraUsers = selectItemsInTarget(target.GetPlatformName(), domain, entraUsers, target)
-		entraUsers, err = applyTargetOverrides(entraUsers, target, category)
-		if err != nil {
-			return err
-		}
-	}
-
-	minioBuckets, err := c.minioBucketInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	minioBuckets = selectItemsInTarget(target.GetPlatformName(), domain, minioBuckets, target)
-	minioBuckets, err = applyTargetOverrides(minioBuckets, target, category)
-	if err != nil {
-		return err
-	}
-
-	keycloakClients, err := c.keycloakClientInformer.Lister().List(labels.Everything())
-	if err != nil {
-		return err
-	}
-	keycloakClients = selectItemsInTarget(target.GetPlatformName(), domain, keycloakClients, target)
-	keycloakClients, err = applyTargetOverrides(keycloakClients, target, category)
-	if err != nil {
-		return err
-	}
-
-	result := c.provisioner(target, domain, &InfrastructureManifests{
-		AzureDbs:               azureDbs,
-		AzureManagedDbs:        azureManagedDbs,
-		AzurePowerShellScripts: azurePowerShellScripts,
-		HelmReleases:           helmReleases,
-		HelmReleaseV2s:         helmReleaseV2s,
-		AzureVirtualMachines:   azureVirtualMachines,
-		AzureVirtualDesktops:   azureVirtualDesktops,
-		EntraUsers:             entraUsers,
-		MinioBuckets:           minioBuckets,
-		MsSqlDbs:               mssqlDbs,
-		LocalScripts:           localScripts,
-		KeycloakClients:        keycloakClients,
-	})
+	result := c.provisioner(target, domain, manifests)
 
 	if result.Error == nil && result.HasChanges {
 		result.Error = MatchTarget(target,
@@ -536,6 +393,159 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 	}
 
 	return result.Error
+}
+
+// collectManifests lists the resources of every kind that belong to domain for target, with the target's overrides
+// (and its tenant category's) applied.
+func (c *ProvisioningController) collectManifests(target ProvisioningTarget, domain string) (*InfrastructureManifests, error) {
+	category, err := c.resolveTenantCategory(target)
+	if err != nil {
+		return nil, err
+	}
+
+	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	helmReleases = selectItemsInTarget(target.GetPlatformName(), domain, helmReleases, target)
+	helmReleases, err = applyTargetOverrides(helmReleases, target, category)
+	if err != nil {
+		return nil, err
+	}
+
+	helmReleaseV2s, err := c.helmReleaseV2Informer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	helmReleaseV2s = selectItemsInTarget(target.GetPlatformName(), domain, helmReleaseV2s, target)
+	helmReleaseV2s, err = applyTargetOverrides(helmReleaseV2s, target, category)
+	if err != nil {
+		return nil, err
+	}
+
+	mssqlDbs, err := c.mssqlDbInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	mssqlDbs = selectItemsInTarget(target.GetPlatformName(), domain, mssqlDbs, target)
+	mssqlDbs, err = applyTargetOverrides(mssqlDbs, target, category)
+	if err != nil {
+		return nil, err
+	}
+
+	localScripts, err := c.localScriptInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	localScripts = selectItemsInTarget(target.GetPlatformName(), domain, localScripts, target)
+	localScripts, err = applyTargetOverrides(localScripts, target, category)
+	if err != nil {
+		return nil, err
+	}
+
+	azureDbs := []*provisioningv1.AzureDatabase{}
+	azureManagedDbs := []*provisioningv1.AzureManagedDatabase{}
+	azurePowerShellScripts := []*provisioningv1.AzurePowerShellScript{}
+	azureVirtualMachines := []*provisioningv1.AzureVirtualMachine{}
+	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
+	entraUsers := []*provisioningv1.EntraUser{}
+
+	if c.azureEnabled {
+		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		azureDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureDbs, target)
+		azureDbs, err = applyTargetOverrides(azureDbs, target, category)
+		if err != nil {
+			return nil, err
+		}
+
+		azureManagedDbs, err = c.azureManagedDbInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		azureManagedDbs = selectItemsInTarget(target.GetPlatformName(), domain, azureManagedDbs, target)
+		azureManagedDbs, err = applyTargetOverrides(azureManagedDbs, target, category)
+		if err != nil {
+			return nil, err
+		}
+
+		azurePowerShellScripts, err = c.azurePowerShellScriptInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		azurePowerShellScripts = selectItemsInTarget(target.GetPlatformName(), domain, azurePowerShellScripts, target)
+		azurePowerShellScripts, err = applyTargetOverrides(azurePowerShellScripts, target, category)
+		if err != nil {
+			return nil, err
+		}
+
+		azureVirtualMachines, err = c.azureVirtualMachineInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		azureVirtualMachines = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualMachines, target)
+		azureVirtualMachines, err = applyTargetOverrides(azureVirtualMachines, target, category)
+		if err != nil {
+			return nil, err
+		}
+
+		azureVirtualDesktops, err = c.azureVirtualDesktopInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		azureVirtualDesktops = selectItemsInTarget(target.GetPlatformName(), domain, azureVirtualDesktops, target)
+		azureVirtualDesktops, err = applyTargetOverrides(azureVirtualDesktops, target, category)
+		if err != nil {
+			return nil, err
+		}
+
+		entraUsers, err = c.entraUserInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		entraUsers = selectItemsInTarget(target.GetPlatformName(), domain, entraUsers, target)
+		entraUsers, err = applyTargetOverrides(entraUsers, target, category)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	minioBuckets, err := c.minioBucketInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	minioBuckets = selectItemsInTarget(target.GetPlatformName(), domain, minioBuckets, target)
+	minioBuckets, err = applyTargetOverrides(minioBuckets, target, category)
+	if err != nil {
+		return nil, err
+	}
+
+	keycloakClients, err := c.keycloakClientInformer.Lister().List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	keycloakClients = selectItemsInTarget(target.GetPlatformName(), domain, keycloakClients, target)
+	keycloakClients, err = applyTargetOverrides(keycloakClients, target, category)
+	if err != nil {
+		return nil, err
+	}
+
+	return &InfrastructureManifests{
+		AzureDbs:               azureDbs,
+		AzureManagedDbs:        azureManagedDbs,
+		AzurePowerShellScripts: azurePowerShellScripts,
+		HelmReleases:           helmReleases,
+		HelmReleaseV2s:         helmReleaseV2s,
+		AzureVirtualMachines:   azureVirtualMachines,
+		AzureVirtualDesktops:   azureVirtualDesktops,
+		EntraUsers:             entraUsers,
+		MinioBuckets:           minioBuckets,
+		MsSqlDbs:               mssqlDbs,
+		LocalScripts:           localScripts,
+		KeycloakClients:        keycloakClients,
+	}, nil
 }
 
 // resolveTenantCategory resolves the TenantCategory referenced by target.Spec.CategoryRef (Tenant targets only).
