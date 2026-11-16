@@ -28,6 +28,7 @@ type AzureBlobContainerExportsSpecApplyConfiguration struct {
 	ContainerUrl    *ValueExportApplyConfiguration           `json:"containerUrl,omitempty"`
 	ContainerSasUrl *ValueExportApplyConfiguration           `json:"containerSasUrl,omitempty"`
 	Identities      []ExportedIdentitySpecApplyConfiguration `json:"identities,omitempty"`
+	SasTokens       []ExportedSasTokenSpecApplyConfiguration `json:"sasTokens,omitempty"`
 }
 
 // AzureBlobContainerExportsSpecApplyConfiguration constructs an declarative configuration of the AzureBlobContainerExportsSpec type for use with
@@ -93,6 +94,19 @@ func (b *AzureBlobContainerExportsSpecApplyConfiguration) WithIdentities(values 
 			panic("nil value passed to WithIdentities")
 		}
 		b.Identities = append(b.Identities, *values[i])
+	}
+	return b
+}
+
+// WithSasTokens adds the given value to the SasTokens field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the SasTokens field.
+func (b *AzureBlobContainerExportsSpecApplyConfiguration) WithSasTokens(values ...*ExportedSasTokenSpecApplyConfiguration) *AzureBlobContainerExportsSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithSasTokens")
+		}
+		b.SasTokens = append(b.SasTokens, *values[i])
 	}
 	return b
 }

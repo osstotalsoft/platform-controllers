@@ -123,6 +123,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureVirtualMachineSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("BlobContainerIdentitySpec"):
 		return &applyconfigurationprovisioningv1alpha1.BlobContainerIdentitySpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("BlobContainerSasTokenSpec"):
+		return &applyconfigurationprovisioningv1alpha1.BlobContainerSasTokenSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ConfigMapTemplate"):
 		return &applyconfigurationprovisioningv1alpha1.ConfigMapTemplateApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("DatabaseUserSpec"):
@@ -135,6 +137,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.EntraUserSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ExportedIdentitySpec"):
 		return &applyconfigurationprovisioningv1alpha1.ExportedIdentitySpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ExportedSasTokenSpec"):
+		return &applyconfigurationprovisioningv1alpha1.ExportedSasTokenSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("ExportedUserSpec"):
 		return &applyconfigurationprovisioningv1alpha1.ExportedUserSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("FederatedServiceAccount"):

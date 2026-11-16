@@ -24,8 +24,8 @@ type resourceCaptureMocks struct {
 	mu          sync.Mutex
 	byType      map[string][]pulumi.MockResourceArgs
 	byName      map[string]pulumi.MockResourceArgs
-	callResults map[string]resource.PropertyMap
-	calls       map[string]resource.PropertyMap
+	callResults map[string]func(args resource.PropertyMap) resource.PropertyMap
+	calls       map[string][]resource.PropertyMap
 	identityIds map[string][2]string
 }
 
@@ -36,8 +36,8 @@ func newResourceCaptureMocks() *resourceCaptureMocks {
 	return &resourceCaptureMocks{
 		byType:      map[string][]pulumi.MockResourceArgs{},
 		byName:      map[string]pulumi.MockResourceArgs{},
-		callResults: map[string]resource.PropertyMap{},
-		calls:       map[string]resource.PropertyMap{},
+		callResults: map[string]func(args resource.PropertyMap) resource.PropertyMap{},
+		calls:       map[string][]resource.PropertyMap{},
 		identityIds: map[string][2]string{},
 	}
 }
@@ -80,11 +80,11 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 
 func (m *resourceCaptureMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
 	m.mu.Lock()
-	m.calls[args.Token] = args.Args
+	m.calls[args.Token] = append(m.calls[args.Token], args.Args)
 	result, ok := m.callResults[args.Token]
 	m.mu.Unlock()
 	if ok {
-		return result, nil
+		return result(args.Args), nil
 	}
 	return args.Args, nil
 }
@@ -92,6 +92,11 @@ func (m *resourceCaptureMocks) Call(args pulumi.MockCallArgs) (resource.Property
 // stubCall registers a fixed response for the given Invoke token. Must be called before the test's
 // pulumi.RunErr starts (Invokes may run concurrently with resource registration once it does).
 func (m *resourceCaptureMocks) stubCall(token string, result resource.PropertyMap) {
+	m.stubCallFunc(token, func(resource.PropertyMap) resource.PropertyMap { return result })
+}
+
+// stubCallFunc is stubCall with a response computed from each Invoke's arguments.
+func (m *resourceCaptureMocks) stubCallFunc(token string, result func(args resource.PropertyMap) resource.PropertyMap) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.callResults[token] = result
@@ -101,7 +106,18 @@ func (m *resourceCaptureMocks) stubCall(token string, result resource.PropertyMa
 func (m *resourceCaptureMocks) callArgs(token string) resource.PropertyMap {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.calls[token]
+	calls := m.calls[token]
+	if len(calls) == 0 {
+		return nil
+	}
+	return calls[len(calls)-1]
+}
+
+// allCallArgs returns the arguments of every Invoke of the given token, in call order.
+func (m *resourceCaptureMocks) allCallArgs(token string) []resource.PropertyMap {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]resource.PropertyMap(nil), m.calls[token]...)
 }
 
 // stubIdentityIds makes the UserAssignedIdentity registered under name return the given client and

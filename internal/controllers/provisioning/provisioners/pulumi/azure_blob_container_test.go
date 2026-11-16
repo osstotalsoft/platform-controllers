@@ -39,8 +39,11 @@ func newBlobContainerMocks() *resourceCaptureMocks {
 			"blob": resource.NewStringProperty("https://mystorage.blob.core.windows.net/"),
 		}),
 	})
-	capture.stubCall("azure-native:storage:listStorageAccountServiceSAS", resource.PropertyMap{
-		"serviceSasToken": resource.NewStringProperty("sv=2022-11-02&sr=c&sp=racwdl&sig=abc"),
+	// The token carries the permissions it was asked for, so a test can tell the SAS apart.
+	capture.stubCallFunc("azure-native:storage:listStorageAccountServiceSAS", func(args resource.PropertyMap) resource.PropertyMap {
+		return resource.PropertyMap{
+			"serviceSasToken": resource.NewStringProperty("sv=2022-11-02&sr=c&sp=" + args["permissions"].StringValue() + "&sig=abc"),
+		}
 	})
 	return capture
 }
@@ -213,6 +216,46 @@ func TestDeployAzureBlobContainer(t *testing.T) {
 			"duplicate export domain": func(c *provisioningv1.AzureBlobContainer) {
 				c.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{}, {Domain: "example-domain"}}
 			},
+			"sas token without permissions": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read"}}
+			},
+			"sas token with an unknown permission": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "rx"}}
+			},
+			"sas token with a repeated permission": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "rlr"}}
+			},
+			"sas token validity within the rotation period": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r", ValidityDays: 30}}
+			},
+			"duplicate sas token name": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}, {Name: "read", Permissions: "rl"}}
+			},
+			"export of an unknown sas token": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}}
+				c.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{SasTokens: []provisioningv1.ExportedSasTokenSpec{
+					{SasTokenRef: "write", ContainerSasUrl: toConfigMap("Write__SasUrl")},
+				}}}
+			},
+			"sas token export without a ref when there are several": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}, {Name: "write", Permissions: "w"}}
+				c.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{SasTokens: []provisioningv1.ExportedSasTokenSpec{
+					{ContainerSasUrl: toConfigMap("Read__SasUrl")},
+				}}}
+			},
+			"sas token exported twice to a domain": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}}
+				c.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{SasTokens: []provisioningv1.ExportedSasTokenSpec{
+					{SasTokenRef: "read", ContainerSasUrl: toConfigMap("Read__SasUrl")},
+					{SasTokenRef: "read", ContainerSasUrl: toConfigMap("Other__SasUrl")},
+				}}}
+			},
+			"sas token export without containerSasUrl": func(c *provisioningv1.AzureBlobContainer) {
+				c.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}}
+				c.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{SasTokens: []provisioningv1.ExportedSasTokenSpec{
+					{SasTokenRef: "read"},
+				}}}
+			},
 		}
 		for name, mutate := range tests {
 			t.Run(name, func(t *testing.T) {
@@ -294,10 +337,99 @@ func TestBlobContainerSasRotation(t *testing.T) {
 		assert.Equal(t, "2027-02-08T13:18:52Z", capture.callArgs("azure-native:storage:listStorageAccountServiceSAS")["sharedAccessExpiryTime"].StringValue())
 	})
 
-	t.Run("no rotation without a containerSasUrl export", func(t *testing.T) {
+	t.Run("no rotation without a SAS export", func(t *testing.T) {
 		capture := newBlobContainerMocks()
-		assert.NoError(t, deployTestBlobContainer(t, capture, newBlobContainer("my-container"), nil))
+		container := newBlobContainer("my-container")
+		container.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "rl"}}
+		assert.NoError(t, deployTestBlobContainer(t, capture, container, nil))
 		assert.Empty(t, capture.byType["time:index/rotating:Rotating"])
 		assert.Nil(t, capture.callArgs("azure-native:storage:listStorageAccountServiceSAS"))
 	})
+}
+
+func TestBlobContainerSasTokens(t *testing.T) {
+	t.Run("exports each named SAS with its own permissions and validity", func(t *testing.T) {
+		capture := newBlobContainerMocks()
+		container := newBlobContainer("my-container")
+		container.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{
+			{Name: "read", Permissions: "lr"},
+			{Name: "upload", Permissions: "wca", ValidityDays: 60},
+			{Name: "unused", Permissions: "rd"},
+		}
+		container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
+			ContainerSasUrl: toConfigMap("ObjectStorage__BlobContainerSasUrl"),
+			SasTokens: []provisioningv1.ExportedSasTokenSpec{
+				{SasTokenRef: "read", ContainerSasUrl: toConfigMap("ObjectStorage__ReadSasUrl")},
+				{SasTokenRef: "upload", ContainerSasUrl: toConfigMap("ObjectStorage__UploadSasUrl")},
+			},
+		}}
+
+		assert.NoError(t, deployTestBlobContainer(t, capture, container, nil))
+
+		const containerUrl = "https://mystorage.blob.core.windows.net/files-dev-tenant1"
+		assert.Equal(t, map[string]string{
+			"ObjectStorage__BlobContainerSasUrl": containerUrl + "?sv=2022-11-02&sr=c&sp=racwdl&sig=abc",
+			"ObjectStorage__ReadSasUrl":          containerUrl + "?sv=2022-11-02&sr=c&sp=rl&sig=abc",
+			"ObjectStorage__UploadSasUrl":        containerUrl + "?sv=2022-11-02&sr=c&sp=acw&sig=abc",
+		}, exportedConfigMapData(t, capture), "permissions are signed in the order Azure requires")
+
+		assert.Len(t, capture.byType["time:index/rotating:Rotating"], 1, "every SAS is renewed by the same rotation")
+		expiries := map[string]string{}
+		for _, args := range capture.allCallArgs("azure-native:storage:listStorageAccountServiceSAS") {
+			assert.Equal(t, testRotationTime, args["sharedAccessStartTime"].StringValue())
+			assert.Equal(t, "/blob/mystorage/files-dev-tenant1", args["canonicalizedResource"].StringValue())
+			assert.Equal(t, "c", args["resource"].StringValue())
+			expiries[args["permissions"].StringValue()] = args["sharedAccessExpiryTime"].StringValue()
+		}
+		assert.Equal(t, map[string]string{
+			"racwdl": "2027-11-10T13:18:52Z",
+			"rl":     "2027-11-10T13:18:52Z",
+			"acw":    "2027-01-09T13:18:52Z",
+		}, expiries, "a SAS no exports[] entry exports is not signed")
+	})
+
+	t.Run("sasTokenRef can be omitted when there is a single SAS", func(t *testing.T) {
+		capture := newBlobContainerMocks()
+		container := newBlobContainer("my-container")
+		container.Spec.SasValidityDays = 90
+		container.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}}
+		container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
+			SasTokens: []provisioningv1.ExportedSasTokenSpec{{ContainerSasUrl: toConfigMap("ObjectStorage__ReadSasUrl")}},
+		}}
+
+		assert.NoError(t, deployTestBlobContainer(t, capture, container, nil))
+
+		assert.Equal(t, map[string]string{
+			"ObjectStorage__ReadSasUrl": "https://mystorage.blob.core.windows.net/files-dev-tenant1?sv=2022-11-02&sr=c&sp=r&sig=abc",
+		}, exportedConfigMapData(t, capture))
+		assert.Equal(t, "2027-02-08T13:18:52Z",
+			capture.callArgs("azure-native:storage:listStorageAccountServiceSAS")["sharedAccessExpiryTime"].StringValue(),
+			"the validity defaults to sasValidityDays")
+	})
+
+	t.Run("rejects two SAS exported under the same key", func(t *testing.T) {
+		capture := newBlobContainerMocks()
+		container := newBlobContainer("my-container")
+		container.Spec.SasTokens = []provisioningv1.BlobContainerSasTokenSpec{{Name: "read", Permissions: "r"}}
+		container.Spec.Exports = []provisioningv1.AzureBlobContainerExportsSpec{{
+			ContainerSasUrl: toConfigMap("ObjectStorage__SasUrl"),
+			SasTokens:       []provisioningv1.ExportedSasTokenSpec{{ContainerSasUrl: toConfigMap("ObjectStorage__SasUrl")}},
+		}}
+
+		err := deployTestBlobContainer(t, capture, container, nil)
+		assert.ErrorContains(t, err, `both render the toConfigMap key "ObjectStorage__SasUrl"`)
+		assert.Empty(t, capture.byType["kubernetes:core/v1:ConfigMap"])
+	})
+}
+
+func TestCanonicalBlobContainerSasPermissions(t *testing.T) {
+	for given, want := range map[string]string{"r": "r", "lr": "rl", "ldwcar": "racwdl", "wca": "acw"} {
+		got, err := canonicalBlobContainerSasPermissions(given)
+		assert.NoError(t, err, given)
+		assert.Equal(t, want, got, given)
+	}
+	for _, given := range []string{"", "x", "rR", "rr", "r l"} {
+		_, err := canonicalBlobContainerSasPermissions(given)
+		assert.Error(t, err, given)
+	}
 }

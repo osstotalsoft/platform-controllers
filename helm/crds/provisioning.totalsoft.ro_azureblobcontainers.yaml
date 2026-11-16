@@ -285,6 +285,49 @@ spec:
                             type: string
                         type: object
                       type: array
+                    sasTokens:
+                      description: Named SAS whose container URLs are exported to
+                        this domain, one item per sasTokens[] entry.
+                      items:
+                        description: |-
+                          ExportedSasTokenSpec exports the URL of one sasTokens[] entry, as an item of an exports[] entry's
+                          sasTokens list.
+                        properties:
+                          containerSasUrl:
+                            description: 'The container URL with this SAS token. Secret:
+                              export it to the vault or a Kubernetes secret.'
+                            properties:
+                              toConfigMap:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toKubeSecret:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                              toVault:
+                                properties:
+                                  keyTemplate:
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
+                            type: object
+                          sasTokenRef:
+                            description: |-
+                              Name of the sasTokens[] entry whose URL is exported. Can be omitted when sasTokens has exactly
+                              one entry. Each sasTokens[] entry can be exported at most once per exports[] entry.
+                            type: string
+                        required:
+                        - containerSasUrl
+                        type: object
+                      type: array
                   type: object
                 type: array
               import:
@@ -364,11 +407,43 @@ spec:
               platformRef:
                 description: Target platform (custom resource name).
                 type: string
+              sasTokens:
+                description: |-
+                  Optional named container SAS, each with its own permissions, for apps that need less than the
+                  read, add, create, write, delete and list of containerSasUrl (e.g. a read-only SAS). Each entry is
+                  exported through exports[].sasTokens. Like containerSasUrl, they are renewed every 30 days.
+                items:
+                  description: |-
+                    BlobContainerSasTokenSpec describes a container SAS (service SAS signed with the account key,
+                    scoped to this container only) with its own permissions.
+                  properties:
+                    name:
+                      description: SAS name. Must be unique within sasTokens.
+                      type: string
+                    permissions:
+                      description: |-
+                        Permissions granted by the SAS, any of r (read), a (add), c (create), w (write), d (delete) and
+                        l (list), each at most once and in any order, e.g. "rl" for read-only.
+                      pattern: ^[racwdl]+$
+                      type: string
+                    validityDays:
+                      description: Validity, in days, of each SAS issued. Defaults
+                        to spec.sasValidityDays.
+                      minimum: 31
+                      type: integer
+                  required:
+                  - name
+                  - permissions
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               sasValidityDays:
                 description: |-
-                  Validity, in days, of the container SAS exported as containerSasUrl. A new SAS is issued every
-                  30 days, each valid for this many days, so the previous one keeps working while apps pick up the
-                  new value. Defaults to 365.
+                  Validity, in days, of the container SAS exported as containerSasUrl, and the default of
+                  sasTokens[].validityDays. A new SAS is issued every 30 days, each valid for this many days, so
+                  the previous one keeps working while apps pick up the new value. Defaults to 365.
                 minimum: 31
                 type: integer
               storageAccount:

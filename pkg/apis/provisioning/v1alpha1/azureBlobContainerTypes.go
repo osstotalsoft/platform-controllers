@@ -36,12 +36,20 @@ type AzureBlobContainerSpec struct {
 	// The existing storage account the container is created in.
 	StorageAccount StorageAccountSpec `json:"storageAccount"`
 
-	// Validity, in days, of the container SAS exported as containerSasUrl. A new SAS is issued every
-	// 30 days, each valid for this many days, so the previous one keeps working while apps pick up the
-	// new value. Defaults to 365.
+	// Validity, in days, of the container SAS exported as containerSasUrl, and the default of
+	// sasTokens[].validityDays. A new SAS is issued every 30 days, each valid for this many days, so
+	// the previous one keeps working while apps pick up the new value. Defaults to 365.
 	// +kubebuilder:validation:Minimum=31
 	// +optional
 	SasValidityDays int `json:"sasValidityDays,omitempty"`
+
+	// Optional named container SAS, each with its own permissions, for apps that need less than the
+	// read, add, create, write, delete and list of containerSasUrl (e.g. a read-only SAS). Each entry is
+	// exported through exports[].sasTokens. Like containerSasUrl, they are renewed every 30 days.
+	// +listType=map
+	// +listMapKey=name
+	// +optional
+	SasTokens []BlobContainerSasTokenSpec `json:"sasTokens,omitempty"`
 
 	// Optional Entra (Azure AD) user-assigned managed identities granted a data-plane role on the
 	// container. One entry per consuming application, each with a unique name.
@@ -95,6 +103,35 @@ type BlobContainerIdentitySpec struct {
 
 func (m BlobContainerIdentitySpec) GetName() string { return m.Name }
 
+// BlobContainerSasTokenSpec describes a container SAS (service SAS signed with the account key,
+// scoped to this container only) with its own permissions.
+type BlobContainerSasTokenSpec struct {
+	// SAS name. Must be unique within sasTokens.
+	// +required
+	Name string `json:"name"`
+	// Permissions granted by the SAS, any of r (read), a (add), c (create), w (write), d (delete) and
+	// l (list), each at most once and in any order, e.g. "rl" for read-only.
+	// +kubebuilder:validation:Pattern=`^[racwdl]+$`
+	Permissions string `json:"permissions"`
+	// Validity, in days, of each SAS issued. Defaults to spec.sasValidityDays.
+	// +kubebuilder:validation:Minimum=31
+	// +optional
+	ValidityDays int `json:"validityDays,omitempty"`
+}
+
+func (s BlobContainerSasTokenSpec) GetName() string { return s.Name }
+
+// ExportedSasTokenSpec exports the URL of one sasTokens[] entry, as an item of an exports[] entry's
+// sasTokens list.
+type ExportedSasTokenSpec struct {
+	// Name of the sasTokens[] entry whose URL is exported. Can be omitted when sasTokens has exactly
+	// one entry. Each sasTokens[] entry can be exported at most once per exports[] entry.
+	// +optional
+	SasTokenRef string `json:"sasTokenRef,omitempty"`
+	// The container URL with this SAS token. Secret: export it to the vault or a Kubernetes secret.
+	ContainerSasUrl ValueExport `json:"containerSasUrl"`
+}
+
 type AzureBlobContainerExportsSpec struct {
 	// The domain or bounded-context in which this container will be used. Defaults to domainRef.
 	// +optional
@@ -120,6 +157,9 @@ type AzureBlobContainerExportsSpec struct {
 	// managedIdentities[] entry.
 	// +optional
 	Identities []ExportedIdentitySpec `json:"identities,omitempty"`
+	// Named SAS whose container URLs are exported to this domain, one item per sasTokens[] entry.
+	// +optional
+	SasTokens []ExportedSasTokenSpec `json:"sasTokens,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

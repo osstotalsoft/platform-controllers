@@ -29,6 +29,7 @@ type AzureBlobContainerSpecApplyConfiguration struct {
 	ImportContainerName                *string                                           `json:"importContainerName,omitempty"`
 	StorageAccount                     *StorageAccountSpecApplyConfiguration             `json:"storageAccount,omitempty"`
 	SasValidityDays                    *int                                              `json:"sasValidityDays,omitempty"`
+	SasTokens                          []BlobContainerSasTokenSpecApplyConfiguration     `json:"sasTokens,omitempty"`
 	ManagedIdentities                  []BlobContainerIdentitySpecApplyConfiguration     `json:"managedIdentities,omitempty"`
 	Exports                            []AzureBlobContainerExportsSpecApplyConfiguration `json:"exports,omitempty"`
 	ProvisioningMetaApplyConfiguration `json:",inline"`
@@ -69,6 +70,19 @@ func (b *AzureBlobContainerSpecApplyConfiguration) WithStorageAccount(value *Sto
 // If called multiple times, the SasValidityDays field is set to the value of the last call.
 func (b *AzureBlobContainerSpecApplyConfiguration) WithSasValidityDays(value int) *AzureBlobContainerSpecApplyConfiguration {
 	b.SasValidityDays = &value
+	return b
+}
+
+// WithSasTokens adds the given value to the SasTokens field in the declarative configuration
+// and returns the receiver, so that objects can be build by chaining "With" function invocations.
+// If called multiple times, values provided by each call will be appended to the SasTokens field.
+func (b *AzureBlobContainerSpecApplyConfiguration) WithSasTokens(values ...*BlobContainerSasTokenSpecApplyConfiguration) *AzureBlobContainerSpecApplyConfiguration {
+	for i := range values {
+		if values[i] == nil {
+			panic("nil value passed to WithSasTokens")
+		}
+		b.SasTokens = append(b.SasTokens, *values[i])
+	}
 	return b
 }
 

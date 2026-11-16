@@ -3,6 +3,7 @@ package pulumi
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -33,7 +34,8 @@ const storageBlobDelegatorRoleDefinitionId = "db58b8e5-c6ad-4a2a-8342-4190687cbf
 var blobContainerNamePattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // blobContainerSasPermissions are the permissions of the exported container SAS: read, add, create,
-// write, delete and list, what an app storing its files in the container needs.
+// write, delete and list, what an app storing its files in the container needs. They are also every
+// permission a sasTokens[] entry can have, in the order Azure requires them in a SAS.
 const blobContainerSasPermissions = "racwdl"
 
 // blobContainerSasRotationDays is how often a new container SAS is issued. Between rotations the
@@ -88,6 +90,14 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	if err != nil {
 		return nil, err
 	}
+	sasTokens, err := blobContainerSasTokens(spec.SasTokens, sasValidityDays)
+	if err != nil {
+		return nil, err
+	}
+	exportedSasTokens, err := blobContainerSasTokenExports(spec.Exports, exportDomains, sasTokens)
+	if err != nil {
+		return nil, err
+	}
 
 	account, err := storage.LookupStorageAccount(ctx, &storage.LookupStorageAccountArgs{
 		ResourceGroupName: spec.StorageAccount.ResourceGroupName,
@@ -139,28 +149,24 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	containerUrl := strings.TrimSuffix(blobEndpoint, "/") + "/" + containerName
 
 	// Only container scoped credentials are exported, never the account keys, which grant access to
-	// every container of the account.
+	// every container of the account. Only the SAS some exports[] entry exports are signed, all from
+	// the same rotation.
 	var containerSasUrl pulumi.StringOutput
-	if anyContainerSasUrlExport(spec.Exports) {
-		sasStart, sasExpiry, err := deployBlobContainerSasRotation(ctx, blobContainer.Name, sasValidityDays)
+	sasTokenUrls := map[string]pulumi.StringOutput{}
+	if sasTokenNames := exportedSasTokenNames(exportedSasTokens); anyContainerSasUrlExport(spec.Exports) || len(sasTokenNames) > 0 {
+		sasStart, err := deployBlobContainerSasRotation(ctx, blobContainer.Name)
 		if err != nil {
 			return nil, err
 		}
-		sas := storage.ListStorageAccountServiceSASOutput(ctx, storage.ListStorageAccountServiceSASOutputArgs{
-			ResourceGroupName:     pulumi.String(spec.StorageAccount.ResourceGroupName),
-			AccountName:           pulumi.String(spec.StorageAccount.AccountName),
-			CanonicalizedResource: pulumi.String(fmt.Sprintf("/blob/%s/%s", spec.StorageAccount.AccountName, containerName)),
-			Resource:              pulumi.StringPtr("c"),
-			Permissions:           pulumi.StringPtr(blobContainerSasPermissions),
-			Protocols:             storage.HttpProtocolHttps.ToHttpProtocolPtrOutput(),
-			// Both times stay the same until the next rotation: without a start time Azure signs the SAS
-			// from the current time, and every update would export a new SAS.
-			SharedAccessStartTime:  sasStart,
-			SharedAccessExpiryTime: sasExpiry,
-		})
-		containerSasUrl = pulumi.ToSecret(sas.ServiceSasToken().ApplyT(func(token string) string {
-			return containerUrl + "?" + token
-		})).(pulumi.StringOutput)
+		sign := func(sas blobContainerSas) pulumi.StringOutput {
+			return blobContainerSasUrl(ctx, spec.StorageAccount, containerName, containerUrl, sas, sasStart)
+		}
+		if anyContainerSasUrlExport(spec.Exports) {
+			containerSasUrl = sign(blobContainerSas{permissions: blobContainerSasPermissions, validityDays: sasValidityDays})
+		}
+		for _, name := range sasTokenNames {
+			sasTokenUrls[name] = sign(sasTokens[name])
+		}
 	}
 
 	for i, exp := range spec.Exports {
@@ -175,7 +181,10 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 		if err := addIdentityExports(values, identitiesByName, identityExports{identities: exp.Identities}, domain); err != nil {
 			return nil, err
 		}
-		if len(exp.Identities) > 0 {
+		for j, name := range exportedSasTokens[i] {
+			values[fmt.Sprintf("sasTokens[%d].containerSasUrl", j)] = exportTemplateWithValue{exp.SasTokens[j].ContainerSasUrl, sasTokenUrls[name]}
+		}
+		if len(exp.Identities) > 0 || len(exp.SasTokens) > 0 {
 			if err := validateExportKeys(values, provisioning.GetTemplateContext(target), domain); err != nil {
 				return nil, err
 			}
@@ -278,29 +287,150 @@ func validateBlobContainerName(name string) error {
 	return nil
 }
 
-// deployBlobContainerSasRotation returns the start and expiry of the container SAS: the time of the
-// last rotation, kept in the stack state by a pulumi-time Rotating resource, and validityDays after
-// it. Both stay the same from one update to the next, so the exported SAS only changes when the
-// Rotating resource is replaced, blobContainerSasRotationDays after the previous rotation. The
-// previous SAS then stays valid for validityDays - blobContainerSasRotationDays more days.
+// blobContainerSas is a container SAS to sign: its permissions, in the order Azure requires, and how
+// many days each SAS issued is valid.
+type blobContainerSas struct {
+	permissions  string
+	validityDays int
+}
+
+// deployBlobContainerSasRotation returns the start of the container SAS: the time of the last
+// rotation, kept in the stack state by a pulumi-time Rotating resource. It stays the same from one
+// update to the next, so the exported SAS only change when the Rotating resource is replaced,
+// blobContainerSasRotationDays after the previous rotation. A previous SAS then stays valid for its
+// validityDays - blobContainerSasRotationDays more days.
 //
 // The rotation is detected by the stack refresh, like the AVD registration token's: with
-// PULUMI_SKIP_REFRESH the SAS is never renewed.
-func deployBlobContainerSasRotation(ctx *pulumi.Context, name string, validityDays int) (start, expiry pulumi.StringOutput, err error) {
+// PULUMI_SKIP_REFRESH the SAS are never renewed.
+func deployBlobContainerSasRotation(ctx *pulumi.Context, name string) (pulumi.StringOutput, error) {
 	rotation, err := pulumiTime.NewRotating(ctx, fmt.Sprintf("%s-sas-rotation", name), &pulumiTime.RotatingArgs{
 		RotationDays: pulumi.Int(blobContainerSasRotationDays),
 	})
 	if err != nil {
-		return pulumi.StringOutput{}, pulumi.StringOutput{}, err
+		return pulumi.StringOutput{}, err
 	}
-	expiry = rotation.Rfc3339.ApplyT(func(start string) (string, error) {
+	return rotation.Rfc3339, nil
+}
+
+// blobContainerSasUrl signs sas for the container with the storage account key, valid from start for
+// sas.validityDays, and returns the container URL with it, as a secret.
+func blobContainerSasUrl(ctx *pulumi.Context, account provisioningv1.StorageAccountSpec, containerName, containerUrl string,
+	sas blobContainerSas, start pulumi.StringOutput) pulumi.StringOutput {
+
+	expiry := start.ApplyT(func(start string) (string, error) {
 		t, err := time.Parse(time.RFC3339, start)
 		if err != nil {
 			return "", fmt.Errorf("invalid SAS rotation time %q: %w", start, err)
 		}
-		return t.AddDate(0, 0, validityDays).UTC().Format(time.RFC3339), nil
+		return t.AddDate(0, 0, sas.validityDays).UTC().Format(time.RFC3339), nil
 	}).(pulumi.StringOutput)
-	return rotation.Rfc3339, expiry, nil
+
+	token := storage.ListStorageAccountServiceSASOutput(ctx, storage.ListStorageAccountServiceSASOutputArgs{
+		ResourceGroupName:     pulumi.String(account.ResourceGroupName),
+		AccountName:           pulumi.String(account.AccountName),
+		CanonicalizedResource: pulumi.String(fmt.Sprintf("/blob/%s/%s", account.AccountName, containerName)),
+		Resource:              pulumi.StringPtr("c"),
+		Permissions:           pulumi.StringPtr(sas.permissions),
+		Protocols:             storage.HttpProtocolHttps.ToHttpProtocolPtrOutput(),
+		// Both times stay the same until the next rotation: without a start time Azure signs the SAS
+		// from the current time, and every update would export a new SAS.
+		SharedAccessStartTime:  start,
+		SharedAccessExpiryTime: expiry,
+	}).ServiceSasToken()
+
+	return pulumi.ToSecret(token.ApplyT(func(token string) string {
+		return containerUrl + "?" + token
+	})).(pulumi.StringOutput)
+}
+
+// blobContainerSasTokens validates spec.sasTokens and returns its entries by name, their permissions
+// in the order Azure requires and their validity defaulted to defaultValidityDays.
+func blobContainerSasTokens(specs []provisioningv1.BlobContainerSasTokenSpec, defaultValidityDays int) (map[string]blobContainerSas, error) {
+	if err := validateUniqueNames(specs, "sasTokens"); err != nil {
+		return nil, err
+	}
+	sasTokens := make(map[string]blobContainerSas, len(specs))
+	for _, s := range specs {
+		permissions, err := canonicalBlobContainerSasPermissions(s.Permissions)
+		if err != nil {
+			return nil, fmt.Errorf("spec.sasTokens[%s].permissions: %w", s.Name, err)
+		}
+		validityDays := s.ValidityDays
+		if validityDays == 0 {
+			validityDays = defaultValidityDays
+		}
+		if validityDays <= blobContainerSasRotationDays {
+			return nil, fmt.Errorf("spec.sasTokens[%s].validityDays must be more than %d, the SAS rotation period, got %d", s.Name, blobContainerSasRotationDays, validityDays)
+		}
+		sasTokens[s.Name] = blobContainerSas{permissions: permissions, validityDays: validityDays}
+	}
+	return sasTokens, nil
+}
+
+// canonicalBlobContainerSasPermissions returns permissions in the order Azure requires them in a SAS,
+// failing when they are empty, repeat a letter or have one other than blobContainerSasPermissions'.
+func canonicalBlobContainerSasPermissions(permissions string) (string, error) {
+	if permissions == "" {
+		return "", fmt.Errorf("at least one of %q is required", blobContainerSasPermissions)
+	}
+	given := map[rune]bool{}
+	for _, p := range permissions {
+		if !strings.ContainsRune(blobContainerSasPermissions, p) {
+			return "", fmt.Errorf("%q is not one of %q", p, blobContainerSasPermissions)
+		}
+		if given[p] {
+			return "", fmt.Errorf("%q is repeated", p)
+		}
+		given[p] = true
+	}
+	var canonical strings.Builder
+	for _, p := range blobContainerSasPermissions {
+		if given[p] {
+			canonical.WriteRune(p)
+		}
+	}
+	return canonical.String(), nil
+}
+
+// blobContainerSasTokenExports returns, for each exports[] entry, the sasTokens[] entry each of its
+// sasTokens items exports. An item must export containerSasUrl, and an exports[] entry can export each
+// sasTokens[] entry at most once.
+func blobContainerSasTokenExports(exports []provisioningv1.AzureBlobContainerExportsSpec, domains []string, sasTokens map[string]blobContainerSas) ([][]string, error) {
+	names := make([][]string, len(exports))
+	for i, exp := range exports {
+		exported := map[string]bool{}
+		for j, t := range exp.SasTokens {
+			if t.ContainerSasUrl == (provisioningv1.ValueExport{}) {
+				return nil, fmt.Errorf("exports[domain=%s]: sasTokens[%d] must export containerSasUrl", domains[i], j)
+			}
+			name, err := resolveRefName(sasTokens, t.SasTokenRef, domains[i], "sasTokens[].sasTokenRef", "sasTokens")
+			if err != nil {
+				return nil, err
+			}
+			if exported[name] {
+				return nil, fmt.Errorf("exports[domain=%s]: sasTokens[%d] exports spec.sasTokens[].name %q, which this exports[] entry already exports", domains[i], j, name)
+			}
+			exported[name] = true
+			names[i] = append(names[i], name)
+		}
+	}
+	return names, nil
+}
+
+// exportedSasTokenNames returns the sasTokens[] entries some exports[] entry exports, sorted.
+func exportedSasTokenNames(exportedSasTokens [][]string) []string {
+	seen := map[string]bool{}
+	var names []string
+	for _, entryNames := range exportedSasTokens {
+		for _, name := range entryNames {
+			if !seen[name] {
+				seen[name] = true
+				names = append(names, name)
+			}
+		}
+	}
+	sort.Strings(names)
+	return names
 }
 
 // subscriptionIdOf returns the subscription in an ARM resource id.

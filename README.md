@@ -784,7 +784,13 @@ Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azureblobco
 - `storageAccount`: The existing storage account the container is created in.
   - `resourceGroupName`: The storage account's resource group.
   - `accountName`: The storage account name.
-- `sasValidityDays`: Optional validity of the exported `containerSasUrl`, in days (default 365, at least 31).
+- `sasValidityDays`: Optional validity of the exported `containerSasUrl`, in days (default 365, at least 31). Also the default validity of the `sasTokens`.
+- `sasTokens`: Optional named container SAS, each with its own permissions, for apps that need less than `containerSasUrl`'s (e.g. a read-only SAS):
+  - `name`: Unique within `sasTokens`.
+  - `permissions`: Any of `r` (read), `a` (add), `c` (create), `w` (write), `d` (delete) and `l` (list), each at most once, in any order: `rl` is read-only.
+  - `validityDays`: Optional validity of each SAS issued, in days (default `sasValidityDays`, at least 31).
+
+  Only the entries some `exports[].sasTokens` item exports are signed. They are renewed with `containerSasUrl`, every 30 days.
 - `managedIdentities`: Optional user-assigned managed identities, one per consuming application, each granted a role on the container:
   - `name`, `resourceGroupName`, `location`: as for the [database managed identities](#managed-identities); the identity is named `<name>_<container name>`.
   - `role`: `StorageBlobDataContributor` (default), `StorageBlobDataReader` or `StorageBlobDataOwner`, assigned on the container only. Each identity also gets **Storage Blob Delegator** on the storage account, so it can sign SAS (e.g. short-lived download links) with a user delegation key: Azure only issues that key to a principal with a role on the account, but this one grants no data access, and a SAS the identity signs can't exceed its role on the container.
@@ -792,7 +798,8 @@ Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_azureblobco
 - `exports`: Values to export. `domain` defaults to `domainRef`. Each entry can export:
   - `containerName`, `accountName`, `blobEndpoint` (e.g. `https://account.blob.core.windows.net/`), `containerUrl` (e.g. `https://account.blob.core.windows.net/container`);
   - `containerSasUrl`: the container URL with a SAS token granting read, add, create, write, delete and list on this container only. It is a secret: export it `toVault` or `toKubeSecret`;
-  - `identities`: client/principal ids of `managedIdentities` entries, like on the databases (see [Exporting users and identities](#exporting-users-and-identities)).
+  - `identities`: client/principal ids of `managedIdentities` entries, like on the databases (see [Exporting users and identities](#exporting-users-and-identities));
+  - `sasTokens`: the URLs of `sasTokens` entries, one item per entry: `sasTokenRef` names the entry (it can be omitted when `sasTokens` has a single entry) and `containerSasUrl` is where its container URL with the SAS token goes. Each entry can be exported at most once per `exports` entry. Secrets, like `containerSasUrl`.
 
   Only container scoped credentials are exported. The storage account's keys, which grant access to every container of the account, never are.
 
@@ -801,9 +808,9 @@ The two ways for an application to access the container:
 | | Scope | Exports | Notes |
 |---|---|---|---|
 | Managed identity | container | `containerUrl` (or `blobEndpoint` + `containerName`), `identities[].identityClientId` | No secret. The app uses `WorkloadIdentityCredential`/`DefaultAzureCredential`. |
-| Container SAS | container | `containerSasUrl` | `new BlobContainerClient(new Uri(sasUrl))`. A new SAS is issued every 30 days (tracked by a pulumi-time `Rotating` resource in the stack), each valid for `sasValidityDays`, so the previous one keeps working while apps pick up the new value. The rotation is detected by the stack refresh: the provisioner must reconcile, without `PULUMI_SKIP_REFRESH`, at least once per `sasValidityDays - 30` days. |
+| Container SAS | container | `containerSasUrl`, or `sasTokens[].containerSasUrl` for fewer permissions | `new BlobContainerClient(new Uri(sasUrl))`. A new SAS is issued every 30 days (tracked by a pulumi-time `Rotating` resource in the stack), each valid for `sasValidityDays` (or its `validityDays`), so the previous one keeps working while apps pick up the new value. The rotation is detected by the stack refresh: the provisioner must reconcile, without `PULUMI_SKIP_REFRESH`, at least once per validity - 30 days. |
 
-The container is retained on delete under the `RetainStatefulResources` delete policy, and so are the managed identities; their role assignments and federated credentials are not. The provisioner's identity needs, on the storage account, permission to manage containers, and the `listServiceSas` permission when `containerSasUrl` is exported (e.g. **Storage Account Contributor**); and, to grant the identities their roles on the container and the account, `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator** on the account). `containerSasUrl` needs shared key access to be enabled on the account. It is signed with the account's first key (`key1`): rotating that key invalidates it until the next reconcile issues a new one.
+The container is retained on delete under the `RetainStatefulResources` delete policy, and so are the managed identities; their role assignments and federated credentials are not. The provisioner's identity needs, on the storage account, permission to manage containers, and the `listServiceSas` permission when a SAS is exported (e.g. **Storage Account Contributor**); and, to grant the identities their roles on the container and the account, `Microsoft.Authorization/roleAssignments/write` (e.g. **Role Based Access Control Administrator** on the account). The SAS need shared key access to be enabled on the account. They are signed with the account's first key (`key1`): rotating that key invalidates them until the next reconcile issues new ones. Before it expires, a SAS can only be revoked by rotating that key.
 
 ## Example
 
@@ -823,12 +830,21 @@ spec:
       location: westeurope
       serviceAccounts:
         - name: replenishment-{{ .Tenant.Code }}
+  sasTokens:
+    - name: read
+      permissions: rl
+      validityDays: 60
   domainRef: replenishment
   platformRef: qa
   exports:
     - containerSasUrl:
         toVault:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ObjectStorage__BlobContainerSasUrl
+      sasTokens:
+        - sasTokenRef: read
+          containerSasUrl:
+            toVault:
+              keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ObjectStorage__ReadOnlySasUrl
       containerUrl:
         toConfigMap:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ObjectStorage__ContainerUrl
