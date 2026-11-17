@@ -963,7 +963,7 @@ func TestProvisioningController_drainWorkqueue(t *testing.T) {
 		return ProvisioningResult{}
 	}
 
-	c := NewProvisioningController(clientset, noopProvisioner, nil, nil, messaging.NilMessagingPublisher)
+	c := NewProvisioningController(clientset, noopProvisioner, nil, nil, nil, messaging.NilMessagingPublisher)
 	assert.True(t, c.skipInitialReconcile, EnvSkipInitialReconcile+" should be picked up from the environment")
 
 	c.factory.Start(nil)
@@ -1114,7 +1114,7 @@ func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.A
 func runController(objects []runtime.Object, provisioner CreateInfrastructureFunc, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
 	clientset := fakeClientset.NewSimpleClientset(objects...)
 
-	c := NewProvisioningController(clientset, provisioner, nil, nil, msgPublisher)
+	c := NewProvisioningController(clientset, provisioner, nil, nil, nil, msgPublisher)
 	c.factory.Start(nil)
 	c.factory.WaitForCacheSync(nil)
 

@@ -45,6 +45,22 @@ type ProvisioningResource interface {
 	GetSpec() any
 }
 
+// IsEmpty tells whether there are no resources of any kind.
+func (infra *InfrastructureManifests) IsEmpty() bool {
+	return len(infra.EntraUsers) == 0 &&
+		len(infra.MinioBuckets) == 0 &&
+		len(infra.AzureDbs) == 0 &&
+		len(infra.AzureManagedDbs) == 0 &&
+		len(infra.AzurePowerShellScripts) == 0 &&
+		len(infra.HelmReleases) == 0 &&
+		len(infra.HelmReleaseV2s) == 0 &&
+		len(infra.AzureVirtualMachines) == 0 &&
+		len(infra.AzureVirtualDesktops) == 0 &&
+		len(infra.MsSqlDbs) == 0 &&
+		len(infra.LocalScripts) == 0 &&
+		len(infra.KeycloakClients) == 0
+}
+
 func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResourceIdendtifier) (ProvisioningResource, bool) {
 	switch id.Kind {
 	case ProvisioningResourceKindKeycloakClient:

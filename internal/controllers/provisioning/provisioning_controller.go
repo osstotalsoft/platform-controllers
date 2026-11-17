@@ -71,8 +71,13 @@ type ProvisioningController struct {
 	recorder record.EventRecorder
 
 	provisioner CreateInfrastructureFunc
+	// stackReadiness tells whether a tenant stack has had a successful update; it's how a domain's dependencies are
+	// found to be provisioned after a restart.
+	stackReadiness StackReadinessFunc
+	dependencies   *domainDependencies
 
 	platformInformer              platformInformersv1.PlatformInformer
+	domainInformer                platformInformersv1.DomainInformer
 	tenantInformer                platformInformersv1.TenantInformer
 	tenantCategoryInformer        platformInformersv1.TenantCategoryInformer
 	azureDbInformer               provisioningInformersv1.AzureDatabaseInformer
@@ -101,11 +106,16 @@ type ProvisioningController struct {
 
 func NewProvisioningController(clientSet clientset.Interface,
 	tenantProvisioner CreateInfrastructureFunc,
+	stackReadiness StackReadinessFunc,
 	tenantMigrator func(platform string, tenant *platformv1.Tenant, domain string) error,
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
+
+	if stackReadiness == nil {
+		stackReadiness = func(ProvisioningTarget, string) (bool, error) { return false, nil }
+	}
 
 	// Create event broadcaster
 	// Add provisioning-controller types to the default Kubernetes Scheme so Events can be
@@ -126,6 +136,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		factory:   factory,
 
 		platformInformer:              factory.Platform().V1alpha1().Platforms(),
+		domainInformer:                factory.Platform().V1alpha1().Domains(),
 		tenantInformer:                factory.Platform().V1alpha1().Tenants(),
 		tenantCategoryInformer:        factory.Platform().V1alpha1().TenantCategories(),
 		azureDbInformer:               factory.Provisioning().V1alpha1().AzureDatabases(),
@@ -142,6 +153,8 @@ func NewProvisioningController(clientSet clientset.Interface,
 		localScriptInformer:           factory.Provisioning().V1alpha1().LocalScripts(),
 
 		provisioner:        tenantProvisioner,
+		stackReadiness:     stackReadiness,
+		dependencies:       newDomainDependencies(),
 		clientset:          clientSet,
 		tenantMigrator:     tenantMigrator,
 		messagingPublisher: messagingPublisher,
@@ -157,6 +170,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	c.registerHandler(addTenantHandlers(c.tenantInformer, c.enqueueTenant))
 	c.registerHandler(addPlatformHandlers(c.platformInformer))
 	c.registerHandler(addTenantCategoryHandlers(c.tenantCategoryInformer, c.enqueueTenantsByCategory))
+	c.registerHandler(addDomainHandlers(c.domainInformer, c.enqueueTenantsByDomain))
 
 	c.registerHandler(addResourceHandlers[*provisioningv1.HelmRelease]("Helm release", c.helmReleaseInformer.Informer(), c.enqueueDomain))
 	c.registerHandler(addResourceHandlers[*provisioningv1.HelmReleaseV2]("Helm release v2", c.helmReleaseV2Informer.Informer(), c.enqueueDomain))
@@ -303,84 +317,95 @@ func (c *ProvisioningController) processNextWorkItem(i int) bool {
 	return true
 }
 
-// syncHandler compares the actual state with the desired, and attempts to
-// converge the two. It then updates the Status block of the Tenant resource
-// with the current status of the resource.
+// syncHandler converges one work queue item, a domain of a platform or of a tenant. A returned error requeues the
+// item with backoff.
 func (c *ProvisioningController) syncHandler(key string) error {
-	// Convert the namespace/name string into a distinct namespace and name
 	platformKey, tenantKey, domainKey, _ := decodeKey(key)
 	if tenantKey == "" {
-		platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformKey, metav1.GetOptions{})
-		platformNotFound := err != nil && errors.IsNotFound(err)
-		if platformNotFound {
-			utilruntime.HandleError(fmt.Errorf("platform not found: %s", platformKey))
-			return nil
-		}
-
-		if err != nil {
-			return err
-		}
-
-		// Return the sync error, so a failed sync is requeued with backoff.
-		return c.syncTarget(platform, domainKey)
-	} else {
-		tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
-		if err != nil {
-			utilruntime.HandleError(fmt.Errorf("invalid tenant key: %s", tenantKey))
-			return nil
-		}
-
-		// Get the Tenant resource with this namespace/name
-		// use the live query API, to get the latest version instead of listers which are cached
-		tenant, err := c.clientset.PlatformV1alpha1().Tenants(tenantNamespace).Get(context.TODO(), tenantName, metav1.GetOptions{})
-		shouldCleanupResources :=
-			(err != nil && errors.IsNotFound(err)) ||
-				(err == nil && (tenant.Spec.PlatformRef != platformKey ||
-					!slices.Contains(tenant.Spec.DomainRefs, domainKey)))
-
-		if shouldCleanupResources {
-			cleanupResult := c.provisioner(&platformv1.Tenant{
-				ObjectMeta: metav1.ObjectMeta{Name: tenantName},
-				Spec:       platformv1.TenantSpec{PlatformRef: platformKey}},
-				domainKey,
-				&InfrastructureManifests{},
-			)
-			if cleanupResult.Error != nil {
-				utilruntime.HandleError(cleanupResult.Error)
-			}
-
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-
-		// Return the sync error, so a failed sync is requeued with backoff.
-		return c.syncTarget(tenant, domainKey)
+		return c.syncPlatform(platformKey, domainKey)
 	}
+	return c.syncTenant(platformKey, tenantKey, domainKey)
 }
 
-func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain string) error {
-	manifests, err := c.collectManifests(target, domain)
+// syncPlatform provisions the platform-level stack of domain.
+func (c *ProvisioningController) syncPlatform(platformName, domain string) error {
+	platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		utilruntime.HandleError(fmt.Errorf("platform not found: %s", platformName))
+		return nil
+	}
 	if err != nil {
 		return err
 	}
 
-	result := c.provisioner(target, domain, manifests)
+	_, err = c.provisionDomain(platform, domain)
+	return err
+}
+
+// syncTenant provisions the tenant's stack of domain, in the order Domain.spec.dependsOn sets, or destroys it when the
+// tenant is gone or no longer has the domain.
+func (c *ProvisioningController) syncTenant(platformName, tenantKey, domain string) error {
+	tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
+	if err != nil {
+		utilruntime.HandleError(fmt.Errorf("invalid tenant key: %s", tenantKey))
+		return nil
+	}
+
+	// Get the Tenant resource with this namespace/name
+	// use the live query API, to get the latest version instead of listers which are cached
+	tenant, err := c.clientset.PlatformV1alpha1().Tenants(tenantNamespace).Get(context.TODO(), tenantName, metav1.GetOptions{})
+	shouldCleanupResources :=
+		(err != nil && errors.IsNotFound(err)) ||
+			(err == nil && (tenant.Spec.PlatformRef != platformName ||
+				!slices.Contains(tenant.Spec.DomainRefs, domain)))
+
+	if shouldCleanupResources {
+		// the stack is about to be destroyed, so it no longer counts as provisioned for dependent domains
+		c.dependencies.forget(encodeKey(platformName, tenantKey, domain))
+		// The stack to destroy is the one the work queue key names: the tenant may be gone, or on another platform now.
+		c.cleanupDomain(&platformv1.Tenant{
+			ObjectMeta: metav1.ObjectMeta{Name: tenantName},
+			Spec:       platformv1.TenantSpec{PlatformRef: platformName}},
+			domain,
+		)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	ok, err := c.canProvisionDomainForTenant(tenant, domain)
+	if err != nil || !ok {
+		return err
+	}
+
+	hasResources, err := c.provisionDomain(tenant, domain)
+	if err == nil {
+		c.wakeDependentDomains(tenant, domain, hasResources)
+	}
+	return err
+}
+
+// cleanupDomain destroys the stack of domain for target: the provisioner destroys a stack it's given no resources for.
+// A failure is logged, not retried.
+func (c *ProvisioningController) cleanupDomain(target ProvisioningTarget, domain string) {
+	if result := c.provisioner(target, domain, &InfrastructureManifests{}); result.Error != nil {
+		utilruntime.HandleError(result.Error)
+	}
+}
+
+// provisionDomain provisions the stack of domain for target, starts the migrations when it changed, and publishes the
+// outcome. It returns whether the domain has resources for target.
+func (c *ProvisioningController) provisionDomain(target ProvisioningTarget, domain string) (bool, error) {
+	resources, err := c.provisioningResourcesFor(target, domain)
+	if err != nil {
+		return false, err
+	}
+
+	result := c.provisioner(target, domain, resources)
 
 	if result.Error == nil && result.HasChanges {
-		result.Error = MatchTarget(target,
-			func(tenant *platformv1.Tenant) error {
-				if c.tenantMigrator != nil && tenant.Spec.Enabled {
-					return c.tenantMigrator(tenant.GetNamespace(), tenant, domain)
-				} else {
-					return nil
-				}
-			},
-			func(*platformv1.Platform) error {
-				return nil
-			},
-		)
+		result.Error = c.startMigrationsFor(target, domain)
 	}
 
 	if result.Error == nil {
@@ -389,12 +414,26 @@ func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain st
 		c.publishFailureEvents(target, domain, result.Error)
 	}
 
-	return result.Error
+	return !resources.IsEmpty(), result.Error
 }
 
-// collectManifests lists the resources of every kind that belong to domain for target, with the target's overrides
-// (and its tenant category's) applied.
-func (c *ProvisioningController) collectManifests(target ProvisioningTarget, domain string) (*InfrastructureManifests, error) {
+// startMigrationsFor creates the migration jobs of domain for target. Only enabled tenants have migrations, and only
+// when a migrator is configured.
+func (c *ProvisioningController) startMigrationsFor(target ProvisioningTarget, domain string) error {
+	return MatchTarget(target,
+		func(tenant *platformv1.Tenant) error {
+			if c.tenantMigrator == nil || !tenant.Spec.Enabled {
+				return nil
+			}
+			return c.tenantMigrator(tenant.GetNamespace(), tenant, domain)
+		},
+		func(*platformv1.Platform) error { return nil },
+	)
+}
+
+// provisioningResourcesFor lists the resources of every kind that belong to domain for target, with the target's
+// overrides (and its tenant category's) applied.
+func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTarget, domain string) (*InfrastructureManifests, error) {
 	category, err := c.resolveTenantCategory(target)
 	if err != nil {
 		return nil, err
@@ -743,6 +782,12 @@ func (c *ProvisioningController) enqueueTenantsByCategory(platform, categoryName
 	}
 }
 
+// enqueueTenantsByDomain re-enqueues the named domain for every tenant of the platform that has it, so a change to the
+// Domain's dependencies is applied without waiting for an unrelated change.
+func (c *ProvisioningController) enqueueTenantsByDomain(platform, domain string) {
+	c.enqueueDomain(platform, domain, provisioningv1.ProvisioningTargetCategoryTenant)
+}
+
 func encodeKey(platform, tenant, domain string) (key string) {
 	return fmt.Sprintf("%s::%s::%s", platform, tenant, domain)
 }
@@ -791,6 +836,48 @@ func addTenantCategoryHandlers(informer platformInformersv1.TenantCategoryInform
 			category := obj.(*platformv1.TenantCategory)
 			klog.V(4).InfoS("TenantCategory deleted", "name", category.Name, "platform", category.Spec.PlatformRef)
 			handler(category.Spec.PlatformRef, category.GetName())
+		},
+	})
+}
+
+// addDomainHandlers calls handler for the Domains whose dependencies matter: one added or deleted with dependencies,
+// and one whose dependencies or platform changed. Other Domain changes don't affect tenant provisioning.
+func addDomainHandlers(informer platformInformersv1.DomainInformer, handler func(platform, domain string)) (cache.ResourceEventHandlerRegistration, error) {
+	return informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			domain := obj.(*platformv1.Domain)
+			if len(domain.Spec.DependsOn) > 0 {
+				klog.V(4).InfoS("Domain with dependencies added", "name", domain.Name, "platform", domain.Spec.PlatformRef)
+				handler(domain.Spec.PlatformRef, domain.Name)
+			}
+		},
+		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldD := oldObj.(*platformv1.Domain)
+			newD := newObj.(*platformv1.Domain)
+			if oldD.Spec.PlatformRef == newD.Spec.PlatformRef && reflect.DeepEqual(oldD.Spec.DependsOn, newD.Spec.DependsOn) {
+				return
+			}
+			klog.V(4).InfoS("Domain dependencies updated", "name", newD.Name, "platform", newD.Spec.PlatformRef)
+			if oldD.Spec.PlatformRef != newD.Spec.PlatformRef {
+				handler(oldD.Spec.PlatformRef, oldD.Name)
+			}
+			handler(newD.Spec.PlatformRef, newD.Name)
+		},
+		DeleteFunc: func(obj interface{}) {
+			domain, ok := obj.(*platformv1.Domain)
+			if !ok {
+				tombstone, isTombstone := obj.(cache.DeletedFinalStateUnknown)
+				if !isTombstone {
+					return
+				}
+				if domain, ok = tombstone.Obj.(*platformv1.Domain); !ok {
+					return
+				}
+			}
+			if len(domain.Spec.DependsOn) > 0 {
+				klog.V(4).InfoS("Domain with dependencies deleted", "name", domain.Name, "platform", domain.Spec.PlatformRef)
+				handler(domain.Spec.PlatformRef, domain.Name)
+			}
 		},
 	})
 }

@@ -108,7 +108,7 @@ func main() {
 		}
 	}
 
-	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
+	controller := provisioning.NewProvisioningController(clientset, pulumi.Create, pulumi.HasSucceededUpdate,
 		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter, ttlSecondsAfterFinished), eventBroadcaster, messaging.DefaultMessagingPublisher())
 
 	workersCount, err := strconv.Atoi(os.Getenv(EnvWorkersCount))
