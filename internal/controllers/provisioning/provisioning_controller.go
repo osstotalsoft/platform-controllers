@@ -308,7 +308,6 @@ func (c *ProvisioningController) processNextWorkItem(i int) bool {
 // with the current status of the resource.
 func (c *ProvisioningController) syncHandler(key string) error {
 	// Convert the namespace/name string into a distinct namespace and name
-	var err error
 	platformKey, tenantKey, domainKey, _ := decodeKey(key)
 	if tenantKey == "" {
 		platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformKey, metav1.GetOptions{})
@@ -322,8 +321,8 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			return err
 		}
 
-		err = c.syncTarget(platform, domainKey)
-
+		// Return the sync error, so a failed sync is requeued with backoff.
+		return c.syncTarget(platform, domainKey)
 	} else {
 		tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
 		if err != nil {
@@ -356,11 +355,9 @@ func (c *ProvisioningController) syncHandler(key string) error {
 			return err
 		}
 
-		err = c.syncTarget(tenant, domainKey)
+		// Return the sync error, so a failed sync is requeued with backoff.
+		return c.syncTarget(tenant, domainKey)
 	}
-
-	return err
-
 }
 
 func (c *ProvisioningController) syncTarget(target ProvisioningTarget, domain string) error {

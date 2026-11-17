@@ -3,6 +3,7 @@ package provisioning
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 
@@ -984,6 +985,48 @@ func TestProvisioningController_drainWorkqueue(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Eventually(t, func() bool { return c.workqueue.Len() == 1 }, 10*time.Second, 20*time.Millisecond,
 		"a tenant added after the drain should have been enqueued")
+}
+
+func TestProvisioningController_failedSyncIsRequeued(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+
+	failingProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+		return ProvisioningResult{Error: errors.New("pulumi up failed")}
+	}
+	succeedingProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+		return ProvisioningResult{}
+	}
+
+	tests := []struct {
+		name        string
+		key         string
+		provisioner CreateInfrastructureFunc
+		requeues    int
+	}{
+		{"failed tenant sync", encodeKey("dev", "default/dev1", "my-domain"), failingProvisioner, 1},
+		{"failed platform sync", encodeKey("dev", "", "my-domain"), failingProvisioner, 1},
+		{"successful tenant sync", encodeKey("dev", "default/dev1", "my-domain"), succeedingProvisioner, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objects := []runtime.Object{
+				newTenant("dev1", "dev", "my-domain"),
+				&platformv1.Platform{ObjectMeta: metav1.ObjectMeta{Name: "dev"}},
+			}
+			c := runController(objects, tt.provisioner, messaging.NilMessagingPublisher)
+			for c.workqueue.Len() > 0 {
+				key, _ := c.workqueue.Get()
+				c.workqueue.Forget(key)
+				c.workqueue.Done(key)
+			}
+
+			c.workqueue.Add(tt.key)
+			c.processNextWorkItem(0)
+
+			assert.Equal(t, tt.requeues, c.workqueue.NumRequeues(tt.key))
+		})
+	}
 }
 
 func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
