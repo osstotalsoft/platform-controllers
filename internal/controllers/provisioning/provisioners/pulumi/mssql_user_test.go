@@ -185,6 +185,52 @@ func TestDeployLoginUserSessionsGuard(t *testing.T) {
 	})
 }
 
+// TestDeployLoginUserStaleUserGuard checks the Script deployLoginUser runs before creating the
+// database user, so that a database restored from another tenant's backup, which already holds a
+// user with the same name mapped to that tenant's login, doesn't fail CREATE USER with "User, group,
+// or role … already exists in the current database".
+func TestDeployLoginUserStaleUserGuard(t *testing.T) {
+	deploy := func(t *testing.T) *scriptCaptureMocks {
+		capture := newScriptCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			provider := newTestProvider(t, ctx, "test-provider")
+			_, _, err := deployLoginUser(ctx, provider, "my-db-app1", pulumi.String("1").ToStringOutput(),
+				&provisioningv1.DatabaseUserSpec{Name: "app1", Roles: []string{"db_owner"}},
+				"my-db", []pulumi.Resource{}, false, nil)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.NoError(t, err)
+		return capture
+	}
+
+	t.Run("drops a same-named user not mapped to the login", func(t *testing.T) {
+		capture := deploy(t)
+		inputs, ok := capture.resourceInputs["my-db-app1-stale-user"]
+		if !assert.True(t, ok, "the stale-user guard Script must be deployed") {
+			return
+		}
+		staleUser := "SELECT 1 FROM sys.database_principals WHERE name = N'app1' AND sid <> SUSER_SID(N'app1_my-db')"
+		assert.Contains(t, inputs["updateScript"].StringValue(), staleUser)
+		assert.Contains(t, inputs["updateScript"].StringValue(), "DROP USER [app1]")
+		assert.Contains(t, inputs["readScript"].StringValue(), staleUser)
+		assert.Equal(t, "Absent", inputs["state"].ObjectValue()["StaleUser"].StringValue())
+		_, hasDelete := inputs["deleteScript"]
+		assert.False(t, hasDelete, "deleting the guard must leave the user alone")
+	})
+
+	t.Run("runs after the login is created and before the user", func(t *testing.T) {
+		capture := deploy(t)
+		guard := capture.registerRPCs["my-db-app1-stale-user"].RegisterRPC
+		user := capture.registerRPCs["my-db-app1-user"].RegisterRPC
+		if !assert.NotNil(t, guard) || !assert.NotNil(t, user) {
+			return
+		}
+		assert.Contains(t, guard.GetDependencies(), "urn:pulumi:stack::project::mssql:index/sqlLogin:SqlLogin::my-db-app1-login",
+			"SUSER_SID needs the login to exist")
+		assert.Contains(t, user.GetDependencies(), "urn:pulumi:stack::project::mssql:index/script:Script::my-db-app1-stale-user")
+	})
+}
+
 func TestDeployContainedUser(t *testing.T) {
 	t.Run("creates contained user with role grants", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
