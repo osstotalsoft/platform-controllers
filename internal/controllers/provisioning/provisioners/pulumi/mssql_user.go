@@ -258,11 +258,19 @@ func deployLoginUser(ctx *pulumi.Context, provider *mssql.Provider, resourceName
 		return "", pulumi.StringOutput{}, err
 	}
 
+	staleUserGuard, err := deployStaleUserGuard(ctx, provider, fmt.Sprintf("%s-stale-user", resourceNamePrefix),
+		databaseId, username, loginName, login, retainOnDelete)
+	if err != nil {
+		return "", pulumi.StringOutput{}, err
+	}
+
 	userResourceName := fmt.Sprintf("%s-user", resourceNamePrefix)
-	userOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, login)), pulumi.RetainOnDelete(retainOnDelete)}
+	userOpts := []pulumi.ResourceOption{pulumi.Provider(provider), pulumi.DependsOn(append(dependencies, login, staleUserGuard)), pulumi.RetainOnDelete(retainOnDelete)}
 	if imports.shouldImport(mssqlSqlUserType, userResourceName) {
+		// Gated on the guard so the lookup sees the database after it dropped a stale user, not a
+		// user that is about to be dropped.
 		existing := mssql.LookupSqlUserOutput(ctx, mssql.LookupSqlUserOutputArgs{
-			DatabaseId: databaseId.ToStringOutput().ToStringPtrOutput(),
+			DatabaseId: gateOn(databaseId, []pulumi.Resource{staleUserGuard}).ToStringPtrOutput(),
 			Name:       pulumi.String(username),
 		}, pulumi.Provider(provider))
 		userOpts = append(userOpts, imports.importResource(lookedUpImportId(existing.Id(), fmt.Sprintf("user %s", username)))...)
@@ -351,6 +359,38 @@ END`, name, identifier, killedSessionNotActiveError)),
 	}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{login}),
 		pulumi.DeleteBeforeReplace(true), pulumi.RetainOnDelete(retainOnDelete))
 	return err
+}
+
+// deployStaleUserGuard deploys a Script that drops the database user named username when it isn't
+// mapped to the login named loginName, so that the SqlUser deployLoginUser creates next doesn't fail
+// with "User, group, or role … already exists in the current database".
+//
+// Such a user comes with a database restored from another tenant's backup (restoreFrom): the source
+// tenant was provisioned from the same users[] spec, and the database user's name, unlike the login's,
+// isn't tenant-scoped. The restored user is mapped to the source tenant's login (or to none, if the
+// backup comes from another server), so dropping it also stops that login from reaching this tenant's
+// database. Its role memberships and permissions go with it; the SqlUser and its grants are then
+// created as for a new database. A user mapped to loginName, i.e. the one the SqlUser manages, is left
+// alone, so on later updates the Script does nothing.
+//
+// The Script has no DeleteScript: deleting it must not touch the user, which the SqlUser owns.
+func deployStaleUserGuard(ctx *pulumi.Context, provider *mssql.Provider, resourceName string,
+	databaseId pulumi.StringInput, username, loginName string, login *mssql.SqlLogin,
+	retainOnDelete bool) (*mssql.Script, error) {
+
+	staleUser := fmt.Sprintf("SELECT 1 FROM sys.database_principals WHERE name = %s AND sid <> SUSER_SID(%s)",
+		sqlStringLiteral(username), sqlStringLiteral(loginName))
+
+	return mssql.NewScript(ctx, resourceName, &mssql.ScriptArgs{
+		DatabaseId: databaseId,
+		ReadScript: pulumi.String(fmt.Sprintf(
+			"SELECT CASE WHEN EXISTS (%s) THEN 'Present' ELSE 'Absent' END AS [StaleUser]", staleUser)),
+		UpdateScript: pulumi.String(fmt.Sprintf(`IF EXISTS (%s)
+    DROP USER %s;`, staleUser, sqlQuotedIdentifier(username))),
+		State: pulumi.StringMap{
+			"StaleUser": pulumi.String("Absent"),
+		},
+	}, pulumi.Provider(provider), pulumi.DependsOn([]pulumi.Resource{login}), pulumi.RetainOnDelete(retainOnDelete))
 }
 
 // killedSessionNotActiveError is the SQL Server error KILL raises for a session that has already
