@@ -458,6 +458,8 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		// Arrange
 		platform := _newPlatform("qa", "charismaonline.qa")
 		domain := _newDomain("qa", "origination", platform.Name)
+		domain.Spec.Url = "https://{{ .Tenant.Code }}.origination.app"
+		domain.Spec.VisibleInPortal = true
 
 		c, msgChan := _runController([]runtime.Object{platform, domain})
 		if c.workqueue.Len() != 1 {
@@ -498,6 +500,12 @@ func TestPlatformController_processNextWorkItem(t *testing.T) {
 		for _, msg := range receivedMsgs {
 			if _, exists := expectedTopics[msg.Topic]; exists {
 				expectedTopics[msg.Topic] = true
+			}
+			if msg.Topic == DomainCreatedSuccessfullyTopic {
+				event := msg.Data.(DomainCreated)
+				if event.Url != domain.Spec.Url || !event.VisibleInPortal {
+					t.Errorf("expected DomainCreated to carry url %q and visibleInPortal true, got %+v", domain.Spec.Url, event)
+				}
 			}
 		}
 

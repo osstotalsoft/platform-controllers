@@ -15,6 +15,7 @@ type Domain struct {
 	Spec DomainSpec `json:"spec"`
 }
 
+// +kubebuilder:validation:XValidation:rule="!has(self.visibleInPortal) || !self.visibleInPortal || (has(self.url) && self.url != '')",message="url is required when visibleInPortal is true"
 type DomainSpec struct {
 	// PlatformRef is the target platform.
 	// +required
@@ -22,6 +23,16 @@ type DomainSpec struct {
 
 	// +optional
 	ExportActiveDomains bool `json:"exportActiveDomains"`
+
+	// Url of the domain's application. A template rendered with the tenant context,
+	// e.g. "https://{{ .Tenant.Code }}.example.com/app". Required when VisibleInPortal is true.
+	// +optional
+	Url string `json:"url,omitempty"`
+
+	// VisibleInPortal shows the domain in the portal, linking to Url.
+	// +optional
+	// +kubebuilder:default:=false
+	VisibleInPortal bool `json:"visibleInPortal"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
