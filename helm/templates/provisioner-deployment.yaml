@@ -176,6 +176,8 @@ spec:
           value: "{{ .Values.global.workersCount }}"
         - name: MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED
           value: "{{ .Values.global.migrationJobTTLSecondsAfterFinished }}"
+        - name: MIGRATION_JOBS_ENABLED
+          value: {{ .Values.global.migrationJobsEnabled | quote }}
         - name: SKIP_INITIAL_RECONCILE
           value: {{ .Values.global.skipInitialReconcile | quote }}
         - name: PULUMI_IMPORT_ALL

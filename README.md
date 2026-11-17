@@ -108,11 +108,18 @@ monitors infrastructure manifests and provisions the desired infrastructure for 
 
 ### Env
 
-| Variable       | example value         | details                                            |
-| -------------- | --------------------- | -------------------------------------------------- |
-| AZURE_LOCATION | West Europe           | default location used to deploy resources in azure |
-| VAULT_ADDR     | http://localhost:8200 | address to vault server                            |
-| VAULT_TOKEN    | {token}               | vault token                                        |
+| Variable               | example value         | details                                                                                |
+| ---------------------- | --------------------- | -------------------------------------------------------------------------------------- |
+| AZURE_LOCATION         | West Europe           | default location used to deploy resources in azure                                     |
+| VAULT_ADDR             | http://localhost:8200 | address to vault server                                                                |
+| VAULT_TOKEN            | {token}               | vault token                                                                            |
+| MIGRATION_JOBS_ENABLED | false                 | whether to start migration jobs, see [Migration jobs](#migration-jobs); default `true` |
+
+### Migration jobs
+
+When a tenant's domain is provisioned with changes and the tenant is enabled, the provisioner starts the domain's migrations: it clones every Job labelled `provisioning.totalsoft.ro/migration-job-template: "true"` and `platform.totalsoft.ro/domain: <domain>` into a Job for the tenant.
+
+`MIGRATION_JOBS_ENABLED=false` (Helm value `global.migrationJobsEnabled: false`) turns this off for the whole cluster
 
 ### Target
 
