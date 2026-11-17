@@ -1,6 +1,7 @@
 package pulumi
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -10,11 +11,16 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
+// keycloakMocks records each resource's Inputs by TypeToken. NewResource is called concurrently, one
+// goroutine per resource, so the map is guarded by mu; tests read it after pulumi.RunErr has returned.
 type keycloakMocks struct {
+	mu             sync.Mutex
 	resourceInputs map[string]resource.PropertyMap
 }
 
 func (m *keycloakMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.resourceInputs[args.TypeToken] = args.Inputs
 	return args.Name + "_id", args.Inputs, nil
 }

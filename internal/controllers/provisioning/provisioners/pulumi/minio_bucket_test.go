@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/common/resource"
@@ -14,13 +15,18 @@ import (
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
+// minioMocks records the Inputs of every minio provider. NewResource is called concurrently, one
+// goroutine per resource, so the slice is guarded by mu; tests read it after pulumi.RunErr has returned.
 type minioMocks struct {
+	mu             sync.Mutex
 	providerInputs []resource.PropertyMap
 }
 
 func (m *minioMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
 	if args.TypeToken == "pulumi:providers:minio" {
+		m.mu.Lock()
 		m.providerInputs = append(m.providerInputs, args.Inputs)
+		m.mu.Unlock()
 	}
 	return args.Name + "_id", args.Inputs, nil
 }
