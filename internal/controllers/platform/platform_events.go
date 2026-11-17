@@ -38,9 +38,11 @@ type TenantDeleted struct {
 }
 
 type DomainCreated struct {
-	DomainName  string
-	Namespace   string
-	PlatformRef string
+	DomainName      string
+	Namespace       string
+	PlatformRef     string
+	Url             string
+	VisibleInPortal bool
 }
 
 type DomainUpdated struct {
@@ -53,6 +55,8 @@ type Domain struct {
 	Namespace           string
 	PlatformRef         string
 	ExportActiveDomains bool
+	Url                 string
+	VisibleInPortal     bool
 }
 
 type DomainDeleted struct {

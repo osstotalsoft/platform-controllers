@@ -42,9 +42,23 @@ spec:
               platformRef:
                 description: PlatformRef is the target platform.
                 type: string
+              url:
+                description: |-
+                  Url of the domain's application. A template rendered with the tenant context,
+                  e.g. "https://{{ .Tenant.Code }}.example.com/app". Required when VisibleInPortal is true.
+                type: string
+              visibleInPortal:
+                default: false
+                description: VisibleInPortal shows the domain in the portal, linking
+                  to Url.
+                type: boolean
             required:
             - platformRef
             type: object
+            x-kubernetes-validations:
+            - message: url is required when visibleInPortal is true
+              rule: '!has(self.visibleInPortal) || !self.visibleInPortal || (has(self.url)
+                && self.url != '''')'
         required:
         - spec
         type: object

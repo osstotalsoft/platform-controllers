@@ -23,6 +23,8 @@ package v1alpha1
 type DomainSpecApplyConfiguration struct {
 	PlatformRef         *string `json:"platformRef,omitempty"`
 	ExportActiveDomains *bool   `json:"exportActiveDomains,omitempty"`
+	Url                 *string `json:"url,omitempty"`
+	VisibleInPortal     *bool   `json:"visibleInPortal,omitempty"`
 }
 
 // DomainSpecApplyConfiguration constructs an declarative configuration of the DomainSpec type for use with
@@ -44,5 +46,21 @@ func (b *DomainSpecApplyConfiguration) WithPlatformRef(value string) *DomainSpec
 // If called multiple times, the ExportActiveDomains field is set to the value of the last call.
 func (b *DomainSpecApplyConfiguration) WithExportActiveDomains(value bool) *DomainSpecApplyConfiguration {
 	b.ExportActiveDomains = &value
+	return b
+}
+
+// WithUrl sets the Url field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Url field is set to the value of the last call.
+func (b *DomainSpecApplyConfiguration) WithUrl(value string) *DomainSpecApplyConfiguration {
+	b.Url = &value
+	return b
+}
+
+// WithVisibleInPortal sets the VisibleInPortal field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the VisibleInPortal field is set to the value of the last call.
+func (b *DomainSpecApplyConfiguration) WithVisibleInPortal(value bool) *DomainSpecApplyConfiguration {
+	b.VisibleInPortal = &value
 	return b
 }

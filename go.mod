@@ -40,11 +40,25 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.7.0
 )
 
-require github.com/pulumiverse/pulumi-time/sdk v0.1.0
+require (
+	github.com/pulumiverse/pulumi-time/sdk v0.1.0
+	k8s.io/apiserver v0.36.2
+)
 
 require (
+	cel.dev/expr v0.25.2 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
+	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/google/cel-go v0.26.0 // indirect
+	github.com/prometheus/client_golang v1.23.2 // indirect
+	github.com/prometheus/client_model v0.6.2 // indirect
+	github.com/prometheus/common v0.67.5 // indirect
+	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/stoewer/go-strcase v1.3.0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	honnef.co/go/tools v0.8.2 // indirect
+	k8s.io/component-base v0.36.2 // indirect
 )
 
 require (
@@ -201,7 +215,7 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
-	sigs.k8s.io/yaml v1.6.0 // indirect
+	sigs.k8s.io/yaml v1.6.0
 )
 
 tool honnef.co/go/tools/cmd/staticcheck

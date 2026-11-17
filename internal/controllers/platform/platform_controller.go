@@ -187,9 +187,11 @@ func NewPlatformController(
 
 			controller.recorder.Event(domain, corev1.EventTypeNormal, "Domain created successfully", "Domain created successfully")
 			event := DomainCreated{
-				DomainName:  domain.Name,
-				Namespace:   domain.Namespace,
-				PlatformRef: domain.Spec.PlatformRef,
+				DomainName:      domain.Name,
+				Namespace:       domain.Namespace,
+				PlatformRef:     domain.Spec.PlatformRef,
+				Url:             domain.Spec.Url,
+				VisibleInPortal: domain.Spec.VisibleInPortal,
 			}
 			err := controller.messagingPublisher(context.TODO(), DomainCreatedSuccessfullyTopic, event, domain.Spec.PlatformRef)
 			if err != nil {
@@ -215,12 +217,16 @@ func NewPlatformController(
 						Namespace:           oldD.Namespace,
 						PlatformRef:         oldD.Spec.PlatformRef,
 						ExportActiveDomains: oldD.Spec.ExportActiveDomains,
+						Url:                 oldD.Spec.Url,
+						VisibleInPortal:     oldD.Spec.VisibleInPortal,
 					},
 					newValue: Domain{
 						DomainName:          newD.Name,
 						Namespace:           newD.Namespace,
 						PlatformRef:         newD.Spec.PlatformRef,
 						ExportActiveDomains: newD.Spec.ExportActiveDomains,
+						Url:                 newD.Spec.Url,
+						VisibleInPortal:     newD.Spec.VisibleInPortal,
 					},
 				}
 				err := controller.messagingPublisher(context.TODO(), DomainUpdatedSuccessfullyTopic, event, newD.Spec.PlatformRef)
