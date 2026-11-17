@@ -49,17 +49,19 @@ func newDepsHarness(t *testing.T, objects ...runtime.Object) *depsHarness {
 		readinessCalls: map[string]int{},
 	}
 
-	provisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		h.provisioned = append(h.provisioned, target.GetName()+"/"+domain)
-		return ProvisioningResult{}
-	}
-	readiness := func(target ProvisioningTarget, domain string) (bool, error) {
-		h.mu.Lock()
-		defer h.mu.Unlock()
-		h.readinessCalls[domain]++
-		return h.stackReady[domain], h.readinessErr
+	provisioner := fakeProvisioner{
+		provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.provisioned = append(h.provisioned, target.GetName()+"/"+domain)
+			return ProvisioningResult{}
+		},
+		isProvisioned: func(target ProvisioningTarget, domain string) (bool, error) {
+			h.mu.Lock()
+			defer h.mu.Unlock()
+			h.readinessCalls[domain]++
+			return h.stackReady[domain], h.readinessErr
+		},
 	}
 	publisher := func(ctx context.Context, topic string, data interface{}, platform string) error {
 		h.mu.Lock()
@@ -68,7 +70,7 @@ func newDepsHarness(t *testing.T, objects ...runtime.Object) *depsHarness {
 		return nil
 	}
 
-	h.c = NewProvisioningController(h.clientset, provisioner, readiness, nil, nil, publisher)
+	h.c = NewProvisioningController(h.clientset, provisioner, nil, nil, publisher)
 	h.c.recorder = h.recorder
 	h.c.factory.Start(nil)
 	h.c.factory.WaitForCacheSync(nil)

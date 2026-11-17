@@ -22,16 +22,13 @@ const (
 	DomainDependencyCycleReason = "DomainDependencyCycle"
 )
 
-// StackReadinessFunc tells whether the target's stack for domain has had at least one successful update.
-type StackReadinessFunc func(target ProvisioningTarget, domain string) (bool, error)
-
 // domainDependencies is the in-memory state of the provisioning order of tenant domains. Both maps are keyed by work
 // queue keys (platform::tenantNamespace/tenantName::domain).
 type domainDependencies struct {
 	mu sync.Mutex
-	// ready holds the tenant stacks known to have had a successful update, so their history is read at most once.
+	// ready holds the tenant domains known to be provisioned, so the provisioner is asked about each at most once.
 	ready map[string]struct{}
-	// waiting maps a tenant stack to the domains of the same tenant that wait for it.
+	// waiting maps a tenant domain to the domains of the same tenant that wait for it.
 	waiting map[string]map[string]struct{}
 }
 
@@ -79,8 +76,8 @@ func (d *domainDependencies) removeWaiting(key, domain string) {
 	}
 }
 
-// succeeded records a successful sync of the stack identified by key: the stack is ready if it has resources, and
-// is gone otherwise. It returns, and clears, the domains that were waiting for it. Both happen under the same lock
+// succeeded records a successful sync of the tenant domain identified by key: it's ready if it has resources, and
+// removed otherwise. It returns, and clears, the domains that were waiting for it. Both happen under the same lock
 // addWaiting takes, so a domain added to the waiting set before its readiness check can't miss this wake-up.
 func (d *domainDependencies) succeeded(key string, hasResources bool) []string {
 	d.mu.Lock()
@@ -144,7 +141,7 @@ func (c *ProvisioningController) canProvisionDomainForTenant(tenant *platformv1.
 }
 
 // isTenantDomainReady tells whether domain counts as provisioned for tenant: it has no resources for the tenant, or
-// its stack has had a successful update.
+// it has been provisioned.
 func (c *ProvisioningController) isTenantDomainReady(tenant *platformv1.Tenant, domain string) (bool, error) {
 	if c.dependencies.isReady(c.tenantDomainKey(tenant, domain)) {
 		return true, nil
@@ -161,19 +158,19 @@ func (c *ProvisioningController) isTenantDomainReady(tenant *platformv1.Tenant, 
 	return c.isTenantDomainProvisioned(tenant, domain)
 }
 
-// isTenantDomainProvisioned tells whether the tenant's stack for domain has had a successful update, from the ready
-// cache or, failing that, from the stack history.
+// isTenantDomainProvisioned tells whether domain has been provisioned for tenant, from the ready cache or, failing
+// that, from the provisioner.
 func (c *ProvisioningController) isTenantDomainProvisioned(tenant *platformv1.Tenant, domain string) (bool, error) {
 	key := c.tenantDomainKey(tenant, domain)
 	if c.dependencies.isReady(key) {
 		return true, nil
 	}
 
-	ready, err := c.stackReadiness(tenant, domain)
+	ready, err := c.provisioner.IsProvisioned(tenant, domain)
 	if err != nil {
 		return false, fmt.Errorf("cannot tell whether domain %s is provisioned for tenant %s: %w", domain, tenant.GetName(), err)
 	}
-	klog.V(4).InfoS("Read stack readiness from its history", "tenant", tenant.GetName(), "domain", domain, "ready", ready)
+	klog.V(4).InfoS("Asked the provisioner whether the domain is provisioned", "tenant", tenant.GetName(), "domain", domain, "provisioned", ready)
 	if ready {
 		c.dependencies.markReady(key)
 	}

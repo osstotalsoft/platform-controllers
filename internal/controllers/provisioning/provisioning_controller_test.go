@@ -101,10 +101,12 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		wg.Add(1)
 
 		var outputs []provisionerResult
-		infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-			outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
-			wg.Wait() //wait for other tenant updates
-			return ProvisioningResult{}
+		infraCreator := fakeProvisioner{
+			provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+				outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
+				wg.Wait() //wait for other tenant updates
+				return ProvisioningResult{}
+			},
 		}
 		c := runController(objects, infraCreator, messaging.NilMessagingPublisher)
 
@@ -959,11 +961,7 @@ func TestProvisioningController_drainWorkqueue(t *testing.T) {
 		newTenant("dev1", "dev", domain),
 		newTenant("dev2", "dev", domain),
 	)
-	noopProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		return ProvisioningResult{}
-	}
-
-	c := NewProvisioningController(clientset, noopProvisioner, nil, nil, nil, messaging.NilMessagingPublisher)
+	c := NewProvisioningController(clientset, fakeProvisioner{}, nil, nil, messaging.NilMessagingPublisher)
 	assert.True(t, c.skipInitialReconcile, EnvSkipInitialReconcile+" should be picked up from the environment")
 
 	c.factory.Start(nil)
@@ -990,17 +988,17 @@ func TestProvisioningController_drainWorkqueue(t *testing.T) {
 func TestProvisioningController_failedSyncIsRequeued(t *testing.T) {
 	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
-	failingProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		return ProvisioningResult{Error: errors.New("pulumi up failed")}
+	failingProvisioner := fakeProvisioner{
+		provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			return ProvisioningResult{Error: errors.New("pulumi up failed")}
+		},
 	}
-	succeedingProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		return ProvisioningResult{}
-	}
+	succeedingProvisioner := fakeProvisioner{}
 
 	tests := []struct {
 		name        string
 		key         string
-		provisioner CreateInfrastructureFunc
+		provisioner Provisioner
 		requeues    int
 	}{
 		{"failed tenant sync", encodeKey("dev", "default/dev1", "my-domain"), failingProvisioner, 1},
@@ -1111,10 +1109,10 @@ func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.A
 	}
 }
 
-func runController(objects []runtime.Object, provisioner CreateInfrastructureFunc, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
+func runController(objects []runtime.Object, provisioner Provisioner, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
 	clientset := fakeClientset.NewSimpleClientset(objects...)
 
-	c := NewProvisioningController(clientset, provisioner, nil, nil, nil, msgPublisher)
+	c := NewProvisioningController(clientset, provisioner, nil, nil, msgPublisher)
 	c.factory.Start(nil)
 	c.factory.WaitForCacheSync(nil)
 
@@ -1124,9 +1122,11 @@ func runController(objects []runtime.Object, provisioner CreateInfrastructureFun
 func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningController, *[]provisionerResult, chan messagingMock.RcvMsg) {
 	var outputs []provisionerResult
 
-	infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
-		return ProvisioningResult{}
+	infraCreator := fakeProvisioner{
+		provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
+			return ProvisioningResult{}
+		},
 	}
 
 	msgChan := make(chan messagingMock.RcvMsg)
@@ -1137,6 +1137,27 @@ func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningContr
 	c.factory.WaitForCacheSync(nil)
 
 	return c, &outputs, msgChan
+}
+
+// fakeProvisioner is a Provisioner that calls its function fields. A nil provision succeeds without changes, and a nil
+// isProvisioned answers that the stack has never been provisioned.
+type fakeProvisioner struct {
+	provision     func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult
+	isProvisioned func(target ProvisioningTarget, domain string) (bool, error)
+}
+
+func (p fakeProvisioner) Provision(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+	if p.provision == nil {
+		return ProvisioningResult{}
+	}
+	return p.provision(target, domain, infra)
+}
+
+func (p fakeProvisioner) IsProvisioned(target ProvisioningTarget, domain string) (bool, error) {
+	if p.isProvisioned == nil {
+		return false, nil
+	}
+	return p.isProvisioned(target, domain)
 }
 
 type provisionerResult struct {

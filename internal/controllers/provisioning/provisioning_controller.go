@@ -70,11 +70,8 @@ type ProvisioningController struct {
 	// Kubernetes API.
 	recorder record.EventRecorder
 
-	provisioner CreateInfrastructureFunc
-	// stackReadiness tells whether a tenant stack has had a successful update; it's how a domain's dependencies are
-	// found to be provisioned after a restart.
-	stackReadiness StackReadinessFunc
-	dependencies   *domainDependencies
+	provisioner  Provisioner
+	dependencies *domainDependencies
 
 	platformInformer              platformInformersv1.PlatformInformer
 	domainInformer                platformInformersv1.DomainInformer
@@ -105,17 +102,12 @@ type ProvisioningController struct {
 }
 
 func NewProvisioningController(clientSet clientset.Interface,
-	tenantProvisioner CreateInfrastructureFunc,
-	stackReadiness StackReadinessFunc,
+	provisioner Provisioner,
 	tenantMigrator func(platform string, tenant *platformv1.Tenant, domain string) error,
 	eventBroadcaster record.EventBroadcaster,
 	messagingPublisher messaging.MessagingPublisher) *ProvisioningController {
 
 	factory := informers.NewSharedInformerFactory(clientSet, 0)
-
-	if stackReadiness == nil {
-		stackReadiness = func(ProvisioningTarget, string) (bool, error) { return false, nil }
-	}
 
 	// Create event broadcaster
 	// Add provisioning-controller types to the default Kubernetes Scheme so Events can be
@@ -152,8 +144,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		mssqlDbInformer:               factory.Provisioning().V1alpha1().MsSqlDatabases(),
 		localScriptInformer:           factory.Provisioning().V1alpha1().LocalScripts(),
 
-		provisioner:        tenantProvisioner,
-		stackReadiness:     stackReadiness,
+		provisioner:        provisioner,
 		dependencies:       newDomainDependencies(),
 		clientset:          clientSet,
 		tenantMigrator:     tenantMigrator,
@@ -327,7 +318,7 @@ func (c *ProvisioningController) syncHandler(key string) error {
 	return c.syncTenant(platformKey, tenantKey, domainKey)
 }
 
-// syncPlatform provisions the platform-level stack of domain.
+// syncPlatform provisions domain for the platform.
 func (c *ProvisioningController) syncPlatform(platformName, domain string) error {
 	platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), platformName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
@@ -342,8 +333,8 @@ func (c *ProvisioningController) syncPlatform(platformName, domain string) error
 	return err
 }
 
-// syncTenant provisions the tenant's stack of domain, in the order Domain.spec.dependsOn sets, or destroys it when the
-// tenant is gone or no longer has the domain.
+// syncTenant provisions domain for the tenant, in the order Domain.spec.dependsOn sets, or removes it when the tenant is
+// gone or no longer has the domain.
 func (c *ProvisioningController) syncTenant(platformName, tenantKey, domain string) error {
 	tenantNamespace, tenantName, err := cache.SplitMetaNamespaceKey(tenantKey)
 	if err != nil {
@@ -360,9 +351,9 @@ func (c *ProvisioningController) syncTenant(platformName, tenantKey, domain stri
 				!slices.Contains(tenant.Spec.DomainRefs, domain)))
 
 	if shouldCleanupResources {
-		// the stack is about to be destroyed, so it no longer counts as provisioned for dependent domains
+		// the domain is about to be removed, so it no longer counts as provisioned for dependent domains
 		c.dependencies.forget(encodeKey(platformName, tenantKey, domain))
-		// The stack to destroy is the one the work queue key names: the tenant may be gone, or on another platform now.
+		// The target to clean up is the one the work queue key names: the tenant may be gone, or on another platform now.
 		c.cleanupDomain(&platformv1.Tenant{
 			ObjectMeta: metav1.ObjectMeta{Name: tenantName},
 			Spec:       platformv1.TenantSpec{PlatformRef: platformName}},
@@ -386,15 +377,15 @@ func (c *ProvisioningController) syncTenant(platformName, tenantKey, domain stri
 	return err
 }
 
-// cleanupDomain destroys the stack of domain for target: the provisioner destroys a stack it's given no resources for.
-// A failure is logged, not retried.
+// cleanupDomain removes what was provisioned of domain for target, by provisioning it with no resources. A failure is
+// logged, not retried.
 func (c *ProvisioningController) cleanupDomain(target ProvisioningTarget, domain string) {
-	if result := c.provisioner(target, domain, &InfrastructureManifests{}); result.Error != nil {
+	if result := c.provisioner.Provision(target, domain, &InfrastructureManifests{}); result.Error != nil {
 		utilruntime.HandleError(result.Error)
 	}
 }
 
-// provisionDomain provisions the stack of domain for target, starts the migrations when it changed, and publishes the
+// provisionDomain provisions domain for target, starts the migrations when it changed, and publishes the
 // outcome. It returns whether the domain has resources for target.
 func (c *ProvisioningController) provisionDomain(target ProvisioningTarget, domain string) (bool, error) {
 	resources, err := c.provisioningResourcesFor(target, domain)
@@ -402,7 +393,7 @@ func (c *ProvisioningController) provisionDomain(target ProvisioningTarget, doma
 		return false, err
 	}
 
-	result := c.provisioner(target, domain, resources)
+	result := c.provisioner.Provision(target, domain, resources)
 
 	if result.Error == nil && result.HasChanges {
 		result.Error = c.startMigrationsFor(target, domain)

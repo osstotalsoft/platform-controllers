@@ -33,7 +33,15 @@ var (
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
 
-func Create(target provisioning.ProvisioningTarget, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
+// Provisioner runs the domain stacks with the Pulumi Automation API, against the backend and with the credentials
+// the environment configures.
+type Provisioner struct{}
+
+var _ provisioning.Provisioner = Provisioner{}
+
+// Provision updates the stack of domain for target to the resources in infra, or destroys and removes the stack when
+// infra has none.
+func (Provisioner) Provision(target provisioning.ProvisioningTarget, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
 	result := provisioning.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
@@ -95,9 +103,9 @@ func stackNameFor(target provisioning.ProvisioningTarget, domain string) string 
 	)
 }
 
-// HasSucceededUpdate tells whether the target's stack for domain has had at least one successful update. A stack
-// that doesn't exist (never provisioned, or destroyed because the domain has no resources left) has not.
-func HasSucceededUpdate(target provisioning.ProvisioningTarget, domain string) (bool, error) {
+// IsProvisioned tells whether the target's stack for domain has had at least one successful update. A stack that
+// doesn't exist (never provisioned, or destroyed because the domain has no resources left) has not.
+func (Provisioner) IsProvisioned(target provisioning.ProvisioningTarget, domain string) (bool, error) {
 	ctx := context.Background()
 	stackName := stackNameFor(target, domain)
 	emptyDeployFunc := func(ctx *pulumi.Context) error { return nil }
