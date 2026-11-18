@@ -15,6 +15,7 @@ import (
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optdestroy"
+	"github.com/pulumi/pulumi/sdk/v3/go/auto/opthistory"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto/optup"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"k8s.io/klog/v2"
@@ -32,7 +33,15 @@ var (
 
 type provisionedResourceMap = map[provisioningv1.ProvisioningResourceIdendtifier]pulumi.Resource
 
-func Create(target provisioning.ProvisioningTarget, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
+// Provisioner runs the domain stacks with the Pulumi Automation API, against the backend and with the credentials
+// the environment configures.
+type Provisioner struct{}
+
+var _ provisioning.Provisioner = Provisioner{}
+
+// Provision updates the stack of domain for target to the resources in infra, or destroys and removes the stack when
+// infra has none.
+func (Provisioner) Provision(target provisioning.ProvisioningTarget, domain string, infra *provisioning.InfrastructureManifests) provisioning.ProvisioningResult {
 	result := provisioning.ProvisioningResult{}
 	upRes := auto.UpResult{}
 	destroyRes := auto.DestroyResult{}
@@ -55,14 +64,7 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 		anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyKeycloakClient || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
-	stackName := provisioning.MatchTarget(target,
-		func(tenant *platformv1.Tenant) string {
-			return fmt.Sprintf("%s-%s", tenant.GetName(), domain)
-		},
-		func(*platformv1.Platform) string {
-			return fmt.Sprintf("platform-%s", domain)
-		},
-	)
+	stackName := stackNameFor(target, domain)
 
 	if anyResource {
 		// The minio provider's bucket refresh treats an unreachable server as a deleted bucket and drops
@@ -88,6 +90,49 @@ func Create(target provisioning.ProvisioningTarget, domain string, infra *provis
 	}
 
 	return result
+}
+
+func stackNameFor(target provisioning.ProvisioningTarget, domain string) string {
+	return provisioning.MatchTarget(target,
+		func(tenant *platformv1.Tenant) string {
+			return fmt.Sprintf("%s-%s", tenant.GetName(), domain)
+		},
+		func(*platformv1.Platform) string {
+			return fmt.Sprintf("platform-%s", domain)
+		},
+	)
+}
+
+// IsProvisioned tells whether the target's stack for domain has had at least one successful update. A stack that
+// doesn't exist (never provisioned, or destroyed because the domain has no resources left) has not.
+func (Provisioner) IsProvisioned(target provisioning.ProvisioningTarget, domain string) (bool, error) {
+	ctx := context.Background()
+	stackName := stackNameFor(target, domain)
+	emptyDeployFunc := func(ctx *pulumi.Context) error { return nil }
+
+	s, err := auto.SelectStackInlineSource(ctx, stackName, target.GetPlatformName(), emptyDeployFunc)
+	if err != nil {
+		if auto.IsSelectStack404Error(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to select stack %s: %w", stackName, err)
+	}
+
+	history, err := s.History(ctx, 0, 0, opthistory.ShowSecrets(false))
+	if err != nil {
+		return false, fmt.Errorf("failed to read the history of stack %s: %w", stackName, err)
+	}
+
+	return hasSucceededUpdate(history), nil
+}
+
+func hasSucceededUpdate(history []auto.UpdateSummary) bool {
+	for _, update := range history {
+		if update.Kind == string(apitype.UpdateUpdate) && update.Result == string(apitype.SucceededResult) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasChanges(summary auto.UpdateSummary) bool {

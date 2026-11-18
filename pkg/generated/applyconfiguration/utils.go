@@ -43,6 +43,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		// Group=platform.totalsoft.ro, Version=v1alpha1
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Domain"):
 		return &applyconfigurationplatformv1alpha1.DomainApplyConfiguration{}
+	case platformv1alpha1.SchemeGroupVersion.WithKind("DomainDependency"):
+		return &applyconfigurationplatformv1alpha1.DomainDependencyApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("DomainSpec"):
 		return &applyconfigurationplatformv1alpha1.DomainSpecApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Platform"):

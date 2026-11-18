@@ -18,13 +18,15 @@ import (
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/migration"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning/provisioners/pulumi"
 	messaging "totalsoft.ro/platform-controllers/internal/messaging"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	"totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	"totalsoft.ro/platform-controllers/pkg/signals"
 )
 
 const (
-	EnvWorkersCount                   = "WORKERS_COUNT"
+	EnvWorkersCount                        = "WORKERS_COUNT"
 	EnvMigrationJobTTLSecondsAfterFinished = "MIGRATION_JOB_TTL_SECONDS_AFTER_FINISHED"
+	EnvMigrationJobsEnabled                = "MIGRATION_JOBS_ENABLED"
 )
 
 var (
@@ -56,6 +58,21 @@ func InitFlags() {
 	klogFlags := flag.NewFlagSet("klog", flag.ExitOnError)
 	klog.InitFlags(klogFlags)
 	syncKlogFlags(klogFlags)
+}
+
+// migrationJobsEnabled tells whether the provisioner starts migration jobs, from the value of MIGRATION_JOBS_ENABLED.
+// They're on unless it's false: an empty value keeps them on, and so does one that isn't a boolean, with an error
+// logged.
+func migrationJobsEnabled(value string) bool {
+	if value == "" {
+		return true
+	}
+	enabled, err := strconv.ParseBool(value)
+	if err != nil {
+		klog.ErrorS(err, "Error parsing "+EnvMigrationJobsEnabled+", migration jobs stay enabled", "provided", value)
+		return true
+	}
+	return enabled
 }
 
 // GetConfig gets a kubernetes rest config.
@@ -108,8 +125,16 @@ func main() {
 		}
 	}
 
-	controller := provisioning.NewProvisioningController(clientset, pulumi.Create,
-		migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter, ttlSecondsAfterFinished), eventBroadcaster, messaging.DefaultMessagingPublisher())
+	// A nil migrator makes the controller skip migrations.
+	var tenantMigrator func(platform string, tenant *platformv1.Tenant, domain string) error
+	if migrationJobsEnabled(os.Getenv(EnvMigrationJobsEnabled)) {
+		tenantMigrator = migration.KubeJobsMigrationForTenant(kubeClient, controllers.PlatformNamespaceFilter, ttlSecondsAfterFinished)
+	} else {
+		klog.InfoS("Migration jobs disabled, the provisioner won't start any", "env", EnvMigrationJobsEnabled)
+	}
+
+	controller := provisioning.NewProvisioningController(clientset, pulumi.Provisioner{}, tenantMigrator, eventBroadcaster,
+		messaging.DefaultMessagingPublisher())
 
 	workersCount, err := strconv.Atoi(os.Getenv(EnvWorkersCount))
 	if err != nil {

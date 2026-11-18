@@ -2,6 +2,7 @@ package pulumi
 
 import (
 	"sort"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,8 +18,10 @@ import (
 // scriptCaptureMocks records each resource's resolved Inputs, keyed by the Pulumi resource name
 // (rather than by TypeToken, as the shared `mocks` type would implicitly do), so a test can deploy
 // more than one mssql.Script resource and inspect each one's ReadScript/UpdateScript/State
-// independently.
+// independently. NewResource is called concurrently, one goroutine per resource, so the maps are
+// guarded by mu; tests read them after pulumi.RunErr has returned.
 type scriptCaptureMocks struct {
+	mu             sync.Mutex
 	resourceInputs map[string]resource.PropertyMap
 	registerRPCs   map[string]pulumi.MockResourceArgs
 }
@@ -31,6 +34,8 @@ func newScriptCaptureMocks() *scriptCaptureMocks {
 }
 
 func (m *scriptCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string, resource.PropertyMap, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.resourceInputs[args.Name] = args.Inputs
 	m.registerRPCs[args.Name] = args
 	return args.Name + "_id", args.Inputs, nil
@@ -43,7 +48,9 @@ func (m *scriptCaptureMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMa
 // retainOnDelete reports the RetainOnDelete flag the engine received for the resource registered
 // under name (false if the resource wasn't captured or the flag wasn't set).
 func (m *scriptCaptureMocks) retainOnDelete(name string) bool {
+	m.mu.Lock()
 	args, ok := m.registerRPCs[name]
+	m.mu.Unlock()
 	if !ok || args.RegisterRPC == nil {
 		return false
 	}

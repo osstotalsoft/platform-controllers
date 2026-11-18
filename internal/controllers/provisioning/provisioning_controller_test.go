@@ -3,6 +3,7 @@ package provisioning
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 
@@ -100,10 +101,12 @@ func TestProvisioningController_processNextWorkItem(t *testing.T) {
 		wg.Add(1)
 
 		var outputs []provisionerResult
-		infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-			outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
-			wg.Wait() //wait for other tenant updates
-			return ProvisioningResult{}
+		infraCreator := fakeProvisioner{
+			provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+				outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
+				wg.Wait() //wait for other tenant updates
+				return ProvisioningResult{}
+			},
 		}
 		c := runController(objects, infraCreator, messaging.NilMessagingPublisher)
 
@@ -958,11 +961,7 @@ func TestProvisioningController_drainWorkqueue(t *testing.T) {
 		newTenant("dev1", "dev", domain),
 		newTenant("dev2", "dev", domain),
 	)
-	noopProvisioner := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		return ProvisioningResult{}
-	}
-
-	c := NewProvisioningController(clientset, noopProvisioner, nil, nil, messaging.NilMessagingPublisher)
+	c := NewProvisioningController(clientset, fakeProvisioner{}, nil, nil, messaging.NilMessagingPublisher)
 	assert.True(t, c.skipInitialReconcile, EnvSkipInitialReconcile+" should be picked up from the environment")
 
 	c.factory.Start(nil)
@@ -984,6 +983,48 @@ func TestProvisioningController_drainWorkqueue(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Eventually(t, func() bool { return c.workqueue.Len() == 1 }, 10*time.Second, 20*time.Millisecond,
 		"a tenant added after the drain should have been enqueued")
+}
+
+func TestProvisioningController_failedSyncIsRequeued(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+
+	failingProvisioner := fakeProvisioner{
+		provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			return ProvisioningResult{Error: errors.New("pulumi up failed")}
+		},
+	}
+	succeedingProvisioner := fakeProvisioner{}
+
+	tests := []struct {
+		name        string
+		key         string
+		provisioner Provisioner
+		requeues    int
+	}{
+		{"failed tenant sync", encodeKey("dev", "default/dev1", "my-domain"), failingProvisioner, 1},
+		{"failed platform sync", encodeKey("dev", "", "my-domain"), failingProvisioner, 1},
+		{"successful tenant sync", encodeKey("dev", "default/dev1", "my-domain"), succeedingProvisioner, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objects := []runtime.Object{
+				newTenant("dev1", "dev", "my-domain"),
+				&platformv1.Platform{ObjectMeta: metav1.ObjectMeta{Name: "dev"}},
+			}
+			c := runController(objects, tt.provisioner, messaging.NilMessagingPublisher)
+			for c.workqueue.Len() > 0 {
+				key, _ := c.workqueue.Get()
+				c.workqueue.Forget(key)
+				c.workqueue.Done(key)
+			}
+
+			c.workqueue.Add(tt.key)
+			c.processNextWorkItem(0)
+
+			assert.Equal(t, tt.requeues, c.workqueue.NumRequeues(tt.key))
+		})
+	}
 }
 
 func newTenant(name, platform string, domains ...string) *platformv1.Tenant {
@@ -1068,7 +1109,7 @@ func newAzureManagedDb(dbName, platform string, domain string) *provisioningv1.A
 	}
 }
 
-func runController(objects []runtime.Object, provisioner CreateInfrastructureFunc, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
+func runController(objects []runtime.Object, provisioner Provisioner, msgPublisher messaging.MessagingPublisher) *ProvisioningController {
 	clientset := fakeClientset.NewSimpleClientset(objects...)
 
 	c := NewProvisioningController(clientset, provisioner, nil, nil, msgPublisher)
@@ -1081,9 +1122,11 @@ func runController(objects []runtime.Object, provisioner CreateInfrastructureFun
 func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningController, *[]provisionerResult, chan messagingMock.RcvMsg) {
 	var outputs []provisionerResult
 
-	infraCreator := func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
-		outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
-		return ProvisioningResult{}
+	infraCreator := fakeProvisioner{
+		provision: func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+			outputs = append(outputs, provisionerResult{target.GetPlatformName(), target, domain, infra})
+			return ProvisioningResult{}
+		},
 	}
 
 	msgChan := make(chan messagingMock.RcvMsg)
@@ -1094,6 +1137,27 @@ func runControllerWithDefaultFakes(objects []runtime.Object) (*ProvisioningContr
 	c.factory.WaitForCacheSync(nil)
 
 	return c, &outputs, msgChan
+}
+
+// fakeProvisioner is a Provisioner that calls its function fields. A nil provision succeeds without changes, and a nil
+// isProvisioned answers that the stack has never been provisioned.
+type fakeProvisioner struct {
+	provision     func(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult
+	isProvisioned func(target ProvisioningTarget, domain string) (bool, error)
+}
+
+func (p fakeProvisioner) Provision(target ProvisioningTarget, domain string, infra *InfrastructureManifests) ProvisioningResult {
+	if p.provision == nil {
+		return ProvisioningResult{}
+	}
+	return p.provision(target, domain, infra)
+}
+
+func (p fakeProvisioner) IsProvisioned(target ProvisioningTarget, domain string) (bool, error) {
+	if p.isProvisioned == nil {
+		return false, nil
+	}
+	return p.isProvisioned(target, domain)
 }
 
 type provisionerResult struct {

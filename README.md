@@ -33,7 +33,20 @@ metadata:
   namespace: qa
 spec:
   platformRef: charismaonline.qa
+  dependsOn:
+    - domain: d1
 ```
+
+#### Domain dependencies
+
+`spec.dependsOn` (optional) orders the provisioning of a tenant's domains. In the example, a tenant's `d3` stack is provisioned only after the same tenant's `d1` stack has been provisioned successfully at least once. The rules:
+
+- A dependency names a `Domain` on the same platform (`metadata.name` + `spec.platformRef`).
+- Dependencies apply only within the same tenant. Platform-level provisioning (`platform-<domain>` stacks) ignores `dependsOn`.
+- A dependency the tenant doesn't have in its `domainRefs` is ignored. Only direct dependencies count: if `d3` depends on `d2` and `d2` on `d1`, a tenant with `d3` and `d1` but not `d2` doesn't order `d3` after `d1`.
+- A dependency is ready when the tenant's stack for it has had at least one successful update, or when it has no resources for that tenant. A later failure of the dependency doesn't block its dependents.
+- While a dependency isn't ready, the dependent domain isn't provisioned and a `WaitingForDomain` warning event is written on the Tenant. This isn't an error and isn't retried: the dependency's successful provisioning starts the dependent domain.
+- A dependency cycle among a tenant's domains is reported as a provisioning failure of the domains in the cycle, with a `DomainDependencyCycle` warning event on the Tenant. It isn't retried; changing the `Domain`'s `dependsOn` re-triggers it.
 
 ### Tenant
 
@@ -95,11 +108,18 @@ monitors infrastructure manifests and provisions the desired infrastructure for 
 
 ### Env
 
-| Variable       | example value         | details                                            |
-| -------------- | --------------------- | -------------------------------------------------- |
-| AZURE_LOCATION | West Europe           | default location used to deploy resources in azure |
-| VAULT_ADDR     | http://localhost:8200 | address to vault server                            |
-| VAULT_TOKEN    | {token}               | vault token                                        |
+| Variable               | example value         | details                                                                                |
+| ---------------------- | --------------------- | -------------------------------------------------------------------------------------- |
+| AZURE_LOCATION         | West Europe           | default location used to deploy resources in azure                                     |
+| VAULT_ADDR             | http://localhost:8200 | address to vault server                                                                |
+| VAULT_TOKEN            | {token}               | vault token                                                                            |
+| MIGRATION_JOBS_ENABLED | false                 | whether to start migration jobs, see [Migration jobs](#migration-jobs); default `true` |
+
+### Migration jobs
+
+When a tenant's domain is provisioned with changes and the tenant is enabled, the provisioner starts the domain's migrations: it clones every Job labelled `provisioning.totalsoft.ro/migration-job-template: "true"` and `platform.totalsoft.ro/domain: <domain>` into a Job for the tenant.
+
+`MIGRATION_JOBS_ENABLED=false` (Helm value `global.migrationJobsEnabled: false`) turns this off for the whole cluster
 
 ### Target
 
