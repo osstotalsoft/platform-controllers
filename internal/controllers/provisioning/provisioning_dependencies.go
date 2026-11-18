@@ -26,36 +26,36 @@ const (
 // queue keys (platform::tenantNamespace/tenantName::domain).
 type domainDependencies struct {
 	mu sync.Mutex
-	// ready holds the tenant domains known to be provisioned, so the provisioner is asked about each at most once.
-	ready map[string]struct{}
+	// provisioned holds the tenant domains known to be provisioned, so the provisioner is asked about each at most once.
+	provisioned map[string]struct{}
 	// waiting maps a tenant domain to the domains of the same tenant that wait for it.
 	waiting map[string]map[string]struct{}
 }
 
 func newDomainDependencies() *domainDependencies {
 	return &domainDependencies{
-		ready:   map[string]struct{}{},
-		waiting: map[string]map[string]struct{}{},
+		provisioned: map[string]struct{}{},
+		waiting:     map[string]map[string]struct{}{},
 	}
 }
 
-func (d *domainDependencies) isReady(key string) bool {
+func (d *domainDependencies) isProvisioned(key string) bool {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	_, ok := d.ready[key]
+	_, ok := d.provisioned[key]
 	return ok
 }
 
-func (d *domainDependencies) markReady(key string) {
+func (d *domainDependencies) markProvisioned(key string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.ready[key] = struct{}{}
+	d.provisioned[key] = struct{}{}
 }
 
 func (d *domainDependencies) forget(key string) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	delete(d.ready, key)
+	delete(d.provisioned, key)
 }
 
 func (d *domainDependencies) addWaiting(key, domain string) {
@@ -76,16 +76,16 @@ func (d *domainDependencies) removeWaiting(key, domain string) {
 	}
 }
 
-// succeeded records a successful sync of the tenant domain identified by key: it's ready if it has resources, and
-// removed otherwise. It returns, and clears, the domains that were waiting for it. Both happen under the same lock
-// addWaiting takes, so a domain added to the waiting set before its readiness check can't miss this wake-up.
+// succeeded records a successful sync of the tenant domain identified by key: it's provisioned if it has resources,
+// and removed otherwise. It returns, and clears, the domains that were waiting for it. Both happen under the same
+// lock addWaiting takes, so a domain added to the waiting set before its readiness check can't miss this wake-up.
 func (d *domainDependencies) succeeded(key string, hasResources bool) []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if hasResources {
-		d.ready[key] = struct{}{}
+		d.provisioned[key] = struct{}{}
 	} else {
-		delete(d.ready, key)
+		delete(d.provisioned, key)
 	}
 	waiting := make([]string, 0, len(d.waiting[key]))
 	for domain := range d.waiting[key] {
@@ -143,7 +143,7 @@ func (c *ProvisioningController) canProvisionDomainForTenant(tenant *platformv1.
 // isTenantDomainReady tells whether domain counts as provisioned for tenant: it has no resources for the tenant, or
 // it has been provisioned.
 func (c *ProvisioningController) isTenantDomainReady(tenant *platformv1.Tenant, domain string) (bool, error) {
-	if c.dependencies.isReady(c.tenantDomainKey(tenant, domain)) {
+	if c.dependencies.isProvisioned(c.tenantDomainKey(tenant, domain)) {
 		return true, nil
 	}
 
@@ -158,23 +158,23 @@ func (c *ProvisioningController) isTenantDomainReady(tenant *platformv1.Tenant, 
 	return c.isTenantDomainProvisioned(tenant, domain)
 }
 
-// isTenantDomainProvisioned tells whether domain has been provisioned for tenant, from the ready cache or, failing
-// that, from the provisioner.
+// isTenantDomainProvisioned tells whether domain has been provisioned for tenant, from the cache or, failing that,
+// from the provisioner.
 func (c *ProvisioningController) isTenantDomainProvisioned(tenant *platformv1.Tenant, domain string) (bool, error) {
 	key := c.tenantDomainKey(tenant, domain)
-	if c.dependencies.isReady(key) {
+	if c.dependencies.isProvisioned(key) {
 		return true, nil
 	}
 
-	ready, err := c.provisioner.IsProvisioned(tenant, domain)
+	provisioned, err := c.provisioner.IsProvisioned(tenant, domain)
 	if err != nil {
 		return false, fmt.Errorf("cannot tell whether domain %s is provisioned for tenant %s: %w", domain, tenant.GetName(), err)
 	}
-	klog.V(4).InfoS("Asked the provisioner whether the domain is provisioned", "tenant", tenant.GetName(), "domain", domain, "provisioned", ready)
-	if ready {
-		c.dependencies.markReady(key)
+	klog.V(4).InfoS("Asked the provisioner whether the domain is provisioned", "tenant", tenant.GetName(), "domain", domain, "provisioned", provisioned)
+	if provisioned {
+		c.dependencies.markProvisioned(key)
 	}
-	return ready, nil
+	return provisioned, nil
 }
 
 // wakeDependentDomains is called after domain was synced successfully for tenant. It enqueues the tenant's domains
@@ -193,10 +193,10 @@ func (c *ProvisioningController) wakeDependentDomains(tenant *platformv1.Tenant,
 		if !slices.Contains(c.domainDependsOn(tenant.Spec.PlatformRef, dependent), domain) {
 			continue
 		}
-		ready, err := c.isTenantDomainProvisioned(tenant, dependent)
+		provisioned, err := c.isTenantDomainProvisioned(tenant, dependent)
 		if err != nil {
-			klog.ErrorS(err, "Enqueuing a dependent domain whose readiness is unknown", "tenant", tenant.GetName(), "domain", dependent)
-		} else if ready {
+			klog.ErrorS(err, "Enqueuing a dependent domain that may already be provisioned", "tenant", tenant.GetName(), "domain", dependent)
+		} else if provisioned {
 			continue
 		}
 		toEnqueue[dependent] = struct{}{}

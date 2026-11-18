@@ -21,7 +21,7 @@ import (
 	fakeClientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned/fake"
 )
 
-// depsHarness runs a ProvisioningController with fakes that record what gets provisioned, which stack readiness
+// depsHarness runs a ProvisioningController with fakes that record what gets provisioned, which IsProvisioned
 // lookups happen, what's published and which events are written.
 type depsHarness struct {
 	t         *testing.T
@@ -29,12 +29,12 @@ type depsHarness struct {
 	clientset *fakeClientset.Clientset
 	recorder  *record.FakeRecorder
 
-	mu             sync.Mutex
-	provisioned    []string        // "<target>/<domain>", in order
-	stackReady     map[string]bool // domain -> what the stack history says
-	readinessErr   error
-	readinessCalls map[string]int // domain -> number of stack history lookups
-	topics         []string
+	mu                 sync.Mutex
+	provisioned        []string        // "<target>/<domain>", in order
+	alreadyProvisioned map[string]bool // domain -> what IsProvisioned answers
+	isProvisionedErr   error
+	isProvisionedCalls map[string]int // domain -> number of IsProvisioned calls
+	topics             []string
 }
 
 func newDepsHarness(t *testing.T, objects ...runtime.Object) *depsHarness {
@@ -42,11 +42,11 @@ func newDepsHarness(t *testing.T, objects ...runtime.Object) *depsHarness {
 	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	h := &depsHarness{
-		t:              t,
-		clientset:      fakeClientset.NewSimpleClientset(objects...),
-		recorder:       record.NewFakeRecorder(100),
-		stackReady:     map[string]bool{},
-		readinessCalls: map[string]int{},
+		t:                  t,
+		clientset:          fakeClientset.NewSimpleClientset(objects...),
+		recorder:           record.NewFakeRecorder(100),
+		alreadyProvisioned: map[string]bool{},
+		isProvisionedCalls: map[string]int{},
 	}
 
 	provisioner := fakeProvisioner{
@@ -59,8 +59,8 @@ func newDepsHarness(t *testing.T, objects ...runtime.Object) *depsHarness {
 		isProvisioned: func(target ProvisioningTarget, domain string) (bool, error) {
 			h.mu.Lock()
 			defer h.mu.Unlock()
-			h.readinessCalls[domain]++
-			return h.stackReady[domain], h.readinessErr
+			h.isProvisionedCalls[domain]++
+			return h.alreadyProvisioned[domain], h.isProvisionedErr
 		},
 	}
 	publisher := func(ctx context.Context, topic string, data interface{}, platform string) error {
@@ -222,12 +222,12 @@ func TestDomainDependencies(t *testing.T) {
 		h := newDepsHarness(t, baseObjects()...)
 
 		h.sync(t1Key("a"))
-		assert.Equal(t, []string{t1Key("b")}, h.queued(), "b's stack has no successful update, so b is woken")
+		assert.Equal(t, []string{t1Key("b")}, h.queued(), "b was never provisioned, so b is woken")
 
 		h2 := newDepsHarness(t, baseObjects()...)
-		h2.stackReady["b"] = true
+		h2.alreadyProvisioned["b"] = true
 		h2.sync(t1Key("a"))
-		assert.Empty(t, h2.queued(), "b's stack was already provisioned, so it's left alone")
+		assert.Empty(t, h2.queued(), "b was already provisioned, so it's left alone")
 	})
 
 	t.Run("U4 a dependency the tenant doesn't have is ignored", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestDomainDependencies(t *testing.T) {
 
 		assert.Equal(t, []string{"t1/b"}, h.provisionedTargets())
 		assert.Empty(t, eventsWithReason(h.events(), WaitingForDomainReason))
-		assert.Zero(t, h.readinessCalls["a"])
+		assert.Zero(t, h.isProvisionedCalls["a"])
 	})
 
 	t.Run("U5 a dependency without resources for the tenant counts as provisioned", func(t *testing.T) {
@@ -250,7 +250,7 @@ func TestDomainDependencies(t *testing.T) {
 		h.sync(t1Key("b"))
 
 		assert.Equal(t, []string{"t1/b"}, h.provisionedTargets())
-		assert.Zero(t, h.readinessCalls["a"], "no resources means nothing to wait for, without reading any history")
+		assert.Zero(t, h.isProvisionedCalls["a"], "no resources means nothing to wait for, without asking the provisioner")
 	})
 
 	t.Run("U6 platform targets ignore dependsOn", func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestDomainDependencies(t *testing.T) {
 		h.sync(encodeKey("dev", "", "b"))
 
 		assert.Equal(t, []string{"dev/b"}, h.provisionedTargets())
-		assert.Empty(t, h.readinessCalls)
+		assert.Empty(t, h.isProvisionedCalls)
 		assert.Empty(t, h.queued(), "a platform success wakes nothing")
 	})
 
@@ -313,40 +313,40 @@ func TestDomainDependencies(t *testing.T) {
 		assert.Equal(t, []string{t1Key("b")}, h.queued())
 	})
 
-	t.Run("U9 stack readiness is read from the history once, and not at all after a success in this process", func(t *testing.T) {
+	t.Run("U9 the provisioner is asked about a dependency once, and not at all after a success in this process", func(t *testing.T) {
 		h := newDepsHarness(t, baseObjects()...)
-		h.stackReady["a"] = true
+		h.alreadyProvisioned["a"] = true
 
 		h.sync(t1Key("b"))
 		h.sync(t1Key("b"))
 		assert.Equal(t, []string{"t1/b", "t1/b"}, h.provisionedTargets())
-		assert.Equal(t, 1, h.readinessCalls["a"])
+		assert.Equal(t, 1, h.isProvisionedCalls["a"])
 
 		h2 := newDepsHarness(t, baseObjects()...)
 		h2.sync(t1Key("a"))
 		h2.sync(t1Key("b"))
 		assert.Equal(t, []string{"t1/a", "t1/b"}, h2.provisionedTargets())
-		assert.Zero(t, h2.readinessCalls["a"])
+		assert.Zero(t, h2.isProvisionedCalls["a"])
 	})
 
-	t.Run("U9 a destroyed stack no longer counts as provisioned", func(t *testing.T) {
+	t.Run("U9 a removed domain no longer counts as provisioned", func(t *testing.T) {
 		h := newDepsHarness(t, baseObjects()...)
 		h.sync(t1Key("a"))
 		h.queued()
-		require.True(t, h.c.dependencies.isReady(t1Key("a")))
+		require.True(t, h.c.dependencies.isProvisioned(t1Key("a")))
 
-		// a is removed from the tenant, so its stack is destroyed on the cleanup path
+		// a is removed from the tenant, so its infrastructure is removed on the cleanup path
 		_, err := h.clientset.PlatformV1alpha1().Tenants(metav1.NamespaceDefault).
 			Update(context.TODO(), newTenant("t1", "dev", "b"), metav1.UpdateOptions{})
 		require.NoError(t, err)
 		h.sync(t1Key("a"))
 
-		assert.False(t, h.c.dependencies.isReady(t1Key("a")))
+		assert.False(t, h.c.dependencies.isProvisioned(t1Key("a")))
 	})
 
-	t.Run("U10 a readiness lookup error is retried with backoff", func(t *testing.T) {
+	t.Run("U10 an IsProvisioned error is retried with backoff", func(t *testing.T) {
 		h := newDepsHarness(t, baseObjects()...)
-		h.readinessErr = errors.New("backend unavailable")
+		h.isProvisionedErr = errors.New("backend unavailable")
 
 		h.c.workqueue.Add(t1Key("b"))
 		h.c.processNextWorkItem(0)
