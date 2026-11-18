@@ -18,6 +18,8 @@ limitations under the License.
 
 package v1alpha1
 
+type AzureBlobContainerExpansion interface{}
+
 type AzureDatabaseExpansion interface{}
 
 type AzureManagedDatabaseExpansion interface{}

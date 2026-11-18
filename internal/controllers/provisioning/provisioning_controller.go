@@ -85,6 +85,7 @@ type ProvisioningController struct {
 	azureVirtualMachineInformer   provisioningInformersv1.AzureVirtualMachineInformer
 	azureVirtualDesktopInformer   provisioningInformersv1.AzureVirtualDesktopInformer
 	entraUserInformer             provisioningInformersv1.EntraUserInformer
+	azureBlobContainerInformer    provisioningInformersv1.AzureBlobContainerInformer
 	minioBucketInformer           provisioningInformersv1.MinioBucketInformer
 	keycloakClientInformer        provisioningInformersv1.KeycloakClientInformer
 	mssqlDbInformer               provisioningInformersv1.MsSqlDatabaseInformer
@@ -139,6 +140,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		azureVirtualMachineInformer:   factory.Provisioning().V1alpha1().AzureVirtualMachines(),
 		azureVirtualDesktopInformer:   factory.Provisioning().V1alpha1().AzureVirtualDesktops(),
 		entraUserInformer:             factory.Provisioning().V1alpha1().EntraUsers(),
+		azureBlobContainerInformer:    factory.Provisioning().V1alpha1().AzureBlobContainers(),
 		minioBucketInformer:           factory.Provisioning().V1alpha1().MinioBuckets(),
 		keycloakClientInformer:        factory.Provisioning().V1alpha1().KeycloakClients(),
 		mssqlDbInformer:               factory.Provisioning().V1alpha1().MsSqlDatabases(),
@@ -177,6 +179,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 		c.registerHandler(addResourceHandlers[*provisioningv1.AzureVirtualMachine]("Azure virtual machine", c.azureVirtualMachineInformer.Informer(), c.enqueueDomain))
 		c.registerHandler(addResourceHandlers[*provisioningv1.AzureVirtualDesktop]("Azure virtual Desktop", c.azureVirtualDesktopInformer.Informer(), c.enqueueDomain))
 		c.registerHandler(addResourceHandlers[*provisioningv1.EntraUser]("Entra user", c.entraUserInformer.Informer(), c.enqueueDomain))
+		c.registerHandler(addResourceHandlers[*provisioningv1.AzureBlobContainer]("Azure blob container", c.azureBlobContainerInformer.Informer(), c.enqueueDomain))
 	}
 
 	return c
@@ -476,6 +479,7 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 	azureVirtualMachines := []*provisioningv1.AzureVirtualMachine{}
 	azureVirtualDesktops := []*provisioningv1.AzureVirtualDesktop{}
 	entraUsers := []*provisioningv1.EntraUser{}
+	azureBlobContainers := []*provisioningv1.AzureBlobContainer{}
 
 	if c.azureEnabled {
 		azureDbs, err = c.azureDbInformer.Lister().List(labels.Everything())
@@ -537,6 +541,16 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 		if err != nil {
 			return nil, err
 		}
+
+		azureBlobContainers, err = c.azureBlobContainerInformer.Lister().List(labels.Everything())
+		if err != nil {
+			return err
+		}
+		azureBlobContainers = selectItemsInTarget(target.GetPlatformName(), domain, azureBlobContainers, target)
+		azureBlobContainers, err = applyTargetOverrides(azureBlobContainers, target, category)
+		if err != nil {
+			return err
+		}
 	}
 
 	minioBuckets, err := c.minioBucketInformer.Lister().List(labels.Everything())
@@ -569,6 +583,7 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 		AzureVirtualDesktops:   azureVirtualDesktops,
 		EntraUsers:             entraUsers,
 		MinioBuckets:           minioBuckets,
+		AzureBlobContainers:    azureBlobContainers,
 		MsSqlDbs:               mssqlDbs,
 		LocalScripts:           localScripts,
 		KeycloakClients:        keycloakClients,

@@ -56,12 +56,13 @@ func (Provisioner) Provision(target provisioning.ProvisioningTarget, domain stri
 	anyVirtualDesktop := len(infra.AzureVirtualDesktops) > 0
 	anyEntraUser := len(infra.EntraUsers) > 0
 	anyMinioBucket := len(infra.MinioBuckets) > 0
+	anyAzureBlobContainer := len(infra.AzureBlobContainers) > 0
 	anyKeycloakClient := len(infra.KeycloakClients) > 0
 	anyMssqlDb := len(infra.MsSqlDbs) > 0
 	anyLocalScript := len(infra.LocalScripts) > 0
 
 	anyResource := anyAzureDb || anyManagedAzureDb || anyHelmRelease || anyHelmReleaseV2 || anyVirtualMachine ||
-		anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyKeycloakClient || anyLocalScript
+		anyVirtualDesktop || anyEntraUser || anyAzurePowerShellScript || anyMssqlDb || anyMinioBucket || anyAzureBlobContainer || anyKeycloakClient || anyLocalScript
 	needsResourceGroup := anyVirtualMachine || anyVirtualDesktop || anyAzurePowerShellScript
 
 	stackName := stackNameFor(target, domain)
@@ -393,6 +394,8 @@ func deployResource(target provisioning.ProvisioningTarget,
 		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindMinioBucket):
 		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, imports, ctx)
+	case string(provisioning.ProvisioningResourceKindAzureBlobContainer):
+		return deployAzureBlobContainer(target, res.(*provisioningv1.AzureBlobContainer), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):
 		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureDatabase):
@@ -474,6 +477,13 @@ func deployFunc(target provisioning.ProvisioningTarget, domain string,
 
 		for _, user := range infra.MinioBuckets {
 			_, err := deployResourceWithDeps(target, rgName, user, provisionedRes, infra, imports, ctx)
+			if err != nil {
+				return err
+			}
+		}
+
+		for _, container := range infra.AzureBlobContainers {
+			_, err := deployResourceWithDeps(target, rgName, container, provisionedRes, infra, imports, ctx)
 			if err != nil {
 				return err
 			}

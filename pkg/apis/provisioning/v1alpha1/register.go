@@ -51,6 +51,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&LocalScriptList{},
 		&MinioBucket{},
 		&MinioBucketList{},
+		&AzureBlobContainer{},
+		&AzureBlobContainerList{},
 		&KeycloakClient{},
 		&KeycloakClientList{},
 		&metav1.Status{},

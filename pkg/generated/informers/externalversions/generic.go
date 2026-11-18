@@ -71,6 +71,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Platform().V1alpha1().TenantCategories().Informer()}, nil
 
 		// Group=provisioning.totalsoft.ro, Version=v1alpha1
+	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azureblobcontainers"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureBlobContainers().Informer()}, nil
 	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azuredatabases"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Provisioning().V1alpha1().AzureDatabases().Informer()}, nil
 	case provisioningv1alpha1.SchemeGroupVersion.WithResource("azuremanageddatabases"):
