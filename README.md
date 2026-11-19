@@ -18,6 +18,9 @@ metadata:
   name: charismaonline.qa
 spec:
   targetNamespace: qa
+  azureKeyVault: # optional; where toAzureKeyVault exports are written, see Exporting to Azure Key Vault
+    name: kv-lsng-qa
+    resourceGroupName: rg-lsng-qa # the subscription comes from AZURE_SUBSCRIPTION_ID
 ```
 
 ### Domain
@@ -257,6 +260,27 @@ spec:
       name: my-db
   ...
 ```
+
+### Exporting to Azure Key Vault
+
+Besides `toConfigMap`, `toKubeSecret` and `toVault`, an exported value can be routed with `toAzureKeyVault` to the Azure Key Vault of the platform (`Platform.spec.azureKeyVault`). It requires `AZURE_ENABLED=true`; provisioning fails if the platform has no `azureKeyVault`.
+
+```yaml
+  exports:
+    - domain: origination
+      password:
+        toAzureKeyVault:
+          keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
+```
+
+Unlike Vault, where all the values of an object go into one JSON secret at `<platform>/<namespace>/<domain>/[<tenant>/]<object>`, every value gets its own Key Vault secret, because Key Vault has no paths and Azure SecretProviderClasses can't pick keys out of a JSON secret:
+
+- **Name**: `<domain>-<key>-<hash>`, so that a domain's secrets are listed together in the vault. In the domain and the rendered key, `__` is replaced by `--` and any other character Key Vault doesn't allow by `-`, and the end of the key is cut to fit 127 characters. The hash is the first 8 hex characters of the SHA-256 of `<platform>/<namespace>/<domain>/[<tenant>/]<object>/<key>`, so the same key exported from another platform, namespace, domain, tenant or object never collides. E.g. `MultiTenancy__Tenants__acme__ConnectionStrings__Password` exported for the `origination` domain is named `origination-MultiTenancy--Tenants--acme--ConnectionStrings--Password-<hash>`.
+- **Tags**: `platform`, `namespace`, `domain`, `tenant` (tenant targets only), `object`, and `configKey`, the rendered key. The rendered key can be at most 256 characters long.
+
+The secrets are written with `azure-native`, as the same identity as the other Azure resources: it creates and updates them through Azure Resource Manager, which needs write access to the vault resource (e.g. **Contributor**), and deletes them through the vault's data plane, which needs the **Key Vault Secrets Officer** role on the vault.
+
+When a value stops being exported (or its tenant or domain is removed), its secret is deleted, which in Key Vault is a soft delete: it stays recoverable for the vault's retention period, and `azure-native` v2 doesn't recover it when the same value is exported again. Until it is purged (`az keyvault secret purge --vault-name <vault> --name <secret>`) or its retention ends, exporting the same key from the same object again fails with a conflict.
 
 ### Importing existing resources (disaster recovery)
 

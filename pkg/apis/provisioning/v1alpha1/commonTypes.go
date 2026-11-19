@@ -9,6 +9,9 @@ type ValueExport struct {
 	ToVault VaultSecretTemplate `json:"toVault,omitempty"`
 	// +optional
 	ToKubeSecret KubeSecretTemplate `json:"toKubeSecret,omitempty"`
+	// ToAzureKeyVault exports the value as a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+	// +optional
+	ToAzureKeyVault AzureKeyVaultSecretTemplate `json:"toAzureKeyVault,omitempty"`
 }
 
 type ConfigMapTemplate struct {
@@ -20,6 +23,13 @@ type KubeSecretTemplate struct {
 }
 
 type VaultSecretTemplate struct {
+	KeyTemplate string `json:"keyTemplate"`
+}
+
+type AzureKeyVaultSecretTemplate struct {
+	// KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+	// (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+	// and keeps the rendered key in its configKey tag.
 	KeyTemplate string `json:"keyTemplate"`
 }
 

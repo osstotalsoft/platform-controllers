@@ -430,6 +430,11 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 		return nil, err
 	}
 
+	azureKeyVault, err := c.resolveAzureKeyVault(target)
+	if err != nil {
+		return nil, err
+	}
+
 	helmReleases, err := c.helmReleaseInformer.Lister().List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -572,7 +577,28 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 		MsSqlDbs:               mssqlDbs,
 		LocalScripts:           localScripts,
 		KeycloakClients:        keycloakClients,
+		AzureKeyVault:          azureKeyVault,
 	}, nil
+}
+
+// resolveAzureKeyVault returns the Azure Key Vault of target's platform, or nil when the platform has none (or, for a
+// tenant, when its platform cannot be found).
+func (c *ProvisioningController) resolveAzureKeyVault(target ProvisioningTarget) (*platformv1.AzureKeyVaultSpec, error) {
+	return MatchTarget(target,
+		func(tenant *platformv1.Tenant) tuple.T2[*platformv1.AzureKeyVaultSpec, error] {
+			platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), tenant.Spec.PlatformRef, metav1.GetOptions{})
+			if errors.IsNotFound(err) {
+				return tuple.New2[*platformv1.AzureKeyVaultSpec, error](nil, nil)
+			}
+			if err != nil {
+				return tuple.New2[*platformv1.AzureKeyVaultSpec, error](nil, fmt.Errorf("cannot get platform %q of tenant %q: %w", tenant.Spec.PlatformRef, tenant.GetName(), err))
+			}
+			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault, nil)
+		},
+		func(platform *platformv1.Platform) tuple.T2[*platformv1.AzureKeyVaultSpec, error] {
+			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault, nil)
+		},
+	).Values()
 }
 
 // resolveTenantCategory resolves the TenantCategory referenced by target.Spec.CategoryRef (Tenant targets only).

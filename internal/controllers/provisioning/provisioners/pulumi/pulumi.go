@@ -76,7 +76,7 @@ func (Provisioner) Provision(target provisioning.ProvisioningTarget, domain stri
 			}
 		}
 		imports := newImportOptions(target, infra)
-		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, deployFunc(target, domain, infra, needsResourceGroup, imports))
+		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, infra.AzureKeyVault, deployFunc(target, domain, infra, needsResourceGroup, imports))
 		if result.Error != nil {
 			return result
 		}
@@ -147,10 +147,10 @@ func hasChanges(summary auto.UpdateSummary) bool {
 	return false
 }
 
-func updateStack(stackName, projectName string, imports *importOptions, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
+func updateStack(stackName, projectName string, imports *importOptions, azureKeyVault *platformv1.AzureKeyVaultSpec, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
 	ctx := context.Background()
 
-	s, err := createOrSelectStack(ctx, stackName, projectName, deployFunc)
+	s, err := createOrSelectStack(ctx, stackName, projectName, azureKeyVault, deployFunc)
 	if err != nil {
 		klog.ErrorS(err, "Failed to create or select stack", "name", stackName)
 		return auto.UpResult{}, err
@@ -227,7 +227,9 @@ func tryDestroyAndDeleteStack(stackName, projectName string, deployFunc pulumi.R
 	return res, nil
 }
 
-func createOrSelectStack(ctx context.Context, stackName, projectName string, deployFunc pulumi.RunFunc) (auto.Stack, error) {
+// createOrSelectStack creates the stack or selects the existing one, installs the plugins, and sets the stack
+// configuration: the providers' settings, and the platform's Azure Key Vault that toAzureKeyVault exports are written to.
+func createOrSelectStack(ctx context.Context, stackName, projectName string, azureKeyVault *platformv1.AzureKeyVaultSpec, deployFunc pulumi.RunFunc) (auto.Stack, error) {
 	s, err := auto.UpsertStackInlineSource(ctx, stackName, projectName, deployFunc)
 	//auto.EnvVars(map[string]string{})
 	if err != nil {
@@ -345,6 +347,10 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		for key, value := range azureConfigValues {
 			configValues[key] = value
 		}
+	}
+
+	for key, value := range azureKeyVaultConfig(projectName, azureEnabled, azureKeyVault) {
+		configValues[key] = value
 	}
 
 	if len(configValues) > 0 {
