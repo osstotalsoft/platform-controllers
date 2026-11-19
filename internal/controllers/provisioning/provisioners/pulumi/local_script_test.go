@@ -29,7 +29,7 @@ func TestDeployLocalScript(t *testing.T) {
 		}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			script, err := deployLocalScript(tenant, script, []pulumi.Resource{}, ctx)
+			script, err := deployLocalScript(tenant, script, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, script)
 			return nil

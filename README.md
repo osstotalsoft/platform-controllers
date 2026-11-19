@@ -282,6 +282,8 @@ The secrets are written with `azure-native`, as the same identity as the other A
 
 When a value stops being exported (or its tenant or domain is removed), its secret is deleted, which in Key Vault is a soft delete: it stays recoverable for the vault's retention period, and `azure-native` v2 doesn't recover it when the same value is exported again. Until it is purged (`az keyvault secret purge --vault-name <vault> --name <secret>`) or its retention ends, exporting the same key from the same object again fails with a conflict.
 
+Changing or removing `Platform.spec.azureKeyVault` reprovisions the platform's domains, for the platform and each of its tenants. In import mode (see below), secrets that already exist in the vault are adopted instead of created, since `azure-native` refuses to create a secret that exists; unlike stateful resources, a secret that doesn't exist yet is simply created.
+
 ### Importing existing resources (disaster recovery)
 
 If the Pulumi state is lost, the stateful resources it managed (the ones retained under the `RetainStatefulResources` delete policy) still exist, and recreating them would fail. Import mode adopts them into the stacks instead:

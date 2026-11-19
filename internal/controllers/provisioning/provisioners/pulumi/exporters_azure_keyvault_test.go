@@ -1,6 +1,7 @@
 package pulumi
 
 import (
+	"errors"
 	"regexp"
 	"strings"
 	"testing"
@@ -217,7 +218,22 @@ func TestExportToAzureKeyVault(t *testing.T) {
 			_, err := deployMsSqlDb(tenant, newAzureKeyVaultMsSqlDb(), []pulumi.Resource{}, nil, ctx)
 			return err
 		}, pulumi.WithMocks("project", "stack", capture))
-		assert.ErrorContains(t, err, `platform "dev" has no spec.azureKeyVault`)
+		assert.ErrorContains(t, err, `platform "dev" doesn't exist or has no spec.azureKeyVault`)
+		assert.Empty(t, capturedAzureKeyVaultSecrets(capture))
+	})
+
+	t.Run("fails when a key renders empty", func(t *testing.T) {
+		setAzureKeyVaultConfig(t)
+		tenant := newTenant("tenant1", "dev")
+		mssqlDb := newAzureKeyVaultMsSqlDb()
+		mssqlDb.Spec.Exports[0].Password = azureKeyVaultExport("{{ if false }}x{{ end }}")
+
+		capture := newResourceCaptureMocks()
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+		assert.ErrorContains(t, err, "renders an empty key")
 		assert.Empty(t, capturedAzureKeyVaultSecrets(capture))
 	})
 
@@ -233,5 +249,76 @@ func TestExportToAzureKeyVault(t *testing.T) {
 			return err
 		}, pulumi.WithMocks("project", "stack", newResourceCaptureMocks()))
 		assert.ErrorContains(t, err, `are both exported to the Azure Key Vault key "Credentials"`)
+	})
+}
+
+func TestImportAzureKeyVaultSecrets(t *testing.T) {
+	const getSecret = "azure-native:keyvault:getSecret"
+	tenant := newTenant("tenant1", "dev")
+	// an Entra user has nothing stateful to import, unlike a database
+	entraUser := &provisioningv1.EntraUser{
+		ObjectMeta: metav1.ObjectMeta{Name: "akv-user", Namespace: "qa"},
+		Spec: provisioningv1.EntraUserSpec{
+			UserPrincipalName: "user@example.com",
+			DisplayName:       "Example User",
+			InitialPassword:   "password123",
+			Exports: []provisioningv1.EntraUserExportsSpec{{
+				Domain:          "origination",
+				InitialPassword: azureKeyVaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__InitialPassword"),
+			}},
+		},
+	}
+	passwordSecret := azureKeyVaultSecretName("origination", "dev/qa/origination/tenant1/akv-user",
+		"MultiTenancy__Tenants__tenant1__InitialPassword")
+
+	deploy := func(capture *resourceCaptureMocks, imports *importOptions) error {
+		return pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployEntraUser(tenant, entraUser, []pulumi.Resource{}, imports, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+	}
+
+	t.Run("an existing secret is adopted, its value set by the post-import update", func(t *testing.T) {
+		setAzureKeyVaultConfig(t)
+		capture := newResourceCaptureMocks()
+		capture.stubCall(getSecret, resource.PropertyMap{"id": resource.NewStringProperty("/vaults/kv-lsng-prod/secrets/existing")})
+		imports := importAll()
+
+		assert.NoError(t, deploy(capture, imports))
+		assert.Equal(t, "/vaults/kv-lsng-prod/secrets/existing", capture.importId(t, passwordSecret))
+		assert.Contains(t, capture.ignoreChanges(passwordSecret), "properties.value")
+		assert.True(t, imports.needsPostImportUpdate())
+	})
+
+	t.Run("a missing secret is created", func(t *testing.T) {
+		setAzureKeyVaultConfig(t)
+		capture := newResourceCaptureMocks()
+		capture.stubCallError(getSecret, errors.New(`request failed /vaults/kv-lsng-prod/secrets/x: Status=404 Code="SecretNotFound" Message="not found"`))
+
+		assert.NoError(t, deploy(capture, importAll()))
+		assert.Empty(t, capture.importId(t, passwordSecret))
+	})
+
+	t.Run("a failed lookup fails the deployment", func(t *testing.T) {
+		setAzureKeyVaultConfig(t)
+		capture := newResourceCaptureMocks()
+		capture.stubCallError(getSecret, errors.New(`Status=403 Code="Forbidden" Message="denied"`))
+
+		assert.ErrorContains(t, deploy(capture, importAll()), "cannot look up the Azure Key Vault secret "+passwordSecret)
+	})
+
+	t.Run("a secret already managed, or import not enabled, is not looked up", func(t *testing.T) {
+		setAzureKeyVaultConfig(t)
+		for name, imports := range map[string]*importOptions{
+			"managed":     importAll(managedResourceKey(azureKeyVaultSecretType, passwordSecret)),
+			"not enabled": importsWith(false),
+			"no imports":  nil,
+		} {
+			capture := newResourceCaptureMocks()
+			capture.stubCallError(getSecret, errors.New("must not be called"))
+
+			assert.NoError(t, deploy(capture, imports), name)
+			assert.Empty(t, capture.importId(t, passwordSecret), name)
+		}
 	})
 }

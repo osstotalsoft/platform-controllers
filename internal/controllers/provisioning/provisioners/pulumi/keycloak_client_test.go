@@ -66,7 +66,7 @@ func TestDeployKeycloakClient(t *testing.T) {
 		mocks := newKeycloakMocks()
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, ctx)
+			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, client)
 			return nil
@@ -114,7 +114,7 @@ func TestDeployKeycloakClient(t *testing.T) {
 		mocks := newKeycloakMocks()
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, ctx)
+			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, client)
 			return nil
@@ -148,7 +148,7 @@ func TestDeployKeycloakClient(t *testing.T) {
 		mocks := newKeycloakMocks()
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, ctx)
+			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, client)
 			return nil
@@ -182,7 +182,7 @@ func TestDeployKeycloakClient(t *testing.T) {
 		mocks := newKeycloakMocks()
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, ctx)
+			client, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, client)
 			return nil

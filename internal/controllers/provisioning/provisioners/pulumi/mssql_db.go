@@ -18,7 +18,7 @@ func deployMsSqlDb(target provisioning.ProvisioningTarget,
 	imports *importOptions,
 	ctx *pulumi.Context) (*mssql.Database, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MsSqlDatabase")
 
 	if err := validateUniqueNames(mssqlDb.Spec.Users, "users"); err != nil {

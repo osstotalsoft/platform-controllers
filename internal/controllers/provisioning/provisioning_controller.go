@@ -159,7 +159,7 @@ func NewProvisioningController(clientSet clientset.Interface,
 	}
 
 	c.registerHandler(addTenantHandlers(c.tenantInformer, c.enqueueTenant))
-	c.registerHandler(addPlatformHandlers(c.platformInformer))
+	c.registerHandler(addPlatformHandlers(c.platformInformer, c.enqueuePlatformAndTenants))
 	c.registerHandler(addTenantCategoryHandlers(c.tenantCategoryInformer, c.enqueueTenantsByCategory))
 	c.registerHandler(addDomainHandlers(c.domainInformer, c.enqueueTenantsByDomain))
 
@@ -582,11 +582,13 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 }
 
 // resolveAzureKeyVault returns the Azure Key Vault of target's platform, or nil when the platform has none (or, for a
-// tenant, when its platform cannot be found).
+// tenant, when its platform cannot be found: only its toAzureKeyVault exports fail then, not its whole provisioning).
+// The platform is read from the informer cache: a change to its vault re-enqueues its domains (see
+// enqueuePlatformAndTenants).
 func (c *ProvisioningController) resolveAzureKeyVault(target ProvisioningTarget) (*platformv1.AzureKeyVaultSpec, error) {
 	return MatchTarget(target,
 		func(tenant *platformv1.Tenant) tuple.T2[*platformv1.AzureKeyVaultSpec, error] {
-			platform, err := c.clientset.PlatformV1alpha1().Platforms().Get(context.TODO(), tenant.Spec.PlatformRef, metav1.GetOptions{})
+			platform, err := c.platformInformer.Lister().Get(tenant.Spec.PlatformRef)
 			if errors.IsNotFound(err) {
 				return tuple.New2[*platformv1.AzureKeyVaultSpec, error](nil, nil)
 			}
@@ -805,6 +807,32 @@ func (c *ProvisioningController) enqueueTenantsByDomain(platform, domain string)
 	c.enqueueDomain(platform, domain, provisioningv1.ProvisioningTargetCategoryTenant)
 }
 
+// enqueuePlatformAndTenants re-enqueues every domain of the platform, for the platform and for each of its tenants, so
+// that a change to the platform's Azure Key Vault is applied without waiting for an unrelated change.
+func (c *ProvisioningController) enqueuePlatformAndTenants(platform string) {
+	domains, err := c.domainInformer.Lister().List(labels.Everything())
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	for _, domain := range domains {
+		if domain.Spec.PlatformRef == platform {
+			c.enqueuePlatformDomain(platform, domain.Name)
+		}
+	}
+
+	tenants, err := c.tenantInformer.Lister().List(labels.Everything())
+	if err != nil {
+		utilruntime.HandleError(err)
+		return
+	}
+	for _, tenant := range tenants {
+		if tenant.Spec.PlatformRef == platform {
+			c.enqueueTenant(tenant)
+		}
+	}
+}
+
 func encodeKey(platform, tenant, domain string) (key string) {
 	return fmt.Sprintf("%s::%s::%s", platform, tenant, domain)
 }
@@ -817,15 +845,22 @@ func decodeKey(key string) (platform, tenant, domain string, err error) {
 	return "", "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
-func addPlatformHandlers(informer platformInformersv1.PlatformInformer) (cache.ResourceEventHandlerRegistration, error) {
+// addPlatformHandlers calls handler for a Platform whose Azure Key Vault changed, which every toAzureKeyVault export of
+// the platform and its tenants is written to. Other Platform changes don't affect provisioning.
+func addPlatformHandlers(informer platformInformersv1.PlatformInformer, handler func(platform string)) (cache.ResourceEventHandlerRegistration, error) {
 	return informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Platform)
 			klog.V(4).InfoS("Platform added", "name", comp.Name)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
+			oldT := oldObj.(*platformv1.Platform)
 			newT := newObj.(*platformv1.Platform)
 			klog.V(4).InfoS("Platform updated", "name", newT.Name)
+			if !reflect.DeepEqual(oldT.Spec.AzureKeyVault, newT.Spec.AzureKeyVault) {
+				klog.V(4).InfoS("Platform Azure Key Vault updated", "name", newT.Name)
+				handler(newT.Name)
+			}
 		},
 		DeleteFunc: func(obj interface{}) {
 			comp := obj.(*platformv1.Platform)

@@ -26,7 +26,7 @@ func TestDeployAzurePowerShellScript(t *testing.T) {
 		}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			script, err := deployAzurePowerShellScript(tenant, pulumi.String("rg").ToStringOutput(), script, []pulumi.Resource{}, ctx)
+			script, err := deployAzurePowerShellScript(tenant, pulumi.String("rg").ToStringOutput(), script, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, script)
 			return nil

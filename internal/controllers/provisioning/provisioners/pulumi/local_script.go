@@ -12,9 +12,10 @@ import (
 func deployLocalScript(target provisioning.ProvisioningTarget,
 	localScript *provisioningv1.LocalScript,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*local.Command, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("LocalScript")
 
 	tc := provisioning.GetTemplateContext(target)

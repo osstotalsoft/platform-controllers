@@ -396,29 +396,29 @@ func deployResource(target provisioning.ProvisioningTarget,
 
 	switch kind {
 	case string(provisioning.ProvisioningResourceKindKeycloakClient):
-		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, ctx)
+		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindMinioBucket):
 		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):
-		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
+		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureDatabase):
 		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureManagedDatabase):
 		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzurePowerShellScript):
-		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, ctx)
+		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindHelmRelease):
-		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, ctx)
+		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindHelmReleaseV2):
-		return deployHelmReleaseV2(target, res.(*provisioningv1.HelmReleaseV2), dependencies, ctx)
+		return deployHelmReleaseV2(target, res.(*provisioningv1.HelmReleaseV2), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualMachine):
-		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
+		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):
-		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
+		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindMsSqlDatabase):
 		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindLocalScript):
-		return deployLocalScript(target, res.(*provisioningv1.LocalScript), dependencies, ctx)
+		return deployLocalScript(target, res.(*provisioningv1.LocalScript), dependencies, imports, ctx)
 	default:
 		return nil, fmt.Errorf("unknown resource kind: %s", kind)
 	}

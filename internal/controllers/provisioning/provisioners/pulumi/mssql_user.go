@@ -1018,6 +1018,7 @@ func validateExportKeys(values map[string]exportTemplateWithValue, templateConte
 		{"toConfigMap", func(v provisioningv1.ValueExport) string { return v.ToConfigMap.KeyTemplate }},
 		{"toKubeSecret", func(v provisioningv1.ValueExport) string { return v.ToKubeSecret.KeyTemplate }},
 		{"toVault", func(v provisioningv1.ValueExport) string { return v.ToVault.KeyTemplate }},
+		{"toAzureKeyVault", func(v provisioningv1.ValueExport) string { return v.ToAzureKeyVault.KeyTemplate }},
 	}
 	for _, dest := range destinations {
 		rendered := map[string]string{}

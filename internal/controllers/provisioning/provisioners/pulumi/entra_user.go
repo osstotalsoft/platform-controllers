@@ -13,9 +13,10 @@ import (
 func deployEntraUser(target provisioning.ProvisioningTarget,
 	entraUser *provisioningv1.EntraUser,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*azuread.User, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("EntraUser")
 
 	initialPassword := pulumi.String(entraUser.Spec.InitialPassword).ToStringOutput()

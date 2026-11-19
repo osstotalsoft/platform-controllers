@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
+	keyvault "github.com/pulumi/pulumi-azure-native-sdk/keyvault/v2"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -37,7 +39,36 @@ const (
 	mssqlSqlLoginType             = "mssql:index/sqlLogin:SqlLogin"
 	mssqlSqlUserType              = "mssql:index/sqlUser:SqlUser"
 	mssqlAzureadPrincipalType     = "mssql:index/azureadServicePrincipal:AzureadServicePrincipal"
+
+	// azureKeyVaultSecretType is not a stateful resource, but azure-native refuses to create a secret that already
+	// exists, so the secrets toAzureKeyVault exports to are adopted too when recovering a lost state.
+	azureKeyVaultSecretType = "azure-native:keyvault:Secret"
 )
+
+// importExistingAzureKeyVaultSecret returns the options adopting the vault's secret named secretName when it exists,
+// and none when it doesn't: unlike a stateful resource, a secret may well be missing while recovering, e.g. when its
+// export was added since. ARM never returns a secret's value, so the value is ignored for the import, and set by the
+// post-import update.
+func importExistingAzureKeyVaultSecret(ctx *pulumi.Context, imports *importOptions, vaultResourceGroupName, vaultName, secretName string) ([]pulumi.ResourceOption, error) {
+	existing, err := keyvault.LookupSecret(ctx, &keyvault.LookupSecretArgs{
+		ResourceGroupName: vaultResourceGroupName,
+		VaultName:         vaultName,
+		SecretName:        secretName,
+	})
+	if isAzureNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("cannot look up the Azure Key Vault secret %s to import: %w", secretName, err)
+	}
+	return imports.importResource(pulumi.ID(existing.Id), "properties.value"), nil
+}
+
+// isAzureNotFound reports whether err is an azure-native invoke failing because the resource doesn't exist. The
+// provider reports ARM errors as text only, formatted by its PulumiAzcoreResponseError: `Status=404 Code="..." ...`.
+func isAzureNotFound(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "Status=404")
+}
 
 // importOptions decides, per Pulumi resource, whether a deploy function should import an existing
 // stateful resource rather than create a new one.

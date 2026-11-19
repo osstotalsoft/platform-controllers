@@ -17,7 +17,7 @@ func TestAzureVMDeployFunc(t *testing.T) {
 
 	t.Run("maximal virtual machine spec", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployAzureVirtualMachine(tenant, rg, vm, []pulumi.Resource{}, ctx)
+			_, err := deployAzureVirtualMachine(tenant, rg, vm, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -28,7 +28,7 @@ func TestAzureVMDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := vm.DeepCopy()
 			hr.Spec.Exports = nil
-			_, err := deployAzureVirtualMachine(tenant, rg, vm, []pulumi.Resource{}, ctx)
+			_, err := deployAzureVirtualMachine(tenant, rg, vm, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -39,7 +39,7 @@ func TestAzureVMDeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := vm.DeepCopy()
 			hr.Spec.EnableTrustedLaunch = true
-			_, err := deployAzureVirtualMachine(tenant, rg, vm, []pulumi.Resource{}, ctx)
+			_, err := deployAzureVirtualMachine(tenant, rg, vm, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))

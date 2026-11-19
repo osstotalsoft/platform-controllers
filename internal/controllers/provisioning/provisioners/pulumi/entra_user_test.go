@@ -28,7 +28,7 @@ func TestDeployEntraUser(t *testing.T) {
 		}
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			user, err := deployEntraUser(tenant, entraUser, []pulumi.Resource{}, ctx)
+			user, err := deployEntraUser(tenant, entraUser, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			assert.NotNil(t, user)
 			return nil

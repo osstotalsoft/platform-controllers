@@ -25,6 +25,7 @@ type resourceCaptureMocks struct {
 	byType      map[string][]pulumi.MockResourceArgs
 	byName      map[string]pulumi.MockResourceArgs
 	callResults map[string]resource.PropertyMap
+	callErrors  map[string]error
 	identityIds map[string][2]string
 }
 
@@ -33,6 +34,7 @@ func newResourceCaptureMocks() *resourceCaptureMocks {
 		byType:      map[string][]pulumi.MockResourceArgs{},
 		byName:      map[string]pulumi.MockResourceArgs{},
 		callResults: map[string]resource.PropertyMap{},
+		callErrors:  map[string]error{},
 		identityIds: map[string][2]string{},
 	}
 }
@@ -74,7 +76,11 @@ func (m *resourceCaptureMocks) NewResource(args pulumi.MockResourceArgs) (string
 func (m *resourceCaptureMocks) Call(args pulumi.MockCallArgs) (resource.PropertyMap, error) {
 	m.mu.Lock()
 	result, ok := m.callResults[args.Token]
+	callErr := m.callErrors[args.Token]
 	m.mu.Unlock()
+	if callErr != nil {
+		return nil, callErr
+	}
 	if ok {
 		return result, nil
 	}
@@ -87,6 +93,14 @@ func (m *resourceCaptureMocks) stubCall(token string, result resource.PropertyMa
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.callResults[token] = result
+}
+
+// stubCallError makes the given Invoke token fail with err. Must be called before the test's
+// pulumi.RunErr starts.
+func (m *resourceCaptureMocks) stubCallError(token string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.callErrors[token] = err
 }
 
 // stubIdentityIds makes the UserAssignedIdentity registered under name return the given client and

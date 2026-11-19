@@ -86,7 +86,9 @@ func newExportContext(pulumiContext *pulumi.Context, domain, objectName string,
 	}
 }
 
-func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc {
+// handleValueExport returns the exporter of the values of target's resources. imports tells whether the stack is
+// recovering a lost state, in which case the Azure Key Vault secrets that already exist are adopted rather than created.
+func handleValueExport(target provisioning.ProvisioningTarget, imports *importOptions) ValueExporterFunc {
 	templateContext := provisioning.GetTemplateContext(target)
 
 	vaultEnabled, err := strconv.ParseBool(os.Getenv(EnvVaultEnabled))
@@ -113,12 +115,13 @@ func handleValueExport(target provisioning.ProvisioningTarget) ValueExporterFunc
 			vaultName := config.Get(ctx, azureKeyVaultNameConfigKey(ctx.Project()))
 			vaultResourceGroupName := config.Get(ctx, azureKeyVaultResourceGroupNameConfigKey(ctx.Project()))
 			if vaultName == "" || vaultResourceGroupName == "" {
-				return fmt.Errorf("there are values to be exported to Azure Key Vault, but platform %q has no spec.azureKeyVault, or %s is not true",
+				// a tenant whose platform doesn't exist gets no vault either
+				return fmt.Errorf("there are values to be exported to Azure Key Vault, but platform %q doesn't exist or has no spec.azureKeyVault, or %s is not true",
 					target.GetPlatformName(), EnvAzureEnabled)
 			}
 
 			err := exportToAzureKeyVault(ctx, vaultResourceGroupName, vaultName, exportContext.domain, exportPath(target, exportContext),
-				azureKeyVaultTags(target, exportContext), templateContext, v, opts...)
+				azureKeyVaultTags(target, exportContext), templateContext, v, imports, opts...)
 			if err != nil {
 				return err
 			}
@@ -294,7 +297,7 @@ func azureKeyVaultTags(target provisioning.ProvisioningTarget, exportContext Exp
 // ARM, and deletes them through the vault's data plane, where they are only soft-deleted: until one is purged or its
 // retention ends, a secret with the same name can't be created again (azure-native v2 doesn't recover it).
 func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultName, domain, objectPath string, tags map[string]string, templateContext interface{},
-	values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
+	values map[string]exportTemplateWithValue, imports *importOptions, opts ...pulumi.ResourceOption) error {
 
 	valueNames := make([]string, 0, len(values))
 	for k := range values {
@@ -308,6 +311,9 @@ func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultNam
 		key, err := template.ParseTemplate(v.valueExport.ToAzureKeyVault.KeyTemplate, templateContext)
 		if err != nil {
 			return err
+		}
+		if key == "" {
+			return fmt.Errorf("the Azure Key Vault keyTemplate of %s renders an empty key", valueName)
 		}
 		if len(key) > azureKeyVaultTagValueMaxLength {
 			return fmt.Errorf("the Azure Key Vault key %q of %s is longer than %d characters", key, valueName, azureKeyVaultTagValueMaxLength)
@@ -324,6 +330,15 @@ func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultNam
 			secretTags[k] = pulumi.String(t)
 		}
 
+		secretOpts := opts
+		if imports.shouldImport(azureKeyVaultSecretType, secretName) {
+			importOpts, err := importExistingAzureKeyVaultSecret(ctx, imports, vaultResourceGroupName, vaultName, secretName)
+			if err != nil {
+				return err
+			}
+			secretOpts = append(append([]pulumi.ResourceOption{}, opts...), importOpts...)
+		}
+
 		_, err = keyvault.NewSecret(ctx, secretName, &keyvault.SecretArgs{
 			ResourceGroupName: pulumi.String(vaultResourceGroupName),
 			VaultName:         pulumi.String(vaultName),
@@ -333,7 +348,7 @@ func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultNam
 				Value: pulumi.ToSecret(v.value.ToStringOutput()).(pulumi.StringOutput),
 			},
 			Tags: secretTags,
-		}, opts...)
+		}, secretOpts...)
 		if err != nil {
 			return err
 		}

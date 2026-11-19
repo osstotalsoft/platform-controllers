@@ -21,7 +21,7 @@ func deployMinioBucket(target provisioning.ProvisioningTarget,
 	imports *importOptions,
 	ctx *pulumi.Context) (*minio.S3Bucket, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("MinioBucket")
 
 	providerOptions, err := minioProviderOptions(ctx, minioBucket)
