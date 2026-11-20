@@ -59,6 +59,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationplatformv1alpha1.ProvisioningResourcePatchApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("ProvisioningResourcePatchTarget"):
 		return &applyconfigurationplatformv1alpha1.ProvisioningResourcePatchTargetApplyConfiguration{}
+	case platformv1alpha1.SchemeGroupVersion.WithKind("SecretStoreSpec"):
+		return &applyconfigurationplatformv1alpha1.SecretStoreSpecApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Service"):
 		return &applyconfigurationplatformv1alpha1.ServiceApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("ServiceSpec"):

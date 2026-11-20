@@ -21,7 +21,7 @@ func TestProvisioningPassesThePlatformsAzureKeyVault(t *testing.T) {
 	keyVault := &platformv1.AzureKeyVaultSpec{Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod"}
 	platformWithVault := func() *platformv1.Platform {
 		platform := newPlatform("dev")
-		platform.Spec.AzureKeyVault = keyVault
+		platform.Spec.SecretStore = &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: keyVault}
 		return platform
 	}
 
@@ -93,7 +93,7 @@ func TestPlatformAzureKeyVaultChangeReenqueuesItsDomains(t *testing.T) {
 		"a change other than the vault should not re-enqueue anything")
 
 	update(func(p *platformv1.Platform) {
-		p.Spec.AzureKeyVault = &platformv1.AzureKeyVaultSpec{Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod"}
+		p.Spec.SecretStore = &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: &platformv1.AzureKeyVaultSpec{Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod"}}
 	})
 	assert.Eventually(t, func() bool { return c.workqueue.Len() == 2 }, 10*time.Second, 20*time.Millisecond)
 

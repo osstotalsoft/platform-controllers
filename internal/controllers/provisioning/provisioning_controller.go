@@ -595,10 +595,10 @@ func (c *ProvisioningController) resolveAzureKeyVault(target ProvisioningTarget)
 			if err != nil {
 				return tuple.New2[*platformv1.AzureKeyVaultSpec, error](nil, fmt.Errorf("cannot get platform %q of tenant %q: %w", tenant.Spec.PlatformRef, tenant.GetName(), err))
 			}
-			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault, nil)
+			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault(), nil)
 		},
 		func(platform *platformv1.Platform) tuple.T2[*platformv1.AzureKeyVaultSpec, error] {
-			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault, nil)
+			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault(), nil)
 		},
 	).Values()
 }
@@ -857,7 +857,7 @@ func addPlatformHandlers(informer platformInformersv1.PlatformInformer, handler 
 			oldT := oldObj.(*platformv1.Platform)
 			newT := newObj.(*platformv1.Platform)
 			klog.V(4).InfoS("Platform updated", "name", newT.Name)
-			if !reflect.DeepEqual(oldT.Spec.AzureKeyVault, newT.Spec.AzureKeyVault) {
+			if !reflect.DeepEqual(oldT.Spec.SecretStore, newT.Spec.SecretStore) {
 				klog.V(4).InfoS("Platform Azure Key Vault updated", "name", newT.Name)
 				handler(newT.Name)
 			}
