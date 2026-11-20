@@ -282,6 +282,8 @@ spec:
 - **Azure Key Vault** needs `AZURE_ENABLED=true`, and ignores `VAULT_ENABLED`. A cluster without HashiCorp Vault sets `VAULT_ENABLED=false` and `AZURE_ENABLED=true`, plus the usual Azure identity settings.
 - A tenant whose platform doesn't exist fails its `toVault` exports, rather than exporting them to HashiCorp Vault.
 
+> _Switching a platform from HashiCorp Vault to Azure Key Vault_: keep `VAULT_ENABLED=true` (and the Vault settings) on the provisioner until every domain of the platform, for the platform and each of its tenants, has been reprovisioned: deleting the old Vault secrets needs Vault. Disabling it in the same rollout fails every stack of the platform, on every retry. During the switch, the configuration-domain-controller may write a domain's `provider: azure` SecretProviderClass before the provisioner has exported all of its values to the vault, so pods restarted then can mount fewer secrets than expected; restart them once the platform's stacks have succeeded.
+
 #### Azure Key Vault
 
 Unlike Vault, where all the values of an object go into one JSON secret at `<platform>/<namespace>/<domain>/[<tenant>/]<object>`, every value gets its own Key Vault secret, because Key Vault has no paths and Azure SecretProviderClasses can't pick keys out of a JSON secret:

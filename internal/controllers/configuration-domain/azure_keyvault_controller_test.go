@@ -153,3 +153,21 @@ func TestConfigurationDomainController_azureKeyVault(t *testing.T) {
 	})
 }
 
+
+func TestKeyVaultListingHasATimeout(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+	t.Setenv(EnvAzureEnabled, "true")
+	const platform, namespace, domain = "qa", "qa-lsng", "origination"
+	var hasDeadline bool
+	old := listKeyVaultSecrets
+	t.Cleanup(func() { listKeyVaultSecrets = old })
+	listKeyVaultSecrets = func(ctx context.Context, _ string) ([]keyVaultSecret, error) {
+		_, hasDeadline = ctx.Deadline()
+		return nil, nil
+	}
+	c := runController([]runtime.Object{newAzureKeyVaultPlatform(platform, "qa")},
+		[]runtime.Object{newConfigurationDomain(domain, namespace, platform, false, true)}, nil, nil, nil)
+
+	assert.True(t, c.processNextWorkItem())
+	assert.True(t, hasDeadline, "a hung listing must not block a worker forever")
+}

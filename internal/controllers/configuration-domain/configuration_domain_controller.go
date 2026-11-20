@@ -346,7 +346,7 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	if cleanupSecrets {
 
 		if c.spcEnabled {
-			err = c.spcWriter.Cleanup(namespace, domain)
+			err = c.spcWriter.Cleanup(configDomain)
 			if err != nil {
 				return err
 			}

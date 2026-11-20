@@ -64,8 +64,13 @@ func main() {
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
 	// Without the Secrets Store CSI driver, an SPC informer would never sync and the controller would never start.
+	// A discovery error fails the start, so that the pod restarts and asks again, rather than running without SPCs.
 	var spcInformer csiinformersv1.SecretProviderClassInformer
-	if controllers.SpcAPIServed(kubeClient.Discovery()) {
+	spcServed, err := controllers.SpcAPIServed(kubeClient.Discovery())
+	if err != nil {
+		klog.Fatalf("Error discovering the SecretProviderClass API: %s", err.Error())
+	}
+	if spcServed {
 		spcInformer = csiInformerFactory.Secretsstore().V1().SecretProviderClasses()
 	} else {
 		klog.Warning("SecretProviderClass API not served; secrets will not be aggregated into SecretProviderClasses")

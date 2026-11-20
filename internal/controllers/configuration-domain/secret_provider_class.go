@@ -92,9 +92,22 @@ func (w *spcWriter) Apply(configDomain *v1alpha1.ConfigurationDomain, desired *c
 	return nil
 }
 
-// Cleanup deletes the domain's aggregated SecretProviderClass, if any.
-func (w *spcWriter) Cleanup(namespace, domain string) error {
-	err := w.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Delete(context.TODO(), getOutputSpcName(domain), metav1.DeleteOptions{})
+// Cleanup deletes configDomain's aggregated SecretProviderClass, if any. Like Apply, it leaves alone a
+// SecretProviderClass of the same name that configDomain doesn't control.
+func (w *spcWriter) Cleanup(configDomain *v1alpha1.ConfigurationDomain) error {
+	name := getOutputSpcName(configDomain.Name)
+	spc, err := w.spcLister.SecretProviderClasses(configDomain.Namespace).Get(name)
+	if k8serrors.IsNotFound(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !metav1.IsControlledBy(spc, configDomain) {
+		return nil
+	}
+
+	err = w.csiClientset.SecretsstoreV1().SecretProviderClasses(configDomain.Namespace).Delete(context.TODO(), name, metav1.DeleteOptions{})
 	if err != nil && !k8serrors.IsNotFound(err) {
 		return err
 	}
@@ -103,16 +116,20 @@ func (w *spcWriter) Cleanup(namespace, domain string) error {
 
 // SpcAPIServed reports whether the cluster serves the SecretProviderClass API, i.e. whether the Secrets Store CSI
 // driver is installed. Without it, a SecretProviderClass informer would never sync, and the controller would never
-// start.
-func SpcAPIServed(d discovery.DiscoveryInterface) bool {
+// start. Only the server not knowing the API means it isn't served: any other discovery error is returned, so that a
+// transient failure doesn't turn SecretProviderClasses off for the life of the controller.
+func SpcAPIServed(d discovery.DiscoveryInterface) (bool, error) {
 	resources, err := d.ServerResourcesForGroupVersion(csiv1.SchemeGroupVersion.String())
+	if k8serrors.IsNotFound(err) {
+		return false, nil
+	}
 	if err != nil {
-		return false
+		return false, fmt.Errorf("cannot discover the SecretProviderClass API: %w", err)
 	}
 	for _, r := range resources.APIResources {
 		if r.Name == "secretproviderclasses" {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }

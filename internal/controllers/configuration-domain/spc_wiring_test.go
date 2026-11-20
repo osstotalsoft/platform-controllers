@@ -2,6 +2,7 @@ package configuration
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	clientfeaturestesting "k8s.io/client-go/features/testing"
 	fakediscovery "k8s.io/client-go/discovery/fake"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
@@ -142,8 +145,48 @@ func TestSpcAPIServed(t *testing.T) {
 		GroupVersion: "secrets-store.csi.x-k8s.io/v1",
 		APIResources: []metav1.APIResource{{Name: "secretproviderclasses", Kind: "SecretProviderClass"}},
 	}}
-	assert.True(t, SpcAPIServed(served))
+	ok, err := SpcAPIServed(served)
+	assert.NoError(t, err)
+	assert.True(t, ok)
 
 	notServed := kubeFakeClientSet.NewSimpleClientset().Discovery().(*fakediscovery.FakeDiscovery)
-	assert.False(t, SpcAPIServed(notServed))
+	ok, err = SpcAPIServed(notServed)
+	assert.NoError(t, err, "a group version the server doesn't know is an answer, not an error")
+	assert.False(t, ok)
+
+	// a transient failure must not be taken for a missing CSI driver: that would turn SPCs off until a restart
+	failing := kubeFakeClientSet.NewSimpleClientset()
+	failing.PrependReactor("get", "resource", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("connection refused")
+	})
+	_, err = SpcAPIServed(failing.Discovery())
+	assert.ErrorContains(t, err, "connection refused")
+}
+
+func TestCleanupKeepsForeignSpc(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+	platform, namespace, domain := "qa", "qa-t1", "domain1"
+	configDomain := newConfigurationDomain(domain, namespace, platform, false, false) // aggregateSecrets: false
+	foreign := &csiv1.SecretProviderClass{ObjectMeta: metav1.ObjectMeta{Name: getOutputSpcName(domain), Namespace: namespace}}
+	c := runController([]runtime.Object{newPlatform(platform, platform)}, []runtime.Object{configDomain}, nil, nil,
+		[]runtime.Object{foreign})
+
+	assert.True(t, c.processNextWorkItem())
+
+	_, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), getOutputSpcName(domain), metav1.GetOptions{})
+	assert.NoError(t, err, "an SPC the domain doesn't control must survive its cleanup")
+}
+
+func TestCleanupDeletesOwnedSpc(t *testing.T) {
+	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
+	platform, namespace, domain := "qa", "qa-t1", "domain1"
+	configDomain := newConfigurationDomain(domain, namespace, platform, false, false)
+	owned := &csiv1.SecretProviderClass{ObjectMeta: newSpcMeta(configDomain)}
+	c := runController([]runtime.Object{newPlatform(platform, platform)}, []runtime.Object{configDomain}, nil, nil,
+		[]runtime.Object{owned})
+
+	assert.True(t, c.processNextWorkItem())
+
+	_, err := c.csiClientset.SecretsstoreV1().SecretProviderClasses(namespace).Get(context.TODO(), getOutputSpcName(domain), metav1.GetOptions{})
+	assert.True(t, k8serrors.IsNotFound(err), "the domain's own SPC is deleted: %v", err)
 }

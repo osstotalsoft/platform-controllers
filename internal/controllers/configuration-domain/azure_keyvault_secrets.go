@@ -6,6 +6,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -18,6 +19,9 @@ import (
 // ReasonDuplicateConfigKey is the reason of the Event recorded when two Azure Key Vault secrets of one group are tagged
 // with the same configuration key.
 const ReasonDuplicateConfigKey = "DuplicateConfigKey"
+
+// keyVaultListTimeout bounds a listing of a vault's secrets, so that a hung connection doesn't block a worker.
+const keyVaultListTimeout = time.Minute
 
 // azureKeyVaultSecretsHandler aggregates a configuration domain's Azure Key Vault secrets into its
 // SecretProviderClass.
@@ -37,7 +41,9 @@ func (h *azureKeyVaultSecretsHandler) Sync(platform *platformv1.Platform, config
 		return fmt.Errorf("platform %q has no Azure Key Vault", platform.Name)
 	}
 
-	secrets, err := listKeyVaultSecrets(context.TODO(), keyVault.Name)
+	ctx, cancel := context.WithTimeout(context.Background(), keyVaultListTimeout)
+	defer cancel()
+	secrets, err := listKeyVaultSecrets(ctx, keyVault.Name)
 	if err != nil {
 		h.spc.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
 		return err
