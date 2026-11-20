@@ -54,6 +54,10 @@ const (
 	// fails to sync due to a ConfigMap already existing
 	MessageResourceExists = "Resource %q already exists and is not managed by ConfigurationDomain"
 
+	// MessageSpcAPINotServed is the message of the Event recorded for a configuration domain whose secrets would go to
+	// a SecretProviderClass on a cluster without the Secrets Store CSI driver.
+	MessageSpcAPINotServed = "SecretProviderClass API is not served; secrets of platform %q are not aggregated into a SecretProviderClass"
+
 	// MessageResourceSynced is the message used for an Event fired when a ConfigurationDomain
 	// is synced successfully
 	MessageResourceSynced = "Synced successfully"
@@ -64,6 +68,8 @@ const (
 	ReadyCondition = "Ready"
 
 	EnvVaultEnabled = "VAULT_ENABLED"
+	// EnvAzureEnabled enables aggregating the secrets of platforms whose secret store is Azure Key Vault.
+	EnvAzureEnabled = "AZURE_ENABLED"
 )
 
 var requeueInterval time.Duration = 2 * time.Minute
@@ -102,8 +108,14 @@ type ConfigurationDomainController struct {
 	configurationHandler *configurationHandler
 	kubeSecretsHandler   *kubeSecretsHandler
 	vaultSecretsHandler  *secretsHandler
+	// spcWriter writes the aggregated SecretProviderClasses; nil when spcEnabled is false.
+	spcWriter *spcWriter
 
 	vaultEnabled bool
+	azureEnabled bool
+	// spcEnabled tells whether secrets are aggregated into SecretProviderClasses: a secret store is enabled and the
+	// SecretProviderClass API is served (the controller then gets an SPC informer).
+	spcEnabled bool
 }
 
 func NewConfigurationDomainController(
@@ -124,6 +136,13 @@ func NewConfigurationDomainController(
 	if err != nil {
 		vaultEnabled = true
 	}
+	azureEnabled, err := strconv.ParseBool(os.Getenv(EnvAzureEnabled))
+	if err != nil {
+		azureEnabled = false
+	}
+	// spcInformer is nil when the SecretProviderClass API is not served, i.e. the Secrets Store CSI driver isn't
+	// installed: secrets are then aggregated into kube secrets only.
+	spcEnabled := (vaultEnabled || azureEnabled) && spcInformer != nil
 
 	controller := &ConfigurationDomainController{
 		platformClientset: platformClientset,
@@ -149,9 +168,11 @@ func NewConfigurationDomainController(
 		workqueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "configuration-domain"),
 
 		vaultEnabled: vaultEnabled,
+		azureEnabled: azureEnabled,
+		spcEnabled:   spcEnabled,
 	}
 
-	if vaultEnabled {
+	if spcEnabled {
 		controller.spcInformer = spcInformer
 		controller.spcLister = spcInformer.Lister()
 		controller.spcSynced = spcInformer.Informer().HasSynced
@@ -165,8 +186,9 @@ func NewConfigurationDomainController(
 	controller.configurationHandler = newConfigurationHandler(kubeClientset, configMapInformer.Lister(), controller.recorder)
 	controller.kubeSecretsHandler = newKubeSecretsHandler(kubeClientset, kubeSecretInformer.Lister(), controller.recorder)
 
-	if vaultEnabled {
-		controller.vaultSecretsHandler = newVaultSecretsHandler(csiClientset, spcInformer.Lister(), controller.recorder)
+	if spcEnabled {
+		controller.spcWriter = newSpcWriter(csiClientset, spcInformer.Lister(), controller.recorder)
+		controller.vaultSecretsHandler = newVaultSecretsHandler(controller.spcWriter)
 	}
 
 	klog.Info("Setting up event handlers")
@@ -175,8 +197,8 @@ func NewConfigurationDomainController(
 	addPlatformHandlers(platformInformer)
 	addConfigurationDomainHandlers(configDomainInformer, controller.enqueueConfigurationDomain)
 	addConfigMapHandlers(configMapInformer, controller.handleKubeResource)
-	if vaultEnabled {
-		addKubeSecretsHandlers(kubeSecretInformer, controller.handleKubeResource)
+	addKubeSecretsHandlers(kubeSecretInformer, controller.handleKubeResource)
+	if spcEnabled {
 		addSPCHandlers(spcInformer, controller.enqueueConfigurationDomain)
 	}
 
@@ -198,7 +220,7 @@ func (c *ConfigurationDomainController) Run(workers int, stopCh <-chan struct{})
 	klog.Info("Waiting for informer caches to sync")
 
 	cacheSyncs := []cache.InformerSynced{c.platformsSynced, c.configDomainsSynced, c.configMapsSynced, c.kubeSecretsSynced}
-	if c.vaultEnabled {
+	if c.spcEnabled {
 		cacheSyncs = append(cacheSyncs, c.spcSynced)
 	}
 	if ok := cache.WaitForCacheSync(stopCh, cacheSyncs...); !ok {
@@ -320,8 +342,8 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	cleanupSecrets := platformNotOk || !configDomain.Spec.AggregateSecrets
 	if cleanupSecrets {
 
-		if c.vaultEnabled {
-			err = c.vaultSecretsHandler.Cleanup(namespace, domain)
+		if c.spcEnabled {
+			err = c.spcWriter.Cleanup(namespace, domain)
 			if err != nil {
 				return err
 			}
@@ -353,10 +375,15 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	if !cleanupSecrets {
 
 		if c.vaultEnabled {
-			err = c.vaultSecretsHandler.Sync(platformObj, configDomain)
-			if err != nil {
-				c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
-				return err
+			if !c.spcEnabled {
+				c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced,
+					fmt.Sprintf(MessageSpcAPINotServed, platformObj.Name))
+			} else {
+				err = c.vaultSecretsHandler.Sync(platformObj, configDomain)
+				if err != nil {
+					c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
+					return err
+				}
 			}
 		}
 

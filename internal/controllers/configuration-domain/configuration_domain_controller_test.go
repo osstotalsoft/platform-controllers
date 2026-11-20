@@ -18,6 +18,7 @@ import (
 
 	fakeCsiClientSet "sigs.k8s.io/secrets-store-csi-driver/pkg/client/clientset/versioned/fake"
 	csiinformers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions"
+	csiInformersv1 "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions/apis/v1"
 
 	configurationv1 "totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -906,6 +907,16 @@ func newSecret(name, domain, namespace, platform string, data map[string][]byte)
 }
 
 func runController(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, kubeSecrets []runtime.Object, spcs []runtime.Object) *ConfigurationDomainController {
+	return startController(platforms, configurationDomains, configMaps, kubeSecrets, spcs, true)
+}
+
+// runControllerWithoutSpc runs the controller as on a cluster without the Secrets Store CSI driver: no
+// SecretProviderClass informer.
+func runControllerWithoutSpc(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, kubeSecrets []runtime.Object) *ConfigurationDomainController {
+	return startController(platforms, configurationDomains, configMaps, kubeSecrets, nil, false)
+}
+
+func startController(platforms []runtime.Object, configurationDomains, configMaps []runtime.Object, kubeSecrets []runtime.Object, spcs []runtime.Object, withSpcInformer bool) *ConfigurationDomainController {
 	platformClient := fakeClientset.NewSimpleClientset(append(platforms, configurationDomains...)...)
 	kubeClient := kubeFakeClientSet.NewSimpleClientset(append(configMaps, kubeSecrets...)...)
 	csiClient := fakeCsiClientSet.NewSimpleClientset(spcs...)
@@ -914,12 +925,17 @@ func runController(platforms []runtime.Object, configurationDomains, configMaps 
 	kubeInformerFactory := kubeinformers.NewSharedInformerFactory(kubeClient, time.Second*30)
 	csiInformerFactory := csiinformers.NewSharedInformerFactory(csiClient, time.Second*30)
 
+	var spcInformer csiInformersv1.SecretProviderClassInformer
+	if withSpcInformer {
+		spcInformer = csiInformerFactory.Secretsstore().V1().SecretProviderClasses()
+	}
+
 	c := NewConfigurationDomainController(platformClient, kubeClient, csiClient,
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Configuration().V1alpha1().ConfigurationDomains(),
 		kubeInformerFactory.Core().V1().ConfigMaps(),
 		kubeInformerFactory.Core().V1().Secrets(),
-		csiInformerFactory.Secretsstore().V1().SecretProviderClasses(),
+		spcInformer,
 		nil,
 	)
 
