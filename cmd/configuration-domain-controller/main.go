@@ -17,6 +17,7 @@ import (
 
 	csiclientset "sigs.k8s.io/secrets-store-csi-driver/pkg/client/clientset/versioned"
 	csiinformers "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions"
+	csiinformersv1 "sigs.k8s.io/secrets-store-csi-driver/pkg/client/informers/externalversions/apis/v1"
 	controllers "totalsoft.ro/platform-controllers/internal/controllers/configuration-domain"
 	clientset "totalsoft.ro/platform-controllers/pkg/generated/clientset/versioned"
 	informers "totalsoft.ro/platform-controllers/pkg/generated/informers/externalversions"
@@ -62,12 +63,20 @@ func main() {
 	eventBroadcaster.StartStructuredLogging(0)
 	eventBroadcaster.StartRecordingToSink(&typedcorev1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
+	// Without the Secrets Store CSI driver, an SPC informer would never sync and the controller would never start.
+	var spcInformer csiinformersv1.SecretProviderClassInformer
+	if controllers.SpcAPIServed(kubeClient.Discovery()) {
+		spcInformer = csiInformerFactory.Secretsstore().V1().SecretProviderClasses()
+	} else {
+		klog.Warning("SecretProviderClass API not served; secrets will not be aggregated into SecretProviderClasses")
+	}
+
 	controller := controllers.NewConfigurationDomainController(platformClient, kubeClient, csiClient,
 		platformInformerFactory.Platform().V1alpha1().Platforms(),
 		platformInformerFactory.Configuration().V1alpha1().ConfigurationDomains(),
 		kubeInformerFactory.Core().V1().ConfigMaps(),
 		kubeInformerFactory.Core().V1().Secrets(),
-		csiInformerFactory.Secretsstore().V1().SecretProviderClasses(),
+		spcInformer,
 		eventBroadcaster)
 
 	// notice that there is no need to run Start methods in a separate goroutine. (i.e. go kubeInformerFactory.Start(stopCh)

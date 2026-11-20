@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
@@ -98,4 +99,20 @@ func (w *spcWriter) Cleanup(namespace, domain string) error {
 		return err
 	}
 	return nil
+}
+
+// SpcAPIServed reports whether the cluster serves the SecretProviderClass API, i.e. whether the Secrets Store CSI
+// driver is installed. Without it, a SecretProviderClass informer would never sync, and the controller would never
+// start.
+func SpcAPIServed(d discovery.DiscoveryInterface) bool {
+	resources, err := d.ServerResourcesForGroupVersion(csiv1.SchemeGroupVersion.String())
+	if err != nil {
+		return false
+	}
+	for _, r := range resources.APIResources {
+		if r.Name == "secretproviderclasses" {
+			return true
+		}
+	}
+	return false
 }

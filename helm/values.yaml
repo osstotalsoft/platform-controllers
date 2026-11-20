@@ -13,6 +13,10 @@ global:
     enabled: true
     useWorkloadIdentity: false
     workloadIdentityClientId: ""
+    configurationDomainController:
+      # Identity the configuration-domain-controller lists Azure Key Vault secrets with (Key Vault Reader on each
+      # platform's vault). Empty: the provisioner's workloadIdentityClientId.
+      workloadIdentityClientId: ""
   backend:
     type: cloud # cloud | custom
     customBackedUrl: s3://my-bucket?region=ro&endpoint=http://my-minio-server:9000&disableSSL=true&s3ForcePathStyle=true

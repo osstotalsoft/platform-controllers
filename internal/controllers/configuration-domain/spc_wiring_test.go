@@ -11,6 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	clientfeatures "k8s.io/client-go/features"
 	clientfeaturestesting "k8s.io/client-go/features/testing"
+	fakediscovery "k8s.io/client-go/discovery/fake"
+	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
 	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
@@ -133,3 +135,15 @@ func TestConfigurationDomainController_secretProviderClasses(t *testing.T) {
 	})
 }
 
+
+func TestSpcAPIServed(t *testing.T) {
+	served := kubeFakeClientSet.NewSimpleClientset().Discovery().(*fakediscovery.FakeDiscovery)
+	served.Resources = []*metav1.APIResourceList{{
+		GroupVersion: "secrets-store.csi.x-k8s.io/v1",
+		APIResources: []metav1.APIResource{{Name: "secretproviderclasses", Kind: "SecretProviderClass"}},
+	}}
+	assert.True(t, SpcAPIServed(served))
+
+	notServed := kubeFakeClientSet.NewSimpleClientset().Discovery().(*fakediscovery.FakeDiscovery)
+	assert.False(t, SpcAPIServed(notServed))
+}

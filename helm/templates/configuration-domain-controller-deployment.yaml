@@ -21,6 +21,9 @@ spec:
         app.kubernetes.io/name: {{ .Release.Name }}
         app.kubernetes.io/version: {{ .Values.global.tag }}
         app.kubernetes.io/managed-by: "helm"
+        {{- if and .Values.global.azure.enabled .Values.global.azure.useWorkloadIdentity }}
+        azure.workload.identity/use: "true"
+        {{- end }}
     spec:
       containers:
       - name: configuration-domain-controller
@@ -39,6 +42,27 @@ spec:
         {{- end }}
         - name: RUSI_ENABLED
           value: "{{ .Values.global.rusi.enabled }}"
+        - name: AZURE_ENABLED
+          value: {{ .Values.global.azure.enabled | quote }}
+        {{- if .Values.global.azure.enabled }}
+        - name: AZURE_TENANT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: tenantId
+        {{- if not .Values.global.azure.useWorkloadIdentity }}
+        - name: AZURE_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: azure-config
+              key: clientId
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: azure-secret
+              key: clientSecret
+        {{- end }}
+        {{- end }}
         command:
         - "/configuration-domain-controller"
         args:
