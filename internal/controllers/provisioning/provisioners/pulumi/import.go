@@ -47,8 +47,14 @@ const (
 
 // importExistingAzureKeyVaultSecret returns the options adopting the vault's secret named secretName when it exists,
 // and none when it doesn't: unlike a stateful resource, a secret may well be missing while recovering, e.g. when its
-// export was added since. ARM never returns a secret's value, so the value is ignored for the import, and set by the
-// post-import update.
+// export was added since.
+//
+// ARM never returns a secret's value, so the import has to ignore it, and the post-import update sets it. Ignoring
+// just properties.value is not enough: the imported inputs also hold what ARM does return (properties.attributes, and
+// the tags as they were), and any difference with the program's inputs makes the engine update the secret right after
+// importing it, in the same update and with the value still ignored — a PUT without a value, which ARM rejects with
+// 400 ParameterNotSpecified. So all of the properties and the tags are ignored for the import, leaving it nothing to
+// update, and the post-import update applies them.
 func importExistingAzureKeyVaultSecret(ctx *pulumi.Context, imports *importOptions, vaultResourceGroupName, vaultName, secretName string) ([]pulumi.ResourceOption, error) {
 	existing, err := keyvault.LookupSecret(ctx, &keyvault.LookupSecretArgs{
 		ResourceGroupName: vaultResourceGroupName,
@@ -61,7 +67,7 @@ func importExistingAzureKeyVaultSecret(ctx *pulumi.Context, imports *importOptio
 	if err != nil {
 		return nil, fmt.Errorf("cannot look up the Azure Key Vault secret %s to import: %w", secretName, err)
 	}
-	return imports.importResource(pulumi.ID(existing.Id), "properties.value"), nil
+	return imports.importResource(pulumi.ID(existing.Id), "properties", "tags"), nil
 }
 
 // isAzureNotFound reports whether err is an azure-native invoke failing because the resource doesn't exist. The

@@ -286,7 +286,9 @@ func TestImportAzureKeyVaultSecrets(t *testing.T) {
 
 		assert.NoError(t, deploy(capture, imports))
 		assert.Equal(t, "/vaults/kv-lsng-prod/secrets/existing", capture.importId(t, passwordSecret))
-		assert.Contains(t, capture.ignoreChanges(passwordSecret), "properties.value")
+		// Not just properties.value: any other difference would make the engine update the secret in the
+		// import's own update, without its value, which ARM rejects.
+		assert.ElementsMatch(t, []string{"properties", "tags"}, capture.ignoreChanges(passwordSecret))
 		assert.True(t, imports.needsPostImportUpdate())
 	})
 

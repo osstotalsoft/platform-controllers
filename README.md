@@ -278,11 +278,30 @@ Unlike Vault, where all the values of an object go into one JSON secret at `<pla
 - **Name**: `<domain>-<key>-<hash>`, so that a domain's secrets are listed together in the vault. In the domain and the rendered key, `__` is replaced by `--` and any other character Key Vault doesn't allow by `-`, and the end of the key is cut to fit 127 characters. The hash is the first 8 hex characters of the SHA-256 of `<platform>/<namespace>/<domain>/[<tenant>/]<object>/<key>`, so the same key exported from another platform, namespace, domain, tenant or object never collides. E.g. `MultiTenancy__Tenants__acme__ConnectionStrings__Password` exported for the `origination` domain is named `origination-MultiTenancy--Tenants--acme--ConnectionStrings--Password-<hash>`.
 - **Tags**: `platform`, `namespace`, `domain`, `tenant` (tenant targets only), `object`, and `configKey`, the rendered key. The rendered key can be at most 256 characters long.
 
-The secrets are written with `azure-native`, as the same identity as the other Azure resources: it creates and updates them through Azure Resource Manager, which needs write access to the vault resource (e.g. **Contributor**), and deletes them through the vault's data plane, which needs the **Key Vault Secrets Officer** role on the vault.
+#### Required permissions
+
+The secrets are written with `azure-native`, as the same identity as the other Azure resources (the provisioner's service principal or workload identity). It needs two permissions on each platform's vault:
+
+| Operation | Goes through | Needs |
+|---|---|---|
+| Create and update a secret | Azure Resource Manager (`Microsoft.KeyVault/vaults/secrets/write`) | **Contributor** (or **Key Vault Contributor**) on the vault, its resource group or the subscription |
+| Delete a secret | The vault's data plane (`Microsoft.KeyVault/vaults/secrets/delete`) | **Key Vault Secrets Officer** on the vault |
+
+Grant the second role on the vault itself, not above it, so that the identity can't reach the secrets of other vaults:
+
+```sh
+az role assignment create --role "Key Vault Secrets Officer" \
+  --assignee-object-id <identity object id> --assignee-principal-type ServicePrincipal \
+  --scope /subscriptions/<subscription>/resourceGroups/<resource group>/providers/Microsoft.KeyVault/vaults/<vault>
+```
+
+Without it, exporting works, but as soon as a value stops being exported, its stack fails with `403 Forbidden` (`ForbiddenByRbac`, action `Microsoft.KeyVault/vaults/secrets/delete`) and keeps failing on every retry, with the secret left in place, until the role is granted. For a vault using access policies instead of Azure RBAC, give the identity an access policy with the secret **Delete** permission instead.
+
+#### Deleting, re-exporting and recovering
 
 When a value stops being exported (or its tenant or domain is removed), its secret is deleted, which in Key Vault is a soft delete: it stays recoverable for the vault's retention period, and `azure-native` v2 doesn't recover it when the same value is exported again. Until it is purged (`az keyvault secret purge --vault-name <vault> --name <secret>`) or its retention ends, exporting the same key from the same object again fails with a conflict.
 
-Changing or removing `Platform.spec.azureKeyVault` reprovisions the platform's domains, for the platform and each of its tenants. In import mode (see below), secrets that already exist in the vault are adopted instead of created, since `azure-native` refuses to create a secret that exists; unlike stateful resources, a secret that doesn't exist yet is simply created.
+Changing or removing `Platform.spec.azureKeyVault` reprovisions the platform's domains, for the platform and each of its tenants. In import mode (see below), secrets that already exist in the vault are adopted instead of created, since `azure-native` refuses to create a secret that exists (`cannot create already existing resource`); unlike stateful resources, a secret that doesn't exist yet is simply created. Azure never returns a secret's value, so the import leaves the secret as it is, and the post-import update then writes the exported value, attributes and tags.
 
 ### Importing existing resources (disaster recovery)
 
