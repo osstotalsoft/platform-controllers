@@ -116,3 +116,8 @@ func TestAzureKeyVaultSpc(t *testing.T) {
 		assert.Equal(t, "array: []\n", spc.Spec.Parameters["objects"])
 	})
 }
+
+func TestSecretNameFromID(t *testing.T) {
+	assert.Equal(t, "a-b-1", secretNameFromID("https://kv.vault.azure.net/secrets/a-b-1/0123abcd"))
+	assert.Equal(t, "a-b-1", secretNameFromID("https://kv.vault.azure.net/secrets/a-b-1"))
+}

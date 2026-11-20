@@ -1,16 +1,56 @@
 package configuration
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 
+	corev1 "k8s.io/api/core/v1"
 	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
 	"totalsoft.ro/platform-controllers/internal/controllers"
 	"totalsoft.ro/platform-controllers/pkg/apis/configuration/v1alpha1"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
+
+// ReasonDuplicateConfigKey is the reason of the Event recorded when two Azure Key Vault secrets of one group are tagged
+// with the same configuration key.
+const ReasonDuplicateConfigKey = "DuplicateConfigKey"
+
+// azureKeyVaultSecretsHandler aggregates a configuration domain's Azure Key Vault secrets into its
+// SecretProviderClass.
+type azureKeyVaultSecretsHandler struct {
+	spc *spcWriter
+}
+
+func newAzureKeyVaultSecretsHandler(spc *spcWriter) *azureKeyVaultSecretsHandler {
+	return &azureKeyVaultSecretsHandler{spc: spc}
+}
+
+// Sync lists the secrets of the platform's vault, picks configDomain's (see selectKeyVaultSecrets), and writes them to
+// its SecretProviderClass, in the tenant AZURE_TENANT_ID.
+func (h *azureKeyVaultSecretsHandler) Sync(platform *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
+	keyVault := platform.Spec.AzureKeyVault()
+	if keyVault == nil {
+		return fmt.Errorf("platform %q has no Azure Key Vault", platform.Name)
+	}
+
+	secrets, err := listKeyVaultSecrets(context.TODO(), keyVault.Name)
+	if err != nil {
+		h.spc.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
+		return err
+	}
+
+	selected, conflicts := selectKeyVaultSecrets(platform, configDomain, secrets)
+	for _, c := range conflicts {
+		h.spc.recorder.Event(configDomain, corev1.EventTypeWarning, ReasonDuplicateConfigKey,
+			fmt.Sprintf("configuration key %q is in Azure Key Vault secrets %q and %q; using %q", c.ConfigKey, c.Winner, c.Loser, c.Winner))
+	}
+
+	return h.spc.Apply(configDomain, azureKeyVaultSpc(configDomain, keyVault, os.Getenv("AZURE_TENANT_ID"), selected))
+}
 
 // keyVaultSecret is what the configuration controller knows of an Azure Key Vault secret: never its value.
 type keyVaultSecret struct {

@@ -108,6 +108,8 @@ type ConfigurationDomainController struct {
 	configurationHandler *configurationHandler
 	kubeSecretsHandler   *kubeSecretsHandler
 	vaultSecretsHandler  *secretsHandler
+	// azureKeyVaultSecretsHandler aggregates the secrets of platforms whose secret store is Azure Key Vault.
+	azureKeyVaultSecretsHandler *azureKeyVaultSecretsHandler
 	// spcWriter writes the aggregated SecretProviderClasses; nil when spcEnabled is false.
 	spcWriter *spcWriter
 
@@ -189,6 +191,7 @@ func NewConfigurationDomainController(
 	if spcEnabled {
 		controller.spcWriter = newSpcWriter(csiClientset, spcInformer.Lister(), controller.recorder)
 		controller.vaultSecretsHandler = newVaultSecretsHandler(controller.spcWriter)
+		controller.azureKeyVaultSecretsHandler = newAzureKeyVaultSecretsHandler(controller.spcWriter)
 	}
 
 	klog.Info("Setting up event handlers")
@@ -374,17 +377,10 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 
 	if !cleanupSecrets {
 
-		if c.vaultEnabled {
-			if !c.spcEnabled {
-				c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced,
-					fmt.Sprintf(MessageSpcAPINotServed, platformObj.Name))
-			} else {
-				err = c.vaultSecretsHandler.Sync(platformObj, configDomain)
-				if err != nil {
-					c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
-					return err
-				}
-			}
+		err = c.syncSecretStore(platformObj, configDomain)
+		if err != nil {
+			c.updateStatus(configDomain, false, "Aggregation failed"+err.Error())
+			return err
 		}
 
 		err = c.kubeSecretsHandler.Sync(platformObj, configDomain)
@@ -402,6 +398,33 @@ func (c *ConfigurationDomainController) syncHandler(key string) error {
 	c.updateStatus(configDomain, true, SuccessConfigurationDomainSynced)
 	c.recorder.Event(configDomain, corev1.EventTypeNormal, SuccessConfigurationDomainSynced, MessageResourceSynced)
 	return nil
+}
+
+// syncSecretStore aggregates configDomain's secrets from its platform's secret store into its SecretProviderClass. A
+// platform using Azure Key Vault while AZURE_ENABLED is off fails the sync; one using Vault while VAULT_ENABLED is off
+// gets no SecretProviderClass, as before secret stores could be chosen.
+func (c *ConfigurationDomainController) syncSecretStore(platformObj *platformv1.Platform, configDomain *v1alpha1.ConfigurationDomain) error {
+	if platformObj.Spec.SecretStoreType() == platformv1.SecretStoreTypeAzureKeyVault {
+		if !c.azureEnabled {
+			err := fmt.Errorf("platform %q uses Azure Key Vault, but %s is not true", platformObj.Name, EnvAzureEnabled)
+			c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, err.Error())
+			return err
+		}
+		if !c.spcEnabled {
+			c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, fmt.Sprintf(MessageSpcAPINotServed, platformObj.Name))
+			return nil
+		}
+		return c.azureKeyVaultSecretsHandler.Sync(platformObj, configDomain)
+	}
+
+	if !c.vaultEnabled {
+		return nil
+	}
+	if !c.spcEnabled {
+		c.recorder.Event(configDomain, corev1.EventTypeWarning, controllers.ErrorSynced, fmt.Sprintf(MessageSpcAPINotServed, platformObj.Name))
+		return nil
+	}
+	return c.vaultSecretsHandler.Sync(platformObj, configDomain)
 }
 
 // resetStatus resets the conditions of the ConfigurationAggregate to meta.Condition
