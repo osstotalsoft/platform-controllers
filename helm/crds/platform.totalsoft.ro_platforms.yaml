@@ -47,6 +47,28 @@ spec:
             type: object
           spec:
             properties:
+              azureKeyVault:
+                description: |-
+                  AzureKeyVault is the platform's Azure Key Vault. Values exported with toAzureKeyVault by the
+                  platform's provisioning resources are written to it, and the platform's configuration domains
+                  read them back from it. Platforms without it cannot use toAzureKeyVault.
+                properties:
+                  name:
+                    description: |-
+                      Name is the vault's name: 3-24 letters, digits and dashes, starting with a letter and ending
+                      with a letter or digit.
+                    pattern: ^[A-Za-z][0-9A-Za-z-]{1,22}[0-9A-Za-z]$
+                    type: string
+                  resourceGroupName:
+                    description: ResourceGroupName is the name of the resource group
+                      that contains the vault.
+                    maxLength: 90
+                    minLength: 1
+                    type: string
+                required:
+                - name
+                - resourceGroupName
+                type: object
               targetNamespace:
                 type: string
             required:

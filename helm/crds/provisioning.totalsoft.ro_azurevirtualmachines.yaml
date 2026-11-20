@@ -76,6 +76,19 @@ spec:
                   properties:
                     adminPassword:
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -100,6 +113,19 @@ spec:
                       type: object
                     adminUserName:
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -124,6 +150,19 @@ spec:
                       type: object
                     computerName:
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -152,6 +191,19 @@ spec:
                       type: string
                     publicAddress:
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -176,6 +228,19 @@ spec:
                       type: object
                     vmName:
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:

@@ -21,7 +21,7 @@ func TestHelmReleaseV2DeployFunc(t *testing.T) {
 
 	t.Run("maximal helm release v2 spec", func(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, ctx)
+			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -32,7 +32,7 @@ func TestHelmReleaseV2DeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := hr.DeepCopy()
 			hr.Spec.Release.Upgrade = nil
-			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, ctx)
+			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -43,7 +43,7 @@ func TestHelmReleaseV2DeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := hr.DeepCopy()
 			hr.Spec.Exports = nil
-			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, ctx)
+			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))
@@ -54,7 +54,7 @@ func TestHelmReleaseV2DeployFunc(t *testing.T) {
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			hr := hr.DeepCopy()
 			hr.Spec.Release.Values = nil
-			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, ctx)
+			_, err := deployHelmReleaseV2(tenant, hr, []pulumi.Resource{}, nil, ctx)
 			assert.NoError(t, err)
 			return nil
 		}, pulumi.WithMocks("project", "stack", mocks(0)))

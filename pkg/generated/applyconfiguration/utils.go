@@ -41,6 +41,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &configurationv1alpha1.ConfigurationDomainStatusApplyConfiguration{}
 
 		// Group=platform.totalsoft.ro, Version=v1alpha1
+	case platformv1alpha1.SchemeGroupVersion.WithKind("AzureKeyVaultSpec"):
+		return &applyconfigurationplatformv1alpha1.AzureKeyVaultSpecApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Domain"):
 		return &applyconfigurationplatformv1alpha1.DomainApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("DomainDependency"):
@@ -79,6 +81,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureDatabaseExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureDatabaseSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureDatabaseSpecApplyConfiguration{}
+	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureKeyVaultSecretTemplate"):
+		return &applyconfigurationprovisioningv1alpha1.AzureKeyVaultSecretTemplateApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureManagedDatabase"):
 		return &applyconfigurationprovisioningv1alpha1.AzureManagedDatabaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureManagedDatabaseExportsSpec"):

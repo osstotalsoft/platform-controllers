@@ -13,6 +13,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2 v2.92.3
+	github.com/pulumi/pulumi-azure-native-sdk/keyvault/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3
 	github.com/pulumi/pulumi-azure-native-sdk/resources/v2 v2.92.3
@@ -44,6 +45,7 @@ require (
 require github.com/pulumiverse/pulumi-time/sdk v0.1.0
 
 require (
+	github.com/spf13/cast v1.4.1 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	honnef.co/go/tools v0.8.2 // indirect
 )

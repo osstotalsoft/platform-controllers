@@ -35,6 +35,10 @@ type InfrastructureManifests struct {
 	MsSqlDbs               []*provisioningv1.MsSqlDatabase
 	LocalScripts           []*provisioningv1.LocalScript
 	KeycloakClients        []*provisioningv1.KeycloakClient
+
+	// AzureKeyVault is the Azure Key Vault of the target's platform, which toAzureKeyVault exports are written to.
+	// Nil when the platform has none. It is not a resource: it doesn't count for IsEmpty.
+	AzureKeyVault *platformv1.AzureKeyVaultSpec
 }
 
 type ProvisioningResource interface {
