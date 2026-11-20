@@ -15,7 +15,7 @@ import (
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 )
 
-func TestProvisioningPassesThePlatformsAzureKeyVault(t *testing.T) {
+func TestProvisioningPassesThePlatformsSecretStore(t *testing.T) {
 	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	keyVault := &platformv1.AzureKeyVaultSpec{Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod"}
@@ -24,8 +24,10 @@ func TestProvisioningPassesThePlatformsAzureKeyVault(t *testing.T) {
 		platform.Spec.SecretStore = &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: keyVault}
 		return platform
 	}
+	keyVaultStore := &SecretStore{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: keyVault}
+	vaultStore := &SecretStore{Type: platformv1.SecretStoreTypeHashicorpVault}
 
-	t.Run("a tenant's provisioning gets its platform's vault", func(t *testing.T) {
+	t.Run("a tenant's provisioning gets its platform's store", func(t *testing.T) {
 		domain := "my-domain"
 		objects := []runtime.Object{platformWithVault(), newTenant("dev1", "dev", domain), newAzureDb("db1", "dev", domain)}
 
@@ -39,34 +41,34 @@ func TestProvisioningPassesThePlatformsAzureKeyVault(t *testing.T) {
 
 		assert.True(t, c.processNextWorkItem(1))
 		if assert.Len(t, infras, 1) {
-			assert.Equal(t, keyVault, infras[0].AzureKeyVault)
+			assert.Equal(t, keyVaultStore, infras[0].SecretStore)
 			assert.Len(t, infras[0].AzureDbs, 1)
 		}
 	})
 
-	t.Run("resolves the vault of the target's platform", func(t *testing.T) {
+	t.Run("resolves the store of the target's platform", func(t *testing.T) {
 		c := runController([]runtime.Object{platformWithVault(), newPlatform("other")}, fakeProvisioner{}, messaging.NilMessagingPublisher)
 
 		tests := []struct {
 			name   string
 			target ProvisioningTarget
-			want   *platformv1.AzureKeyVaultSpec
+			want   *SecretStore
 		}{
-			{"platform with a vault", platformWithVault(), keyVault},
-			{"platform without a vault", newPlatform("other"), nil},
-			{"tenant of a platform with a vault", newTenant("dev1", "dev"), keyVault},
-			{"tenant of a platform without a vault", newTenant("other1", "other"), nil},
+			{"platform with a vault", platformWithVault(), keyVaultStore},
+			{"platform without secretStore", newPlatform("other"), vaultStore},
+			{"tenant of a platform with a vault", newTenant("dev1", "dev"), keyVaultStore},
+			{"tenant of a platform without secretStore", newTenant("other1", "other"), vaultStore},
 			{"tenant of a missing platform", newTenant("gone1", "gone"), nil},
 		}
 		for _, tt := range tests {
-			got, err := c.resolveAzureKeyVault(tt.target)
+			got, err := c.resolveSecretStore(tt.target)
 			assert.NoError(t, err, tt.name)
 			assert.Equal(t, tt.want, got, tt.name)
 		}
 	})
 }
 
-func TestPlatformAzureKeyVaultChangeReenqueuesItsDomains(t *testing.T) {
+func TestPlatformSecretStoreChangeReenqueuesItsDomains(t *testing.T) {
 	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 
 	objects := []runtime.Object{
@@ -87,24 +89,47 @@ func TestPlatformAzureKeyVaultChangeReenqueuesItsDomains(t *testing.T) {
 		_, err = c.clientset.PlatformV1alpha1().Platforms().Update(context.TODO(), platform, metav1.UpdateOptions{})
 		assert.NoError(t, err)
 	}
+	enqueuedKeys := func() []string {
+		var keys []string
+		for c.workqueue.Len() > 0 {
+			key, _ := c.workqueue.Get()
+			keys = append(keys, key.(string))
+			c.workqueue.Done(key)
+		}
+		return keys
+	}
 
 	update(func(p *platformv1.Platform) { p.Labels = map[string]string{"unrelated": "change"} })
 	assert.Never(t, func() bool { return c.workqueue.Len() > 0 }, 300*time.Millisecond, 20*time.Millisecond,
-		"a change other than the vault should not re-enqueue anything")
+		"a change other than the secret store should not re-enqueue anything")
 
 	update(func(p *platformv1.Platform) {
-		p.Spec.SecretStore = &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: &platformv1.AzureKeyVaultSpec{Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod"}}
+		p.Spec.SecretStore = &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: &platformv1.AzureKeyVaultSpec{
+			Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod", WorkloadIdentityClientId: "00000000-0000-0000-0000-000000000001"}}
 	})
 	assert.Eventually(t, func() bool { return c.workqueue.Len() == 2 }, 10*time.Second, 20*time.Millisecond)
-
-	var keys []string
-	for c.workqueue.Len() > 0 {
-		key, _ := c.workqueue.Get()
-		keys = append(keys, key.(string))
-		c.workqueue.Done(key)
-	}
 	assert.ElementsMatch(t, []string{
 		encodeKey("dev", "", "my-domain"),
 		encodeKey("dev", "default/dev1", "my-domain"),
-	}, keys, "the platform's domain, for the platform and for its tenant, and nothing of the other platform")
+	}, enqueuedKeys(), "the platform's domain, for the platform and for its tenant, and nothing of the other platform")
+
+	update(func(p *platformv1.Platform) {
+		p.Spec.SecretStore.AzureKeyVault.WorkloadIdentityClientId = "00000000-0000-0000-0000-000000000002"
+	})
+	assert.Never(t, func() bool { return c.workqueue.Len() > 0 }, 300*time.Millisecond, 20*time.Millisecond,
+		"the pods' identity is not used by any export")
+}
+
+func TestSecretStoreChanged(t *testing.T) {
+	kv := func(name, rg, clientId string) platformv1.PlatformSpec {
+		return platformv1.PlatformSpec{SecretStore: &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeAzureKeyVault,
+			AzureKeyVault: &platformv1.AzureKeyVaultSpec{Name: name, ResourceGroupName: rg, WorkloadIdentityClientId: clientId}}}
+	}
+	vault := platformv1.PlatformSpec{SecretStore: &platformv1.SecretStoreSpec{Type: platformv1.SecretStoreTypeHashicorpVault}}
+
+	assert.False(t, secretStoreChanged(platformv1.PlatformSpec{}, vault), "absent is HashicorpVault")
+	assert.True(t, secretStoreChanged(vault, kv("kv", "rg", "a")))
+	assert.True(t, secretStoreChanged(kv("kv", "rg", "a"), kv("kv2", "rg", "a")))
+	assert.True(t, secretStoreChanged(kv("kv", "rg", "a"), kv("kv", "rg2", "a")))
+	assert.False(t, secretStoreChanged(kv("kv", "rg", "a"), kv("kv", "rg", "b")), "the pods' identity only")
 }

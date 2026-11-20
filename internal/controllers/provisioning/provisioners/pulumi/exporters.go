@@ -99,31 +99,36 @@ func handleValueExport(target provisioning.ProvisioningTarget, imports *importOp
 	return func(exportContext ExportContext, values map[string]exportTemplateWithValue, opts ...pulumi.ResourceOption) error {
 		v := onlyVaultValues(values)
 		if len(v) > 0 {
-			if !vaultEnabled {
-				return fmt.Errorf("vault is not enabled, but there are values to be exported to the vault")
-			}
-
-			err := exportToVault(exportContext.pulumiContext, exportPath(target, exportContext), templateContext, v, opts...)
-			if err != nil {
-				return err
-			}
-		}
-
-		v = onlyAzureKeyVaultValues(values)
-		if len(v) > 0 {
 			ctx := exportContext.pulumiContext
-			vaultName := config.Get(ctx, azureKeyVaultNameConfigKey(ctx.Project()))
-			vaultResourceGroupName := config.Get(ctx, azureKeyVaultResourceGroupNameConfigKey(ctx.Project()))
-			if vaultName == "" || vaultResourceGroupName == "" {
-				// a tenant whose platform doesn't exist gets no vault either
-				return fmt.Errorf("there are values to be exported to Azure Key Vault, but platform %q doesn't exist or has no spec.azureKeyVault, or %s is not true",
-					target.GetPlatformName(), EnvAzureEnabled)
-			}
+			switch storeType := platformv1.SecretStoreType(config.Get(ctx, secretStoreTypeConfigKey(ctx.Project()))); storeType {
+			case "":
+				// never fall back to Vault: that would delete the secrets of a platform using Azure Key Vault
+				return fmt.Errorf("there are values to be exported to the secret store, but platform %q doesn't exist", target.GetPlatformName())
 
-			err := exportToAzureKeyVault(ctx, vaultResourceGroupName, vaultName, exportContext.domain, exportPath(target, exportContext),
-				azureKeyVaultTags(target, exportContext), templateContext, v, imports, opts...)
-			if err != nil {
-				return err
+			case platformv1.SecretStoreTypeHashicorpVault:
+				if !vaultEnabled {
+					return fmt.Errorf("vault is not enabled, but there are values to be exported to the vault")
+				}
+				err := exportToVault(ctx, exportPath(target, exportContext), templateContext, v, opts...)
+				if err != nil {
+					return err
+				}
+
+			case platformv1.SecretStoreTypeAzureKeyVault:
+				vaultName := config.Get(ctx, azureKeyVaultNameConfigKey(ctx.Project()))
+				vaultResourceGroupName := config.Get(ctx, azureKeyVaultResourceGroupNameConfigKey(ctx.Project()))
+				if vaultName == "" || vaultResourceGroupName == "" {
+					// the vault is only set when Azure is enabled; the CRD requires it otherwise
+					return fmt.Errorf("platform %q uses Azure Key Vault, but %s is not true", target.GetPlatformName(), EnvAzureEnabled)
+				}
+				err := exportToAzureKeyVault(ctx, vaultResourceGroupName, vaultName, exportContext.domain, exportPath(target, exportContext),
+					azureKeyVaultTags(target, exportContext), templateContext, v, imports, opts...)
+				if err != nil {
+					return err
+				}
+
+			default:
+				return fmt.Errorf("platform %q has an unknown secret store type %q", target.GetPlatformName(), storeType)
 			}
 		}
 
@@ -236,14 +241,23 @@ func azureKeyVaultResourceGroupNameConfigKey(projectName string) string {
 	return projectName + ":azureKeyVaultResourceGroupName"
 }
 
-// azureKeyVaultConfig is the stack configuration that tells the exporters the platform's Azure Key Vault. It is always
-// set, and empty when there is no vault or Azure is not enabled, so that a vault removed from the platform is cleared.
-func azureKeyVaultConfig(projectName string, azureEnabled bool, keyVault *platformv1.AzureKeyVaultSpec) map[string]auto.ConfigValue {
-	name, resourceGroupName := "", ""
-	if azureEnabled && keyVault != nil {
-		name, resourceGroupName = keyVault.Name, keyVault.ResourceGroupName
+func secretStoreTypeConfigKey(projectName string) string {
+	return projectName + ":secretStoreType"
+}
+
+// secretStoreConfig is the stack configuration that tells the exporters the platform's secret store: its type, empty
+// when the platform doesn't exist, and its Azure Key Vault, empty unless the store is Azure Key Vault and Azure is
+// enabled. It is always set, so that a store changed or removed from the platform is cleared.
+func secretStoreConfig(projectName string, azureEnabled bool, store *provisioning.SecretStore) map[string]auto.ConfigValue {
+	storeType, name, resourceGroupName := "", "", ""
+	if store != nil {
+		storeType = string(store.Type)
+		if store.Type == platformv1.SecretStoreTypeAzureKeyVault && azureEnabled && store.AzureKeyVault != nil {
+			name, resourceGroupName = store.AzureKeyVault.Name, store.AzureKeyVault.ResourceGroupName
+		}
 	}
 	return map[string]auto.ConfigValue{
+		secretStoreTypeConfigKey(projectName):                {Value: storeType},
 		azureKeyVaultNameConfigKey(projectName):              {Value: name},
 		azureKeyVaultResourceGroupNameConfigKey(projectName): {Value: resourceGroupName},
 	}
@@ -308,7 +322,7 @@ func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultNam
 	exportedBy := map[string]string{}
 	for _, valueName := range valueNames {
 		v := values[valueName]
-		key, err := template.ParseTemplate(v.valueExport.ToAzureKeyVault.KeyTemplate, templateContext)
+		key, err := template.ParseTemplate(v.valueExport.ToVault.KeyTemplate, templateContext)
 		if err != nil {
 			return err
 		}
@@ -442,16 +456,6 @@ func onlyVaultValues(values map[string]exportTemplateWithValue) map[string]expor
 	var output = map[string]exportTemplateWithValue{}
 	for k, v := range values {
 		if v.valueExport.ToVault != (provisioningv1.VaultSecretTemplate{}) {
-			output[k] = v
-		}
-	}
-	return output
-}
-
-func onlyAzureKeyVaultValues(values map[string]exportTemplateWithValue) map[string]exportTemplateWithValue {
-	var output = map[string]exportTemplateWithValue{}
-	for k, v := range values {
-		if v.valueExport.ToAzureKeyVault != (provisioningv1.AzureKeyVaultSecretTemplate{}) {
 			output[k] = v
 		}
 	}

@@ -11,21 +11,29 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
 const azureKeyVaultSecret = "azure-native:keyvault:Secret"
 
-func azureKeyVaultExport(key string) provisioningv1.ValueExport {
-	return provisioningv1.ValueExport{ToAzureKeyVault: provisioningv1.AzureKeyVaultSecretTemplate{KeyTemplate: key}}
+// setSecretStoreConfig sets the stack configuration that createOrSelectStack sets for the platform's secret store,
+// for pulumi.WithMocks("project", ...).
+func setSecretStoreConfig(t *testing.T, storeType, vaultName, vaultResourceGroupName string) {
+	t.Setenv("PULUMI_CONFIG", `{"`+secretStoreTypeConfigKey("project")+`":"`+storeType+`","`+
+		azureKeyVaultNameConfigKey("project")+`":"`+vaultName+`","`+
+		azureKeyVaultResourceGroupNameConfigKey("project")+`":"`+vaultResourceGroupName+`"}`)
 }
 
-// setAzureKeyVaultConfig sets the stack configuration that createOrSelectStack sets for a platform with a vault, for
-// pulumi.WithMocks("project", ...).
+// setAzureKeyVaultConfig sets the stack configuration of a platform whose secret store is Azure Key Vault.
 func setAzureKeyVaultConfig(t *testing.T) {
-	t.Setenv("PULUMI_CONFIG", `{"`+azureKeyVaultNameConfigKey("project")+`":"kv-lsng-prod","`+
-		azureKeyVaultResourceGroupNameConfigKey("project")+`":"rg-lsng-prod"}`)
+	setSecretStoreConfig(t, string(platformv1.SecretStoreTypeAzureKeyVault), "kv-lsng-prod", "rg-lsng-prod")
+}
+
+// setHashicorpVaultConfig sets the stack configuration of a platform whose secret store is HashiCorp Vault.
+func setHashicorpVaultConfig(t *testing.T) {
+	setSecretStoreConfig(t, string(platformv1.SecretStoreTypeHashicorpVault), "", "")
 }
 
 var validAzureKeyVaultSecretName = regexp.MustCompile(`^[0-9A-Za-z-]{1,127}$`)
@@ -89,19 +97,75 @@ func TestAzureKeyVaultSecretName(t *testing.T) {
 	})
 }
 
-func TestAzureKeyVaultConfig(t *testing.T) {
+func TestSecretStoreConfig(t *testing.T) {
 	keyVault := &platformv1.AzureKeyVaultSpec{Name: "kv-lsng-prod", ResourceGroupName: "rg-lsng-prod"}
-	config := func(name, resourceGroupName string) map[string]auto.ConfigValue {
+	config := func(storeType, name, resourceGroupName string) map[string]auto.ConfigValue {
 		return map[string]auto.ConfigValue{
+			"dev:secretStoreType":                {Value: storeType},
 			"dev:azureKeyVaultName":              {Value: name},
 			"dev:azureKeyVaultResourceGroupName": {Value: resourceGroupName},
 		}
 	}
+	vault := &provisioning.SecretStore{Type: platformv1.SecretStoreTypeHashicorpVault}
+	akv := &provisioning.SecretStore{Type: platformv1.SecretStoreTypeAzureKeyVault, AzureKeyVault: keyVault}
 
-	assert.Equal(t, config("kv-lsng-prod", "rg-lsng-prod"), azureKeyVaultConfig("dev", true, keyVault))
-	// always set, so that a vault removed from the platform is cleared from the stack
-	assert.Equal(t, config("", ""), azureKeyVaultConfig("dev", false, keyVault), "Azure not enabled")
-	assert.Equal(t, config("", ""), azureKeyVaultConfig("dev", true, nil), "no vault on the platform")
+	// always set, so that a store changed or removed from the platform is cleared from the stack
+	assert.Equal(t, config("", "", ""), secretStoreConfig("dev", true, nil), "unknown platform")
+	assert.Equal(t, config("HashicorpVault", "", ""), secretStoreConfig("dev", true, vault))
+	assert.Equal(t, config("AzureKeyVault", "", ""), secretStoreConfig("dev", false, akv), "Azure not enabled")
+	assert.Equal(t, config("AzureKeyVault", "kv-lsng-prod", "rg-lsng-prod"), secretStoreConfig("dev", true, akv))
+}
+
+func TestHandleValueExportRoutesBySecretStore(t *testing.T) {
+	const vaultSecret = "vault:generic/secret:Secret"
+	tenant := newTenant("tenant1", "dev")
+	deploy := func(capture *resourceCaptureMocks) error {
+		return pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployMsSqlDb(tenant, newAzureKeyVaultMsSqlDb(), []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", capture))
+	}
+
+	t.Run("no secretStore exports to Vault", func(t *testing.T) {
+		setHashicorpVaultConfig(t)
+		capture := newResourceCaptureMocks()
+		assert.NoError(t, deploy(capture))
+		// Vault keeps all of an object's values in one secret
+		assert.Len(t, capture.byType[vaultSecret], 1)
+		assert.Empty(t, capturedAzureKeyVaultSecrets(capture))
+	})
+
+	t.Run("AzureKeyVault exports to Key Vault, even with VAULT_ENABLED=false", func(t *testing.T) {
+		t.Setenv(EnvVaultEnabled, "false")
+		setAzureKeyVaultConfig(t)
+		capture := newResourceCaptureMocks()
+		assert.NoError(t, deploy(capture))
+		assert.Len(t, capturedAzureKeyVaultSecrets(capture), 2)
+		assert.Empty(t, capture.byType[vaultSecret])
+	})
+
+	t.Run("unknown platform fails, nothing exported", func(t *testing.T) {
+		setSecretStoreConfig(t, "", "", "")
+		capture := newResourceCaptureMocks()
+		assert.ErrorContains(t, deploy(capture), `platform "dev" doesn't exist`)
+		assert.Empty(t, capturedAzureKeyVaultSecrets(capture))
+		assert.Empty(t, capture.byType[vaultSecret])
+	})
+
+	t.Run("AzureKeyVault without Azure fails", func(t *testing.T) {
+		setSecretStoreConfig(t, string(platformv1.SecretStoreTypeAzureKeyVault), "", "")
+		capture := newResourceCaptureMocks()
+		assert.ErrorContains(t, deploy(capture), `platform "dev" uses Azure Key Vault, but AZURE_ENABLED is not true`)
+		assert.Empty(t, capturedAzureKeyVaultSecrets(capture))
+	})
+
+	t.Run("HashicorpVault with VAULT_ENABLED=false fails", func(t *testing.T) {
+		t.Setenv(EnvVaultEnabled, "false")
+		setHashicorpVaultConfig(t)
+		capture := newResourceCaptureMocks()
+		assert.ErrorContains(t, deploy(capture), "vault is not enabled")
+		assert.Empty(t, capture.byType[vaultSecret])
+	})
 }
 
 func newAzureKeyVaultMsSqlDb() *provisioningv1.MsSqlDatabase {
@@ -111,8 +175,8 @@ func newAzureKeyVaultMsSqlDb() *provisioningv1.MsSqlDatabase {
 	mssqlDb.Spec.Exports = []provisioningv1.MsSqlDatabaseExportsSpec{{
 		Domain:   "origination",
 		DbName:   configMapExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Database"),
-		Username: azureKeyVaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username"),
-		Password: azureKeyVaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password"),
+		Username: vaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Username"),
+		Password: vaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password"),
 	}}
 	return mssqlDb
 }
@@ -188,8 +252,8 @@ func TestExportToAzureKeyVault(t *testing.T) {
 		mssqlDb := newAzureKeyVaultMsSqlDb()
 		// a platform's template context has no .Tenant
 		mssqlDb.Spec.Exports[0].DbName = configMapExport("ConnectionStrings__Database")
-		mssqlDb.Spec.Exports[0].Username = azureKeyVaultExport("ConnectionStrings__Username")
-		mssqlDb.Spec.Exports[0].Password = azureKeyVaultExport("ConnectionStrings__Password")
+		mssqlDb.Spec.Exports[0].Username = vaultExport("ConnectionStrings__Username")
+		mssqlDb.Spec.Exports[0].Password = vaultExport("ConnectionStrings__Password")
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
@@ -208,25 +272,11 @@ func TestExportToAzureKeyVault(t *testing.T) {
 		}
 	})
 
-	t.Run("fails when the platform has no vault", func(t *testing.T) {
-		t.Setenv("PULUMI_CONFIG", `{"`+azureKeyVaultNameConfigKey("project")+`":"","`+
-			azureKeyVaultResourceGroupNameConfigKey("project")+`":""}`)
-		tenant := newTenant("tenant1", "dev")
-
-		capture := newResourceCaptureMocks()
-		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
-			_, err := deployMsSqlDb(tenant, newAzureKeyVaultMsSqlDb(), []pulumi.Resource{}, nil, ctx)
-			return err
-		}, pulumi.WithMocks("project", "stack", capture))
-		assert.ErrorContains(t, err, `platform "dev" doesn't exist or has no spec.azureKeyVault`)
-		assert.Empty(t, capturedAzureKeyVaultSecrets(capture))
-	})
-
 	t.Run("fails when a key renders empty", func(t *testing.T) {
 		setAzureKeyVaultConfig(t)
 		tenant := newTenant("tenant1", "dev")
 		mssqlDb := newAzureKeyVaultMsSqlDb()
-		mssqlDb.Spec.Exports[0].Password = azureKeyVaultExport("{{ if false }}x{{ end }}")
+		mssqlDb.Spec.Exports[0].Password = vaultExport("{{ if false }}x{{ end }}")
 
 		capture := newResourceCaptureMocks()
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
@@ -241,8 +291,8 @@ func TestExportToAzureKeyVault(t *testing.T) {
 		setAzureKeyVaultConfig(t)
 		tenant := newTenant("tenant1", "dev")
 		mssqlDb := newAzureKeyVaultMsSqlDb()
-		mssqlDb.Spec.Exports[0].Username = azureKeyVaultExport("Credentials")
-		mssqlDb.Spec.Exports[0].Password = azureKeyVaultExport("Credentials")
+		mssqlDb.Spec.Exports[0].Username = vaultExport("Credentials")
+		mssqlDb.Spec.Exports[0].Password = vaultExport("Credentials")
 
 		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
 			_, err := deployMsSqlDb(tenant, mssqlDb, []pulumi.Resource{}, nil, ctx)
@@ -264,7 +314,7 @@ func TestImportAzureKeyVaultSecrets(t *testing.T) {
 			InitialPassword:   "password123",
 			Exports: []provisioningv1.EntraUserExportsSpec{{
 				Domain:          "origination",
-				InitialPassword: azureKeyVaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__InitialPassword"),
+				InitialPassword: vaultExport("MultiTenancy__Tenants__{{ .Tenant.Code }}__InitialPassword"),
 			}},
 		},
 	}

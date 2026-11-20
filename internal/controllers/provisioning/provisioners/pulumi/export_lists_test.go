@@ -15,6 +15,7 @@ import (
 // TestExportListsAzureManagedDbIdentities is the charisma-online shape: two managed identities whose
 // client ids are both published into the hr-admin domain's one ConfigMap.
 func TestExportListsAzureManagedDbIdentities(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	setAzureMssqlAuthEnv(t)
 	tenant := newTenant("tenant1", "dev")
 
@@ -67,6 +68,7 @@ func TestExportListsAzureManagedDbIdentities(t *testing.T) {
 // TestExportListsAzureDbUsersAndSingleIdentity exports two users through the users list and an
 // identity through the deprecated single fields, all in one domain and spread over every destination.
 func TestExportListsAzureDbUsersAndSingleIdentity(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	setAzureMssqlAuthEnv(t)
 	t.Setenv(EnvVaultEnabled, "true")
 	tenant := newTenant("tenant1", "dev")
@@ -126,6 +128,7 @@ func TestExportListsAzureDbUsersAndSingleIdentity(t *testing.T) {
 
 // TestExportListsMsSqlDbUsers exports two users' credentials into one domain through the users list.
 func TestExportListsMsSqlDbUsers(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	tenant := newTenant("tenant1", "dev")
 
 	mssqlDb := newMsSqlDb("lists-mssql-db")
@@ -179,6 +182,7 @@ func TestExportListsMsSqlDbUsers(t *testing.T) {
 // TestExportListsRejectsKeyCollision checks that the provisioners run validateExportKeys: two list
 // items rendering the same ConfigMap key fail the deployment before anything is exported.
 func TestExportListsRejectsKeyCollision(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	tenant := newTenant("tenant1", "dev")
 
 	mssqlDb := newMsSqlDb("collision-mssql-db")

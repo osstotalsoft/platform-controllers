@@ -41,7 +41,7 @@ const (
 	mssqlAzureadPrincipalType     = "mssql:index/azureadServicePrincipal:AzureadServicePrincipal"
 
 	// azureKeyVaultSecretType is not a stateful resource, but azure-native refuses to create a secret that already
-	// exists, so the secrets toAzureKeyVault exports to are adopted too when recovering a lost state.
+	// exists, so the Azure Key Vault secrets toVault exports to are adopted too when recovering a lost state.
 	azureKeyVaultSecretType = "azure-native:keyvault:Secret"
 )
 

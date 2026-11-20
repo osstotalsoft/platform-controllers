@@ -76,7 +76,7 @@ func (Provisioner) Provision(target provisioning.ProvisioningTarget, domain stri
 			}
 		}
 		imports := newImportOptions(target, infra)
-		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, infra.AzureKeyVault, deployFunc(target, domain, infra, needsResourceGroup, imports))
+		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, infra.SecretStore, deployFunc(target, domain, infra, needsResourceGroup, imports))
 		if result.Error != nil {
 			return result
 		}
@@ -147,10 +147,10 @@ func hasChanges(summary auto.UpdateSummary) bool {
 	return false
 }
 
-func updateStack(stackName, projectName string, imports *importOptions, azureKeyVault *platformv1.AzureKeyVaultSpec, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
+func updateStack(stackName, projectName string, imports *importOptions, secretStore *provisioning.SecretStore, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
 	ctx := context.Background()
 
-	s, err := createOrSelectStack(ctx, stackName, projectName, azureKeyVault, deployFunc)
+	s, err := createOrSelectStack(ctx, stackName, projectName, secretStore, deployFunc)
 	if err != nil {
 		klog.ErrorS(err, "Failed to create or select stack", "name", stackName)
 		return auto.UpResult{}, err
@@ -228,8 +228,8 @@ func tryDestroyAndDeleteStack(stackName, projectName string, deployFunc pulumi.R
 }
 
 // createOrSelectStack creates the stack or selects the existing one, installs the plugins, and sets the stack
-// configuration: the providers' settings, and the platform's Azure Key Vault that toAzureKeyVault exports are written to.
-func createOrSelectStack(ctx context.Context, stackName, projectName string, azureKeyVault *platformv1.AzureKeyVaultSpec, deployFunc pulumi.RunFunc) (auto.Stack, error) {
+// configuration: the providers' settings, and the platform's secret store that toVault exports are written to.
+func createOrSelectStack(ctx context.Context, stackName, projectName string, secretStore *provisioning.SecretStore, deployFunc pulumi.RunFunc) (auto.Stack, error) {
 	s, err := auto.UpsertStackInlineSource(ctx, stackName, projectName, deployFunc)
 	//auto.EnvVars(map[string]string{})
 	if err != nil {
@@ -349,7 +349,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, azu
 		}
 	}
 
-	for key, value := range azureKeyVaultConfig(projectName, azureEnabled, azureKeyVault) {
+	for key, value := range secretStoreConfig(projectName, azureEnabled, secretStore) {
 		configValues[key] = value
 	}
 
