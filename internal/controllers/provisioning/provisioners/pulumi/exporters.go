@@ -19,6 +19,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sSchema "k8s.io/apimachinery/pkg/runtime/schema"
+	"totalsoft.ro/platform-controllers/internal/controllers"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	"totalsoft.ro/platform-controllers/internal/template"
 	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
@@ -216,15 +217,7 @@ func exportPath(target provisioning.ProvisioningTarget, exportContext ExportCont
 	)
 }
 
-// The tags of an Azure Key Vault secret, which say where its value is exported from, since the vault is flat.
 const (
-	AzureKeyVaultTagPlatform  = "platform"
-	AzureKeyVaultTagNamespace = "namespace"
-	AzureKeyVaultTagDomain    = "domain"
-	AzureKeyVaultTagTenant    = "tenant"
-	AzureKeyVaultTagObject    = "object"
-	AzureKeyVaultTagConfigKey = "configKey"
-
 	azureKeyVaultSecretNameMaxLength = 127
 	azureKeyVaultTagValueMaxLength   = 256
 	azureKeyVaultSecretHashLength    = 8
@@ -295,13 +288,13 @@ func azureKeyVaultSecretNamePart(s string) string {
 // except configKey, which is per value.
 func azureKeyVaultTags(target provisioning.ProvisioningTarget, exportContext ExportContext) map[string]string {
 	tags := map[string]string{
-		AzureKeyVaultTagPlatform:  target.GetPlatformName(),
-		AzureKeyVaultTagNamespace: exportContext.ownerMeta.Namespace,
-		AzureKeyVaultTagDomain:    exportContext.domain,
-		AzureKeyVaultTagObject:    exportContext.objectName,
+		controllers.AzureKeyVaultTagPlatform:  target.GetPlatformName(),
+		controllers.AzureKeyVaultTagNamespace: exportContext.ownerMeta.Namespace,
+		controllers.AzureKeyVaultTagDomain:    exportContext.domain,
+		controllers.AzureKeyVaultTagObject:    exportContext.objectName,
 	}
 	if tenant, ok := target.(*platformv1.Tenant); ok {
-		tags[AzureKeyVaultTagTenant] = tenant.GetName()
+		tags[controllers.AzureKeyVaultTagTenant] = tenant.GetName()
 	}
 	return tags
 }
@@ -339,7 +332,7 @@ func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultNam
 		}
 		exportedBy[secretName] = valueName
 
-		secretTags := pulumi.StringMap{AzureKeyVaultTagConfigKey: pulumi.String(key)}
+		secretTags := pulumi.StringMap{controllers.AzureKeyVaultTagConfigKey: pulumi.String(key)}
 		for k, t := range tags {
 			secretTags[k] = pulumi.String(t)
 		}
