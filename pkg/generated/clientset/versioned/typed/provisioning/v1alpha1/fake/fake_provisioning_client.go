@@ -28,6 +28,10 @@ type FakeProvisioningV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeProvisioningV1alpha1) AzureBlobContainers(namespace string) v1alpha1.AzureBlobContainerInterface {
+	return &FakeAzureBlobContainers{c, namespace}
+}
+
 func (c *FakeProvisioningV1alpha1) AzureDatabases(namespace string) v1alpha1.AzureDatabaseInterface {
 	return &FakeAzureDatabases{c, namespace}
 }
