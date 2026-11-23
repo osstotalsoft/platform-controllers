@@ -153,7 +153,6 @@ func TestConfigurationDomainController_azureKeyVault(t *testing.T) {
 	})
 }
 
-
 func TestKeyVaultListingHasATimeout(t *testing.T) {
 	clientfeaturestesting.SetFeatureDuringTest(t, clientfeatures.WatchListClient, false)
 	t.Setenv(EnvAzureEnabled, "true")

@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	fakediscovery "k8s.io/client-go/discovery/fake"
 	clientfeatures "k8s.io/client-go/features"
 	clientfeaturestesting "k8s.io/client-go/features/testing"
-	fakediscovery "k8s.io/client-go/discovery/fake"
 	kubeFakeClientSet "k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
-	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/record"
 	csiv1 "sigs.k8s.io/secrets-store-csi-driver/apis/v1"
 
@@ -137,7 +137,6 @@ func TestConfigurationDomainController_secretProviderClasses(t *testing.T) {
 		}, "events: %v", events)
 	})
 }
-
 
 func TestSpcAPIServed(t *testing.T) {
 	served := kubeFakeClientSet.NewSimpleClientset().Discovery().(*fakediscovery.FakeDiscovery)
