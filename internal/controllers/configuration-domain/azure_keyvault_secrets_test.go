@@ -108,7 +108,9 @@ func TestAzureKeyVaultSpc(t *testing.T) {
 		"keyvaultName": "kv-lsng-qa",
 		"tenantId":     "t-1",
 		"clientID":     "00000000-0000-0000-0000-000000000001",
-		"objects":      want,
+		// pods get the identity through its AKS identity binding, whose token proxy the provider only uses with this
+		"useAzureTokenProxy": "true",
+		"objects":            want,
 	}, spc.Spec.Parameters)
 
 	t.Run("no secrets", func(t *testing.T) {

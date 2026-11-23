@@ -130,7 +130,7 @@ func selectKeyVaultSecrets(platform *platformv1.Platform, configDomain *v1alpha1
 
 // azureKeyVaultSpc builds configDomain's aggregated SecretProviderClass for the Azure provider of the Secrets Store CSI
 // driver: one object per configuration key, the secret byConfigKey names mounted under the key, as with Vault. Pods
-// read the vault with keyVault's workload identity.
+// read the vault with keyVault's workload identity, through its AKS identity binding.
 func azureKeyVaultSpc(configDomain *v1alpha1.ConfigurationDomain, keyVault *platformv1.AzureKeyVaultSpec, tenantID string, byConfigKey map[string]string) *csiv1.SecretProviderClass {
 	keys := make([]string, 0, len(byConfigKey))
 	for key := range byConfigKey {
@@ -156,7 +156,11 @@ func azureKeyVaultSpc(configDomain *v1alpha1.ConfigurationDomain, keyVault *plat
 				"keyvaultName": keyVault.Name,
 				"tenantId":     tenantID,
 				"clientID":     keyVault.WorkloadIdentityClientId,
-				"objects":      objects.String(),
+				// the provider then gets the token through the identity's AKS identity binding, so that any service
+				// account the binding's ClusterRole allows can mount the secrets, without a federated credential of its
+				// own (provider v1.8.1 or later)
+				"useAzureTokenProxy": "true",
+				"objects":            objects.String(),
 			},
 		},
 	}
