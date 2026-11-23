@@ -544,12 +544,12 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 
 		azureBlobContainers, err = c.azureBlobContainerInformer.Lister().List(labels.Everything())
 		if err != nil {
-			return err
+			return nil, err
 		}
 		azureBlobContainers = selectItemsInTarget(target.GetPlatformName(), domain, azureBlobContainers, target)
 		azureBlobContainers, err = applyTargetOverrides(azureBlobContainers, target, category)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 

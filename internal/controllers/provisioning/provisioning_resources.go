@@ -51,6 +51,7 @@ type ProvisioningResource interface {
 func (infra *InfrastructureManifests) IsEmpty() bool {
 	return len(infra.EntraUsers) == 0 &&
 		len(infra.MinioBuckets) == 0 &&
+		len(infra.AzureBlobContainers) == 0 &&
 		len(infra.AzureDbs) == 0 &&
 		len(infra.AzureManagedDbs) == 0 &&
 		len(infra.AzurePowerShellScripts) == 0 &&
