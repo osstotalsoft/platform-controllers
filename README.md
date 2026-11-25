@@ -303,10 +303,28 @@ Three identities use each platform's vault:
 
 The configuration-domain-controller signs in with the Azure SDK's default credential: with `global.azure.useWorkloadIdentity`, its service account gets `global.azure.configurationDomainController.workloadIdentityClientId` (or, if empty, the provisioner's `workloadIdentityClientId`), which needs a federated credential for `system:serviceaccount:<release namespace>:configuration-domain-controller`; otherwise it uses the `azure-config` / `azure-secret` client ID and secret.
 
+The platform's identity is a user-assigned managed identity, created once per platform, outside this chart and the provisioner. Neither creates it; the identity binding below only adds a federated credential to it. It must be in the cluster's tenant, but can be in any subscription and resource group:
+
+```sh
+az identity create -g <identity rg> -n <identity name> --query "{id:id, clientId:clientId, principalId:principalId}"
+```
+
+- `clientId` goes into the Platform's `secretStore.azureKeyVault.workloadIdentityClientId` and the ClusterRole below.
+- `principalId` gets **Key Vault Secrets User** on the platform's vault, granted on the vault itself, so that the pods can't read other vaults:
+
+  ```sh
+  az role assignment create --role "Key Vault Secrets User" \
+    --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal \
+    --scope /subscriptions/<subscription>/resourceGroups/<vault rg>/providers/Microsoft.KeyVault/vaults/<vault>
+  ```
+
+  For a vault using access policies instead of Azure RBAC, give the identity an access policy with the secret **Get** permission instead.
+- `id`, the identity's resource ID (`/subscriptions/<subscription>/resourceGroups/<identity rg>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<identity name>`), is passed to the identity binding. For an existing identity, `az identity show -g <identity rg> -n <identity name>` returns all three.
+
 The pods sign in as their own service account, with the platform's identity. A namespace can have more service accounts than the 20 federated credentials an identity holds, so each cluster running the platform needs, outside this chart:
 
 1. The Key Vault provider of the Secrets Store CSI driver: `az aks enable-addons --addons azure-keyvault-secrets-provider -g <cluster rg> -n <cluster>`.
-2. An AKS identity binding of the platform's identity: `az aks identity-binding create -g <cluster rg> --cluster-name <cluster> --name <binding> --managed-identity-resource-id <identity resource id>`.
+2. An AKS identity binding of the platform's identity: `az aks identity-binding create -g <cluster rg> --cluster-name <cluster> --name <binding> --managed-identity-resource-id <identity id>`, with the identity's `id` from above. The command needs the `aks-preview` Azure CLI extension (`az extension add --name aks-preview`). Creating it adds one federated credential to the identity (`aks-identity-binding`), the only one the pods need, however many service accounts they use.
 3. A ClusterRole allowing the platform's namespaces to use it, bound to their service accounts:
 
 ```yaml
