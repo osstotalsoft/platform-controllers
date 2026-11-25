@@ -38,8 +38,15 @@ type InfrastructureManifests struct {
 	LocalScripts           []*provisioningv1.LocalScript
 	KeycloakClients        []*provisioningv1.KeycloakClient
 
-	// AzureKeyVault is the Azure Key Vault of the target's platform, which toAzureKeyVault exports are written to.
-	// Nil when the platform has none. It is not a resource: it doesn't count for IsEmpty.
+	// SecretStore is the secret store of the target's platform, which toVault exports are written to. Nil when the
+	// platform doesn't exist. It is not a resource: it doesn't count for IsEmpty.
+	SecretStore *SecretStore
+}
+
+// SecretStore is a platform's secret store, as the exporters need it.
+type SecretStore struct {
+	Type platformv1.SecretStoreType
+	// AzureKeyVault is the platform's vault when Type is AzureKeyVault, nil otherwise.
 	AzureKeyVault *platformv1.AzureKeyVaultSpec
 }
 

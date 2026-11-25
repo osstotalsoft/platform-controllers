@@ -59,6 +59,8 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationplatformv1alpha1.ProvisioningResourcePatchApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("ProvisioningResourcePatchTarget"):
 		return &applyconfigurationplatformv1alpha1.ProvisioningResourcePatchTargetApplyConfiguration{}
+	case platformv1alpha1.SchemeGroupVersion.WithKind("SecretStoreSpec"):
+		return &applyconfigurationplatformv1alpha1.SecretStoreSpecApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("Service"):
 		return &applyconfigurationplatformv1alpha1.ServiceApplyConfiguration{}
 	case platformv1alpha1.SchemeGroupVersion.WithKind("ServiceSpec"):
@@ -87,8 +89,6 @@ func ForKind(kind schema.GroupVersionKind) interface{} {
 		return &applyconfigurationprovisioningv1alpha1.AzureDatabaseExportsSpecApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureDatabaseSpec"):
 		return &applyconfigurationprovisioningv1alpha1.AzureDatabaseSpecApplyConfiguration{}
-	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureKeyVaultSecretTemplate"):
-		return &applyconfigurationprovisioningv1alpha1.AzureKeyVaultSecretTemplateApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureManagedDatabase"):
 		return &applyconfigurationprovisioningv1alpha1.AzureManagedDatabaseApplyConfiguration{}
 	case provisioningv1alpha1.SchemeGroupVersion.WithKind("AzureManagedDatabaseExportsSpec"):

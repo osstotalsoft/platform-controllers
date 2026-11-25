@@ -47,28 +47,50 @@ spec:
             type: object
           spec:
             properties:
-              azureKeyVault:
+              secretStore:
                 description: |-
-                  AzureKeyVault is the platform's Azure Key Vault. Values exported with toAzureKeyVault by the
-                  platform's provisioning resources are written to it, and the platform's configuration domains
-                  read them back from it. Platforms without it cannot use toAzureKeyVault.
+                  SecretStore is where the values the platform's provisioning resources export with toVault are
+                  written, and where its configuration domains aggregate secrets from. Absent, it is HashiCorp Vault.
                 properties:
-                  name:
-                    description: |-
-                      Name is the vault's name: 3-24 letters, digits and dashes, starting with a letter and ending
-                      with a letter or digit.
-                    pattern: ^[A-Za-z][0-9A-Za-z-]{1,22}[0-9A-Za-z]$
+                  azureKeyVault:
+                    description: AzureKeyVault is the platform's vault, required when
+                      Type is AzureKeyVault.
+                    properties:
+                      name:
+                        description: |-
+                          Name is the vault's name: 3-24 letters, digits and dashes, starting with a letter and ending
+                          with a letter or digit.
+                        pattern: ^[A-Za-z][0-9A-Za-z-]{1,22}[0-9A-Za-z]$
+                        type: string
+                      resourceGroupName:
+                        description: ResourceGroupName is the name of the resource
+                          group that contains the vault.
+                        maxLength: 90
+                        minLength: 1
+                        type: string
+                      workloadIdentityClientId:
+                        description: |-
+                          WorkloadIdentityClientId is the client ID of the managed identity the platform's pods read the vault's
+                          secrets with, through the Secrets Store CSI driver. It needs Key Vault Secrets User on the vault, and an
+                          AKS identity binding on every cluster running the platform.
+                        pattern: ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$
+                        type: string
+                    required:
+                    - name
+                    - resourceGroupName
+                    - workloadIdentityClientId
+                    type: object
+                  type:
+                    default: HashicorpVault
+                    description: Type is the kind of secret store.
+                    enum:
+                    - HashicorpVault
+                    - AzureKeyVault
                     type: string
-                  resourceGroupName:
-                    description: ResourceGroupName is the name of the resource group
-                      that contains the vault.
-                    maxLength: 90
-                    minLength: 1
-                    type: string
-                required:
-                - name
-                - resourceGroupName
                 type: object
+                x-kubernetes-validations:
+                - message: azureKeyVault is required exactly when type is AzureKeyVault
+                  rule: (has(self.type) && self.type == 'AzureKeyVault') == has(self.azureKeyVault)
               targetNamespace:
                 type: string
             required:

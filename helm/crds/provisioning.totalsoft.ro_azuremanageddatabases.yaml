@@ -89,19 +89,6 @@ spec:
                   properties:
                     dbName:
                       properties:
-                        toAzureKeyVault:
-                          description: ToAzureKeyVault exports the value as a secret
-                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                          properties:
-                            keyTemplate:
-                              description: |-
-                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                and keeps the rendered key in its configKey tag.
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -117,8 +104,16 @@ spec:
                           - keyTemplate
                           type: object
                         toVault:
+                          description: |-
+                            ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                            Azure Key Vault.
                           properties:
                             keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                (configKey).
                               type: string
                           required:
                           - keyTemplate
@@ -141,19 +136,6 @@ spec:
                         properties:
                           identityClientId:
                             properties:
-                              toAzureKeyVault:
-                                description: ToAzureKeyVault exports the value as
-                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                                properties:
-                                  keyTemplate:
-                                    description: |-
-                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                      and keeps the rendered key in its configKey tag.
-                                    type: string
-                                required:
-                                - keyTemplate
-                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:
@@ -169,8 +151,16 @@ spec:
                                 - keyTemplate
                                 type: object
                               toVault:
+                                description: |-
+                                  ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                                  Azure Key Vault.
                                 properties:
                                   keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                      object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                      doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                      (configKey).
                                     type: string
                                 required:
                                 - keyTemplate
@@ -178,19 +168,6 @@ spec:
                             type: object
                           identityPrincipalId:
                             properties:
-                              toAzureKeyVault:
-                                description: ToAzureKeyVault exports the value as
-                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                                properties:
-                                  keyTemplate:
-                                    description: |-
-                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                      and keeps the rendered key in its configKey tag.
-                                    type: string
-                                required:
-                                - keyTemplate
-                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:
@@ -206,8 +183,16 @@ spec:
                                 - keyTemplate
                                 type: object
                               toVault:
+                                description: |-
+                                  ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                                  Azure Key Vault.
                                 properties:
                                   keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                      object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                      doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                      (configKey).
                                     type: string
                                 required:
                                 - keyTemplate
@@ -223,19 +208,6 @@ spec:
                     identityClientId:
                       description: 'Deprecated: use identities instead.'
                       properties:
-                        toAzureKeyVault:
-                          description: ToAzureKeyVault exports the value as a secret
-                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                          properties:
-                            keyTemplate:
-                              description: |-
-                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                and keeps the rendered key in its configKey tag.
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -251,8 +223,16 @@ spec:
                           - keyTemplate
                           type: object
                         toVault:
+                          description: |-
+                            ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                            Azure Key Vault.
                           properties:
                             keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                (configKey).
                               type: string
                           required:
                           - keyTemplate
@@ -261,19 +241,6 @@ spec:
                     identityPrincipalId:
                       description: 'Deprecated: use identities instead.'
                       properties:
-                        toAzureKeyVault:
-                          description: ToAzureKeyVault exports the value as a secret
-                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                          properties:
-                            keyTemplate:
-                              description: |-
-                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                and keeps the rendered key in its configKey tag.
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -289,8 +256,16 @@ spec:
                           - keyTemplate
                           type: object
                         toVault:
+                          description: |-
+                            ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                            Azure Key Vault.
                           properties:
                             keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                (configKey).
                               type: string
                           required:
                           - keyTemplate
@@ -306,19 +281,6 @@ spec:
                     password:
                       description: 'Deprecated: use users instead.'
                       properties:
-                        toAzureKeyVault:
-                          description: ToAzureKeyVault exports the value as a secret
-                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                          properties:
-                            keyTemplate:
-                              description: |-
-                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                and keeps the rendered key in its configKey tag.
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -334,8 +296,16 @@ spec:
                           - keyTemplate
                           type: object
                         toVault:
+                          description: |-
+                            ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                            Azure Key Vault.
                           properties:
                             keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                (configKey).
                               type: string
                           required:
                           - keyTemplate
@@ -351,19 +321,6 @@ spec:
                     username:
                       description: 'Deprecated: use users instead.'
                       properties:
-                        toAzureKeyVault:
-                          description: ToAzureKeyVault exports the value as a secret
-                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                          properties:
-                            keyTemplate:
-                              description: |-
-                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                and keeps the rendered key in its configKey tag.
-                              type: string
-                          required:
-                          - keyTemplate
-                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -379,8 +336,16 @@ spec:
                           - keyTemplate
                           type: object
                         toVault:
+                          description: |-
+                            ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                            Azure Key Vault.
                           properties:
                             keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                (configKey).
                               type: string
                           required:
                           - keyTemplate
@@ -398,19 +363,6 @@ spec:
                         properties:
                           password:
                             properties:
-                              toAzureKeyVault:
-                                description: ToAzureKeyVault exports the value as
-                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                                properties:
-                                  keyTemplate:
-                                    description: |-
-                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                      and keeps the rendered key in its configKey tag.
-                                    type: string
-                                required:
-                                - keyTemplate
-                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:
@@ -426,8 +378,16 @@ spec:
                                 - keyTemplate
                                 type: object
                               toVault:
+                                description: |-
+                                  ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                                  Azure Key Vault.
                                 properties:
                                   keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                      object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                      doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                      (configKey).
                                     type: string
                                 required:
                                 - keyTemplate
@@ -441,19 +401,6 @@ spec:
                             type: string
                           username:
                             properties:
-                              toAzureKeyVault:
-                                description: ToAzureKeyVault exports the value as
-                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-                                properties:
-                                  keyTemplate:
-                                    description: |-
-                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-                                      and keeps the rendered key in its configKey tag.
-                                    type: string
-                                required:
-                                - keyTemplate
-                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:
@@ -469,8 +416,16 @@ spec:
                                 - keyTemplate
                                 type: object
                               toVault:
+                                description: |-
+                                  ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+                                  Azure Key Vault.
                                 properties:
                                   keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+                                      object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+                                      doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+                                      (configKey).
                                     type: string
                                 required:
                                 - keyTemplate

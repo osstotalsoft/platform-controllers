@@ -92,6 +92,7 @@ func unwrapSecret(v resource.PropertyValue) resource.PropertyValue {
 }
 
 func TestExportCompatAzureManagedDb(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	setAzureMssqlAuthEnv(t)
 	t.Setenv(EnvVaultEnabled, "true")
 	tenant := newTenant("tenant1", "dev")
@@ -177,6 +178,7 @@ func TestExportCompatAzureManagedDb(t *testing.T) {
 }
 
 func TestExportCompatAzureDb(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	setAzureMssqlAuthEnv(t)
 	t.Setenv(EnvVaultEnabled, "true")
 	tenant := newTenant("tenant1", "dev")
@@ -253,6 +255,7 @@ func TestExportCompatAzureDb(t *testing.T) {
 }
 
 func TestExportCompatMsSqlDb(t *testing.T) {
+	setHashicorpVaultConfig(t)
 	t.Setenv(EnvVaultEnabled, "true")
 	tenant := newTenant("tenant1", "dev")
 

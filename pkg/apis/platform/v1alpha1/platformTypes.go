@@ -25,11 +25,51 @@ type Platform struct {
 type PlatformSpec struct {
 	TargetNamespace string `json:"targetNamespace"`
 
-	// AzureKeyVault is the platform's Azure Key Vault. Values exported with toAzureKeyVault by the
-	// platform's provisioning resources are written to it, and the platform's configuration domains
-	// read them back from it. Platforms without it cannot use toAzureKeyVault.
+	// SecretStore is where the values the platform's provisioning resources export with toVault are
+	// written, and where its configuration domains aggregate secrets from. Absent, it is HashiCorp Vault.
+	// +optional
+	SecretStore *SecretStoreSpec `json:"secretStore,omitempty"`
+}
+
+// SecretStoreType is the kind of secret store a platform uses.
+type SecretStoreType string
+
+const (
+	// SecretStoreTypeHashicorpVault stores secrets in HashiCorp Vault, under <platform>/<namespace>/<domain>/.
+	SecretStoreTypeHashicorpVault SecretStoreType = "HashicorpVault"
+	// SecretStoreTypeAzureKeyVault stores every secret as its own Azure Key Vault secret, tagged with where it
+	// comes from.
+	SecretStoreTypeAzureKeyVault SecretStoreType = "AzureKeyVault"
+)
+
+// SecretStoreSpec is a platform's secret store: exactly one per platform.
+// +kubebuilder:validation:XValidation:rule="(has(self.type) && self.type == 'AzureKeyVault') == has(self.azureKeyVault)",message="azureKeyVault is required exactly when type is AzureKeyVault"
+type SecretStoreSpec struct {
+	// Type is the kind of secret store.
+	// +kubebuilder:validation:Enum=HashicorpVault;AzureKeyVault
+	// +kubebuilder:default=HashicorpVault
+	// +optional
+	Type SecretStoreType `json:"type,omitempty"`
+
+	// AzureKeyVault is the platform's vault, required when Type is AzureKeyVault.
 	// +optional
 	AzureKeyVault *AzureKeyVaultSpec `json:"azureKeyVault,omitempty"`
+}
+
+// SecretStoreType returns the type of the platform's secret store: HashicorpVault when it has none.
+func (s PlatformSpec) SecretStoreType() SecretStoreType {
+	if s.SecretStore == nil || s.SecretStore.Type == "" {
+		return SecretStoreTypeHashicorpVault
+	}
+	return s.SecretStore.Type
+}
+
+// AzureKeyVault returns the platform's Azure Key Vault, or nil when its secret store is not Azure Key Vault.
+func (s PlatformSpec) AzureKeyVault() *AzureKeyVaultSpec {
+	if s.SecretStoreType() != SecretStoreTypeAzureKeyVault {
+		return nil
+	}
+	return s.SecretStore.AzureKeyVault
 }
 
 // AzureKeyVaultSpec identifies an Azure Key Vault in the subscription given by AZURE_SUBSCRIPTION_ID.
@@ -43,6 +83,12 @@ type AzureKeyVaultSpec struct {
 	// +kubebuilder:validation:MinLength=1
 	// +kubebuilder:validation:MaxLength=90
 	ResourceGroupName string `json:"resourceGroupName"`
+
+	// WorkloadIdentityClientId is the client ID of the managed identity the platform's pods read the vault's
+	// secrets with, through the Secrets Store CSI driver. It needs Key Vault Secrets User on the vault, and an
+	// AKS identity binding on every cluster running the platform.
+	// +kubebuilder:validation:Pattern=`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`
+	WorkloadIdentityClientId string `json:"workloadIdentityClientId"`
 }
 
 type PlatformStatus struct {

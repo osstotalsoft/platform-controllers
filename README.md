@@ -18,10 +18,15 @@ metadata:
   name: charismaonline.qa
 spec:
   targetNamespace: qa
-  azureKeyVault: # optional; where toAzureKeyVault exports are written, see Exporting to Azure Key Vault
-    name: kv-lsng-qa
-    resourceGroupName: rg-lsng-qa # the subscription comes from AZURE_SUBSCRIPTION_ID
+  secretStore: # optional; where toVault exports are written and secrets are aggregated from, see Secret store
+    type: AzureKeyVault # HashicorpVault (the default, also when secretStore is absent) | AzureKeyVault
+    azureKeyVault: # required exactly when type is AzureKeyVault
+      name: kv-lsng-qa
+      resourceGroupName: rg-lsng-qa # the subscription comes from AZURE_SUBSCRIPTION_ID
+      workloadIdentityClientId: 00000000-0000-0000-0000-000000000000 # the identity pods read the vault with
 ```
+
+A platform uses exactly one secret store.
 
 ### Domain
 
@@ -261,22 +266,92 @@ spec:
   ...
 ```
 
-### Exporting to Azure Key Vault
+### Secret store
 
-Besides `toConfigMap`, `toKubeSecret` and `toVault`, an exported value can be routed with `toAzureKeyVault` to the Azure Key Vault of the platform (`Platform.spec.azureKeyVault`). It requires `AZURE_ENABLED=true`; provisioning fails if the platform has no `azureKeyVault`.
+`toVault` exports a value to the secret store of the target's platform (`Platform.spec.secretStore`): HashiCorp Vault (the default) or Azure Key Vault. Provisioning resources don't depend on which one: switching a platform's store reprovisions its domains, which exports every value to the new store and deletes it from the old one, and the configuration domains' SecretProviderClasses are rewritten for the new store (see ConfigurationDomain).
 
 ```yaml
   exports:
     - domain: origination
       password:
-        toAzureKeyVault:
+        toVault:
           keyTemplate: MultiTenancy__Tenants__{{ .Tenant.Code }}__ConnectionStrings__Password
 ```
+
+- **HashiCorp Vault** needs `VAULT_ENABLED=true`.
+- **Azure Key Vault** needs `AZURE_ENABLED=true`, and ignores `VAULT_ENABLED`. A cluster without HashiCorp Vault sets `VAULT_ENABLED=false` and `AZURE_ENABLED=true`, plus the usual Azure identity settings.
+- A tenant whose platform doesn't exist fails its `toVault` exports, rather than exporting them to HashiCorp Vault.
+
+> _Switching a platform from HashiCorp Vault to Azure Key Vault_: keep `VAULT_ENABLED=true` (and the Vault settings) on the provisioner until every domain of the platform, for the platform and each of its tenants, has been reprovisioned: deleting the old Vault secrets needs Vault. Disabling it in the same rollout fails every stack of the platform, on every retry. During the switch, the configuration-domain-controller may write a domain's `provider: azure` SecretProviderClass before the provisioner has exported all of its values to the vault, so pods restarted then can mount fewer secrets than expected; restart them once the platform's stacks have succeeded.
+
+#### Azure Key Vault
 
 Unlike Vault, where all the values of an object go into one JSON secret at `<platform>/<namespace>/<domain>/[<tenant>/]<object>`, every value gets its own Key Vault secret, because Key Vault has no paths and Azure SecretProviderClasses can't pick keys out of a JSON secret:
 
 - **Name**: `<domain>-<key>-<hash>`, so that a domain's secrets are listed together in the vault. In the domain and the rendered key, `__` is replaced by `--` and any other character Key Vault doesn't allow by `-`, and the end of the key is cut to fit 127 characters. The hash is the first 8 hex characters of the SHA-256 of `<platform>/<namespace>/<domain>/[<tenant>/]<object>/<key>`, so the same key exported from another platform, namespace, domain, tenant or object never collides. E.g. `MultiTenancy__Tenants__acme__ConnectionStrings__Password` exported for the `origination` domain is named `origination-MultiTenancy--Tenants--acme--ConnectionStrings--Password-<hash>`.
 - **Tags**: `platform`, `namespace`, `domain`, `tenant` (tenant targets only), `object`, and `configKey`, the rendered key. The rendered key can be at most 256 characters long.
+
+#### Identities and roles
+
+Three identities use each platform's vault:
+
+| Identity | Role on the vault | For |
+|---|---|---|
+| Provisioner | **Contributor** + **Key Vault Secrets Officer** | Writing and deleting the secrets (below) |
+| Configuration-domain-controller | **Key Vault Reader** | Listing the secrets' names and tags, never their values |
+| Pods (`secretStore.azureKeyVault.workloadIdentityClientId`) | **Key Vault Secrets User** | Reading the values through the Secrets Store CSI driver |
+
+The configuration-domain-controller signs in with the Azure SDK's default credential: with `global.azure.useWorkloadIdentity`, its service account gets `global.azure.configurationDomainController.workloadIdentityClientId` (or, if empty, the provisioner's `workloadIdentityClientId`), which needs a federated credential for `system:serviceaccount:<release namespace>:configuration-domain-controller`; otherwise it uses the `azure-config` / `azure-secret` client ID and secret.
+
+The platform's identity is a user-assigned managed identity, created once per platform, outside this chart and the provisioner. Neither creates it; the identity binding below only adds a federated credential to it. It must be in the cluster's tenant, but can be in any subscription and resource group:
+
+```sh
+az identity create -g <identity rg> -n <identity name> --query "{id:id, clientId:clientId, principalId:principalId}"
+```
+
+- `clientId` goes into the Platform's `secretStore.azureKeyVault.workloadIdentityClientId` and the ClusterRole below.
+- `principalId` gets **Key Vault Secrets User** on the platform's vault, granted on the vault itself, so that the pods can't read other vaults:
+
+  ```sh
+  az role assignment create --role "Key Vault Secrets User" \
+    --assignee-object-id <principalId> --assignee-principal-type ServicePrincipal \
+    --scope /subscriptions/<subscription>/resourceGroups/<vault rg>/providers/Microsoft.KeyVault/vaults/<vault>
+  ```
+
+  For a vault using access policies instead of Azure RBAC, give the identity an access policy with the secret **Get** permission instead.
+- `id`, the identity's resource ID (`/subscriptions/<subscription>/resourceGroups/<identity rg>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<identity name>`), is passed to the identity binding. For an existing identity, `az identity show -g <identity rg> -n <identity name>` returns all three.
+
+The pods sign in as their own service account, with the platform's identity. A namespace can have more service accounts than the 20 federated credentials an identity holds, so each cluster running the platform needs, outside this chart:
+
+1. The Key Vault provider of the Secrets Store CSI driver: `az aks enable-addons --addons azure-keyvault-secrets-provider -g <cluster rg> -n <cluster>`.
+2. An AKS identity binding of the platform's identity: `az aks identity-binding create -g <cluster rg> --cluster-name <cluster> --name <binding> --managed-identity-resource-id <identity id>`, with the identity's `id` from above. The command needs the `aks-preview` Azure CLI extension (`az extension add --name aks-preview`). Creating it adds one federated credential to the identity (`aks-identity-binding`), the only one the pods need, however many service accounts they use.
+3. A ClusterRole allowing the platform's namespaces to use it, bound to their service accounts:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: use-mi-<client id>
+rules:
+  - apiGroups: ["cid.wi.aks.azure.com"]
+    resources: ["<client id>"]
+    verbs: ["use-managed-identity"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: use-mi-<client id>
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: use-mi-<client id>
+subjects:
+  - apiGroup: rbac.authorization.k8s.io
+    kind: Group
+    name: system:serviceaccounts:qa-lsng # one per namespace of the platform
+```
+
+Pods need no annotation, label or federated credential of their own: the SecretProviderClass sets `useAzureTokenProxy: "true"`, so the Key Vault provider (v1.8.1 or later) gets the token through the identity binding's proxy, which checks the ClusterRole. A pod whose service account it doesn't cover doesn't start, with `403 Forbidden: service account is not an allowed subject for this identity binding`. When the binding is created, AKS adds the `api://AKSIdentityBinding` audience to the CSI driver. The cluster needs the OIDC issuer and workload identity (`az aks update --enable-oidc-issuer --enable-workload-identity`); identity bindings aren't supported with API server VNet integration.
 
 #### Required permissions
 
@@ -301,7 +376,7 @@ Without it, exporting works, but as soon as a value stops being exported, its st
 
 When a value stops being exported (or its tenant or domain is removed), its secret is deleted, which in Key Vault is a soft delete: it stays recoverable for the vault's retention period, and `azure-native` v2 doesn't recover it when the same value is exported again. Until it is purged (`az keyvault secret purge --vault-name <vault> --name <secret>`) or its retention ends, exporting the same key from the same object again fails with a conflict.
 
-Changing or removing `Platform.spec.azureKeyVault` reprovisions the platform's domains, for the platform and each of its tenants. In import mode (see below), secrets that already exist in the vault are adopted instead of created, since `azure-native` refuses to create a secret that exists (`cannot create already existing resource`); unlike stateful resources, a secret that doesn't exist yet is simply created. Azure never returns a secret's value, so the import leaves the secret as it is, and the post-import update then writes the exported value, attributes and tags.
+Changing a platform's store type, vault name or resource group reprovisions the platform's domains, for the platform and each of its tenants; changing only `workloadIdentityClientId` doesn't, since no export depends on it. In import mode (see below), secrets that already exist in the vault are adopted instead of created, since `azure-native` refuses to create a secret that exists (`cannot create already existing resource`); unlike stateful resources, a secret that doesn't exist yet is simply created. Azure never returns a secret's value, so the import leaves the secret as it is, and the post-import update then writes the exported value, attributes and tags.
 
 ### Importing existing resources (disaster recovery)
 
@@ -1172,3 +1247,7 @@ spec:
 - /charismaonline.qa/qa/global
 - /charismaonline.qa/qa-lsng/global
 - /charismaonline.qa/qa-lsng/origination/
+
+> _Note 5_ For a platform whose secret store is Azure Key Vault (see Secret store), the controller lists the vault's secrets (names and tags only) and picks the domain's by their tags, in the same three groups: `namespace=qa, domain=global`, `namespace=qa-lsng, domain=global` and `namespace=qa-lsng, domain=origination`, all with `platform=charismaonline.qa`. Tenants' secrets are included; secrets without a `configKey` tag, and disabled ones, are skipped. A later group wins on the same `configKey`; within a group, two secrets with the same `configKey` resolve to the alphabetically first name, and the domain gets a `DuplicateConfigKey` warning event. The output is the same `<domain>-aggregate` SecretProviderClass, with `provider: azure`, the vault, `AZURE_TENANT_ID`, the platform's `workloadIdentityClientId` with `useAzureTokenProxy: "true"` (see Secret store), and one object per key, mounted under its `configKey` (`objectAlias`). A domain without any secret gets a SecretProviderClass without objects, which the CSI driver refuses to mount (`missing object versions`): pods mounting it don't start until the domain has a secret. The vault is polled every 2 minutes. A Key Vault platform needs `AZURE_ENABLED=true` on the controller, otherwise its domains fail to sync.
+
+> _Note 6_ Without the Secrets Store CSI driver (no SecretProviderClass API), the controller still aggregates config maps and kube secrets; domains whose secrets would go to a SecretProviderClass get a warning event.

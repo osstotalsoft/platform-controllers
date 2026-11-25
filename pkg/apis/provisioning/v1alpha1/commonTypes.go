@@ -5,13 +5,12 @@ import apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1
 type ValueExport struct {
 	// +optional
 	ToConfigMap ConfigMapTemplate `json:"toConfigMap,omitempty"`
+	// ToVault exports the value to the platform's secret store (Platform.spec.secretStore): HashiCorp Vault, or
+	// Azure Key Vault.
 	// +optional
 	ToVault VaultSecretTemplate `json:"toVault,omitempty"`
 	// +optional
 	ToKubeSecret KubeSecretTemplate `json:"toKubeSecret,omitempty"`
-	// ToAzureKeyVault exports the value as a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
-	// +optional
-	ToAzureKeyVault AzureKeyVaultSecretTemplate `json:"toAzureKeyVault,omitempty"`
 }
 
 type ConfigMapTemplate struct {
@@ -23,13 +22,10 @@ type KubeSecretTemplate struct {
 }
 
 type VaultSecretTemplate struct {
-	KeyTemplate string `json:"keyTemplate"`
-}
-
-type AzureKeyVaultSecretTemplate struct {
-	// KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
-	// (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
-	// and keeps the rendered key in its configKey tag.
+	// KeyTemplate renders the configuration key the value is exported as. In HashiCorp Vault, it is the key of the
+	// object's secret. In Azure Key Vault, the value gets its own secret, named after the key (characters Key Vault
+	// doesn't allow replaced, "__" by "--") with a hash suffix that keeps it unique in the vault, and tagged with it
+	// (configKey).
 	KeyTemplate string `json:"keyTemplate"`
 }
 

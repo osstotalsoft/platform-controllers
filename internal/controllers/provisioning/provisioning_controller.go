@@ -433,7 +433,7 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 		return nil, err
 	}
 
-	azureKeyVault, err := c.resolveAzureKeyVault(target)
+	secretStore, err := c.resolveSecretStore(target)
 	if err != nil {
 		return nil, err
 	}
@@ -592,30 +592,45 @@ func (c *ProvisioningController) provisioningResourcesFor(target ProvisioningTar
 		MsSqlDbs:               mssqlDbs,
 		LocalScripts:           localScripts,
 		KeycloakClients:        keycloakClients,
-		AzureKeyVault:          azureKeyVault,
+		SecretStore:            secretStore,
 	}, nil
 }
 
-// resolveAzureKeyVault returns the Azure Key Vault of target's platform, or nil when the platform has none (or, for a
-// tenant, when its platform cannot be found: only its toAzureKeyVault exports fail then, not its whole provisioning).
-// The platform is read from the informer cache: a change to its vault re-enqueues its domains (see
-// enqueuePlatformAndTenants).
-func (c *ProvisioningController) resolveAzureKeyVault(target ProvisioningTarget) (*platformv1.AzureKeyVaultSpec, error) {
+// resolveSecretStore returns the secret store of target's platform, or nil for a tenant whose platform cannot be found:
+// only its toVault exports fail then, not its whole provisioning. The platform is read from the informer cache: a
+// change to its store re-enqueues its domains (see addPlatformHandlers).
+func (c *ProvisioningController) resolveSecretStore(target ProvisioningTarget) (*SecretStore, error) {
+	storeOf := func(platform *platformv1.Platform) *SecretStore {
+		return &SecretStore{Type: platform.Spec.SecretStoreType(), AzureKeyVault: platform.Spec.AzureKeyVault()}
+	}
 	return MatchTarget(target,
-		func(tenant *platformv1.Tenant) tuple.T2[*platformv1.AzureKeyVaultSpec, error] {
+		func(tenant *platformv1.Tenant) tuple.T2[*SecretStore, error] {
 			platform, err := c.platformInformer.Lister().Get(tenant.Spec.PlatformRef)
 			if errors.IsNotFound(err) {
-				return tuple.New2[*platformv1.AzureKeyVaultSpec, error](nil, nil)
+				return tuple.New2[*SecretStore, error](nil, nil)
 			}
 			if err != nil {
-				return tuple.New2[*platformv1.AzureKeyVaultSpec, error](nil, fmt.Errorf("cannot get platform %q of tenant %q: %w", tenant.Spec.PlatformRef, tenant.GetName(), err))
+				return tuple.New2[*SecretStore, error](nil, fmt.Errorf("cannot get platform %q of tenant %q: %w", tenant.Spec.PlatformRef, tenant.GetName(), err))
 			}
-			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault, nil)
+			return tuple.New2[*SecretStore, error](storeOf(platform), nil)
 		},
-		func(platform *platformv1.Platform) tuple.T2[*platformv1.AzureKeyVaultSpec, error] {
-			return tuple.New2[*platformv1.AzureKeyVaultSpec, error](platform.Spec.AzureKeyVault, nil)
+		func(platform *platformv1.Platform) tuple.T2[*SecretStore, error] {
+			return tuple.New2[*SecretStore, error](storeOf(platform), nil)
 		},
 	).Values()
+}
+
+// secretStoreChanged reports whether a platform's secret store changed in a way its exports depend on: its type or its
+// vault. The vault's workload identity is only used by the configuration domains' SecretProviderClasses.
+func secretStoreChanged(old, new platformv1.PlatformSpec) bool {
+	if old.SecretStoreType() != new.SecretStoreType() {
+		return true
+	}
+	oldVault, newVault := old.AzureKeyVault(), new.AzureKeyVault()
+	if oldVault == nil || newVault == nil {
+		return oldVault != newVault
+	}
+	return oldVault.Name != newVault.Name || oldVault.ResourceGroupName != newVault.ResourceGroupName
 }
 
 // resolveTenantCategory resolves the TenantCategory referenced by target.Spec.CategoryRef (Tenant targets only).
@@ -860,8 +875,8 @@ func decodeKey(key string) (platform, tenant, domain string, err error) {
 	return "", "", "", fmt.Errorf("cannot decode key: %v", key)
 }
 
-// addPlatformHandlers calls handler for a Platform whose Azure Key Vault changed, which every toAzureKeyVault export of
-// the platform and its tenants is written to. Other Platform changes don't affect provisioning.
+// addPlatformHandlers calls handler for a Platform whose secret store changed (see secretStoreChanged), which every
+// toVault export of the platform and its tenants is written to. Other Platform changes don't affect provisioning.
 func addPlatformHandlers(informer platformInformersv1.PlatformInformer, handler func(platform string)) (cache.ResourceEventHandlerRegistration, error) {
 	return informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
@@ -872,8 +887,8 @@ func addPlatformHandlers(informer platformInformersv1.PlatformInformer, handler 
 			oldT := oldObj.(*platformv1.Platform)
 			newT := newObj.(*platformv1.Platform)
 			klog.V(4).InfoS("Platform updated", "name", newT.Name)
-			if !reflect.DeepEqual(oldT.Spec.AzureKeyVault, newT.Spec.AzureKeyVault) {
-				klog.V(4).InfoS("Platform Azure Key Vault updated", "name", newT.Name)
+			if secretStoreChanged(oldT.Spec, newT.Spec) {
+				klog.V(4).InfoS("Platform secret store updated", "name", newT.Name)
 				handler(newT.Name)
 			}
 		},
