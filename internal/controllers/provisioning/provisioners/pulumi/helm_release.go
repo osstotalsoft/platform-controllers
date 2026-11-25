@@ -18,9 +18,10 @@ import (
 func deployHelmRelease(target provisioning.ProvisioningTarget,
 	hr *provisioningv1.HelmRelease,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*fluxcd.HelmRelease, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("HelmRelease")
 
 	args, err := pulumiFluxHrArgs(target, hr)

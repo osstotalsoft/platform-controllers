@@ -18,9 +18,10 @@ func deployAzureVirtualMachine(target provisioning.ProvisioningTarget,
 	resourceGroupName pulumi.StringOutput,
 	azureVM *provisioningv1.AzureVirtualMachine,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*compute.VirtualMachine, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualMachine")
 
 	vmName := provisioning.MatchTarget(target,

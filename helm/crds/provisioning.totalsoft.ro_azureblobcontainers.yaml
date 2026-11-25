@@ -93,6 +93,19 @@ spec:
                     accountName:
                       description: The storage account name.
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -118,6 +131,19 @@ spec:
                     blobEndpoint:
                       description: The storage account's blob endpoint, e.g. https://account.blob.core.windows.net/
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -143,6 +169,19 @@ spec:
                     containerName:
                       description: The container name.
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -170,6 +209,19 @@ spec:
                         The container URL with a SAS token granting read, add, create, write, delete and list on this
                         container only. Secret: export it to the vault or a Kubernetes secret.
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -195,6 +247,19 @@ spec:
                     containerUrl:
                       description: The container URL, e.g. https://account.blob.core.windows.net/container
                       properties:
+                        toAzureKeyVault:
+                          description: ToAzureKeyVault exports the value as a secret
+                            of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                          properties:
+                            keyTemplate:
+                              description: |-
+                                KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                and keeps the rendered key in its configKey tag.
+                              type: string
+                          required:
+                          - keyTemplate
+                          type: object
                         toConfigMap:
                           properties:
                             keyTemplate:
@@ -232,6 +297,19 @@ spec:
                         properties:
                           identityClientId:
                             properties:
+                              toAzureKeyVault:
+                                description: ToAzureKeyVault exports the value as
+                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                                properties:
+                                  keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                      and keeps the rendered key in its configKey tag.
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:
@@ -256,6 +334,19 @@ spec:
                             type: object
                           identityPrincipalId:
                             properties:
+                              toAzureKeyVault:
+                                description: ToAzureKeyVault exports the value as
+                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                                properties:
+                                  keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                      and keeps the rendered key in its configKey tag.
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:
@@ -297,6 +388,19 @@ spec:
                             description: 'The container URL with this SAS token. Secret:
                               export it to the vault or a Kubernetes secret.'
                             properties:
+                              toAzureKeyVault:
+                                description: ToAzureKeyVault exports the value as
+                                  a secret of the platform's Azure Key Vault (Platform.spec.azureKeyVault).
+                                properties:
+                                  keyTemplate:
+                                    description: |-
+                                      KeyTemplate renders the configuration key the value is exported as. The Key Vault secret is named after it
+                                      (characters Key Vault doesn't allow replaced, "__" by "--"), with a hash suffix that keeps it unique in the vault,
+                                      and keeps the rendered key in its configKey tag.
+                                    type: string
+                                required:
+                                - keyTemplate
+                                type: object
                               toConfigMap:
                                 properties:
                                   keyTemplate:

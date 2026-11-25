@@ -52,7 +52,7 @@ func deployAzureBlobContainer(target provisioning.ProvisioningTarget,
 	imports *importOptions,
 	ctx *pulumi.Context) (*storage.BlobContainer, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureBlobContainer")
 	spec := blobContainer.Spec
 

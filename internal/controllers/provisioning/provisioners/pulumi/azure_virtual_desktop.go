@@ -403,10 +403,10 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 }
 
 func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceGroupName pulumi.StringOutput,
-	avd *provisioningv1.AzureVirtualDesktop, dependencies []pulumi.Resource,
+	avd *provisioningv1.AzureVirtualDesktop, dependencies []pulumi.Resource, imports *importOptions,
 	ctx *pulumi.Context) (*AzureVirtualDesktop, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureVirtualDesktop")
 
 	hostPoolName := avd.Spec.HostPoolName

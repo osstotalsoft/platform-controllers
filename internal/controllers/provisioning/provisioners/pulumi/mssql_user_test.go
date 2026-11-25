@@ -746,6 +746,7 @@ func TestValidateExportKeys(t *testing.T) {
 		{"toConfigMap", configMapExport},
 		{"toKubeSecret", kubeSecretExport},
 		{"toVault", vaultExport},
+		{"toAzureKeyVault", azureKeyVaultExport},
 	} {
 		t.Run("colliding rendered keys in "+tt.destination, func(t *testing.T) {
 			err := validateExportKeys(map[string]exportTemplateWithValue{
@@ -761,6 +762,13 @@ func TestValidateExportKeys(t *testing.T) {
 			"users[0].username": value(configMapExport("{{ if false }}x{{ end }}")),
 		}, templateContext, "d")
 		assert.ErrorContains(t, err, "exports[domain=d]: users[0].username.toConfigMap.keyTemplate renders an empty key")
+	})
+
+	t.Run("key rendering empty in toAzureKeyVault", func(t *testing.T) {
+		err := validateExportKeys(map[string]exportTemplateWithValue{
+			"users[0].password": value(azureKeyVaultExport("{{ if false }}x{{ end }}")),
+		}, templateContext, "d")
+		assert.ErrorContains(t, err, "exports[domain=d]: users[0].password.toAzureKeyVault.keyTemplate renders an empty key")
 	})
 
 	t.Run("invalid template", func(t *testing.T) {

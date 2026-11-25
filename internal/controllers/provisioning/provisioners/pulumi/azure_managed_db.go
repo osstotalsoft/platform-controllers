@@ -19,7 +19,7 @@ func deployAzureManagedDb(
 	imports *importOptions,
 	ctx *pulumi.Context) (*azureSql.ManagedDatabase, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzureManagedDatabase")
 
 	if err := validateUniqueNames(azureDb.Spec.Users, "users"); err != nil {

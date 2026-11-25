@@ -17,9 +17,10 @@ import (
 func deployKeycloakClient(target provisioning.ProvisioningTarget,
 	keycloakClient *provisioningv1.KeycloakClient,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*openid.Client, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("KeycloakClient")
 
 	spec := keycloakClient.Spec

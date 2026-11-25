@@ -16,9 +16,10 @@ func deployAzurePowerShellScript(target provisioning.ProvisioningTarget,
 	resourceGroupName pulumi.StringOutput,
 	azurePowerShellScript *provisioningv1.AzurePowerShellScript,
 	dependencies []pulumi.Resource,
+	imports *importOptions,
 	ctx *pulumi.Context) (*resources.AzurePowerShellScript, error) {
 
-	valueExporter := handleValueExport(target)
+	valueExporter := handleValueExport(target, imports)
 	gvk := provisioningv1.SchemeGroupVersion.WithKind("AzurePowerShellScript")
 
 	tc := provisioning.GetTemplateContext(target)

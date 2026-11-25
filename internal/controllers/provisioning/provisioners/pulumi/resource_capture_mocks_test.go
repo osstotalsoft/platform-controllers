@@ -25,6 +25,7 @@ type resourceCaptureMocks struct {
 	byType      map[string][]pulumi.MockResourceArgs
 	byName      map[string]pulumi.MockResourceArgs
 	callResults map[string]func(args resource.PropertyMap) resource.PropertyMap
+	callErrors  map[string]error
 	calls       map[string][]resource.PropertyMap
 	identityIds map[string][2]string
 }
@@ -37,6 +38,7 @@ func newResourceCaptureMocks() *resourceCaptureMocks {
 		byType:      map[string][]pulumi.MockResourceArgs{},
 		byName:      map[string]pulumi.MockResourceArgs{},
 		callResults: map[string]func(args resource.PropertyMap) resource.PropertyMap{},
+		callErrors:  map[string]error{},
 		calls:       map[string][]resource.PropertyMap{},
 		identityIds: map[string][2]string{},
 	}
@@ -82,7 +84,11 @@ func (m *resourceCaptureMocks) Call(args pulumi.MockCallArgs) (resource.Property
 	m.mu.Lock()
 	m.calls[args.Token] = append(m.calls[args.Token], args.Args)
 	result, ok := m.callResults[args.Token]
+	callErr := m.callErrors[args.Token]
 	m.mu.Unlock()
+	if callErr != nil {
+		return nil, callErr
+	}
 	if ok {
 		return result(args.Args), nil
 	}
@@ -100,6 +106,14 @@ func (m *resourceCaptureMocks) stubCallFunc(token string, result func(args resou
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.callResults[token] = result
+}
+
+// stubCallError makes the given Invoke token fail with err. Must be called before the test's
+// pulumi.RunErr starts.
+func (m *resourceCaptureMocks) stubCallError(token string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.callErrors[token] = err
 }
 
 // callArgs returns the arguments of the last Invoke of the given token (nil if it wasn't invoked).

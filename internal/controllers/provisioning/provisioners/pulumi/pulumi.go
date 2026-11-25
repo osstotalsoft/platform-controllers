@@ -77,7 +77,7 @@ func (Provisioner) Provision(target provisioning.ProvisioningTarget, domain stri
 			}
 		}
 		imports := newImportOptions(target, infra)
-		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, deployFunc(target, domain, infra, needsResourceGroup, imports))
+		upRes, result.Error = updateStack(stackName, target.GetPlatformName(), imports, infra.AzureKeyVault, deployFunc(target, domain, infra, needsResourceGroup, imports))
 		if result.Error != nil {
 			return result
 		}
@@ -148,10 +148,10 @@ func hasChanges(summary auto.UpdateSummary) bool {
 	return false
 }
 
-func updateStack(stackName, projectName string, imports *importOptions, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
+func updateStack(stackName, projectName string, imports *importOptions, azureKeyVault *platformv1.AzureKeyVaultSpec, deployFunc pulumi.RunFunc) (auto.UpResult, error) {
 	ctx := context.Background()
 
-	s, err := createOrSelectStack(ctx, stackName, projectName, deployFunc)
+	s, err := createOrSelectStack(ctx, stackName, projectName, azureKeyVault, deployFunc)
 	if err != nil {
 		klog.ErrorS(err, "Failed to create or select stack", "name", stackName)
 		return auto.UpResult{}, err
@@ -228,7 +228,9 @@ func tryDestroyAndDeleteStack(stackName, projectName string, deployFunc pulumi.R
 	return res, nil
 }
 
-func createOrSelectStack(ctx context.Context, stackName, projectName string, deployFunc pulumi.RunFunc) (auto.Stack, error) {
+// createOrSelectStack creates the stack or selects the existing one, installs the plugins, and sets the stack
+// configuration: the providers' settings, and the platform's Azure Key Vault that toAzureKeyVault exports are written to.
+func createOrSelectStack(ctx context.Context, stackName, projectName string, azureKeyVault *platformv1.AzureKeyVaultSpec, deployFunc pulumi.RunFunc) (auto.Stack, error) {
 	s, err := auto.UpsertStackInlineSource(ctx, stackName, projectName, deployFunc)
 	//auto.EnvVars(map[string]string{})
 	if err != nil {
@@ -348,6 +350,10 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, dep
 		}
 	}
 
+	for key, value := range azureKeyVaultConfig(projectName, azureEnabled, azureKeyVault) {
+		configValues[key] = value
+	}
+
 	if len(configValues) > 0 {
 		err := s.SetAllConfig(ctx, configValues)
 		if err != nil {
@@ -391,31 +397,31 @@ func deployResource(target provisioning.ProvisioningTarget,
 
 	switch kind {
 	case string(provisioning.ProvisioningResourceKindKeycloakClient):
-		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, ctx)
+		return deployKeycloakClient(target, res.(*provisioningv1.KeycloakClient), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindMinioBucket):
 		return deployMinioBucket(target, res.(*provisioningv1.MinioBucket), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureBlobContainer):
 		return deployAzureBlobContainer(target, res.(*provisioningv1.AzureBlobContainer), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindEntraUser):
-		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, ctx)
+		return deployEntraUser(target, res.(*provisioningv1.EntraUser), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureDatabase):
 		return deployAzureDb(target, res.(*provisioningv1.AzureDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureManagedDatabase):
 		return deployAzureManagedDb(target, res.(*provisioningv1.AzureManagedDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzurePowerShellScript):
-		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, ctx)
+		return deployAzurePowerShellScript(target, *rgName, res.(*provisioningv1.AzurePowerShellScript), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindHelmRelease):
-		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, ctx)
+		return deployHelmRelease(target, res.(*provisioningv1.HelmRelease), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindHelmReleaseV2):
-		return deployHelmReleaseV2(target, res.(*provisioningv1.HelmReleaseV2), dependencies, ctx)
+		return deployHelmReleaseV2(target, res.(*provisioningv1.HelmReleaseV2), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualMachine):
-		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, ctx)
+		return deployAzureVirtualMachine(target, *rgName, res.(*provisioningv1.AzureVirtualMachine), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindAzureVirtualDesktop):
-		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, ctx)
+		return deployAzureVirtualDesktop(target, *rgName, res.(*provisioningv1.AzureVirtualDesktop), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindMsSqlDatabase):
 		return deployMsSqlDb(target, res.(*provisioningv1.MsSqlDatabase), dependencies, imports, ctx)
 	case string(provisioning.ProvisioningResourceKindLocalScript):
-		return deployLocalScript(target, res.(*provisioningv1.LocalScript), dependencies, ctx)
+		return deployLocalScript(target, res.(*provisioningv1.LocalScript), dependencies, imports, ctx)
 	default:
 		return nil, fmt.Errorf("unknown resource kind: %s", kind)
 	}
