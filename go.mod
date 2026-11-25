@@ -10,15 +10,15 @@ require (
 	github.com/hashicorp/vault/api v1.23.0
 	github.com/hashicorp/vault/api/auth/kubernetes v0.12.0
 	github.com/json-iterator/go v1.1.12
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/keyvault/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/network/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/resources/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/sql/v2 v2.92.3
-	github.com/pulumi/pulumi-azure-native-sdk/storage/v2 v2.92.3
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/keyvault/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/resources/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/sql/v3 v3.32.0
+	github.com/pulumi/pulumi-azure-native-sdk/storage/v3 v3.32.0
 	github.com/pulumi/pulumi-azuread/sdk/v5 v5.53.9
 	github.com/pulumi/pulumi-command/sdk v1.2.1
 	github.com/pulumi/pulumi-keycloak/sdk/v6 v6.12.0
@@ -26,7 +26,7 @@ require (
 	github.com/pulumi/pulumi-minio/sdk v0.17.0
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.0
 	github.com/pulumi/pulumi-vault/sdk/v5 v5.20.0
-	github.com/pulumi/pulumi/sdk/v3 v3.248.0
+	github.com/pulumi/pulumi/sdk/v3 v3.256.0
 	github.com/pulumiverse/pulumi-mssql/sdk v0.0.8
 	github.com/stretchr/testify v1.12.1
 	google.golang.org/grpc v1.83.2
@@ -56,6 +56,7 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.32.0 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
 	honnef.co/go/tools v0.8.2 // indirect
@@ -67,7 +68,6 @@ require (
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/atotto/clipboard v0.1.4 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
@@ -159,8 +159,6 @@ require (
 	github.com/pkg/term v1.1.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/esc v0.25.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v2 v2.92.3 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/ryanuber/go-glob v1.0.0 // indirect

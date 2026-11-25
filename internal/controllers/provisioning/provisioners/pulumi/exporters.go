@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	keyvault "github.com/pulumi/pulumi-azure-native-sdk/keyvault/v2"
+	keyvault "github.com/pulumi/pulumi-azure-native-sdk/keyvault/v3"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	vault "github.com/pulumi/pulumi-vault/sdk/v5/go/vault/generic"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
@@ -301,8 +301,8 @@ func azureKeyVaultTags(target provisioning.ProvisioningTarget, exportContext Exp
 
 // exportToAzureKeyVault exports each value to its own secret of the vault: Key Vault has no paths, and
 // SecretProviderClasses can't pick keys out of a JSON secret, unlike with Vault. azure-native writes the secrets through
-// ARM, and deletes them through the vault's data plane, where they are only soft-deleted: until one is purged or its
-// retention ends, a secret with the same name can't be created again (azure-native v2 doesn't recover it).
+// ARM, and deletes them through the vault's data plane, where they are only soft-deleted: when a secret with the same
+// name is created again, azure-native v3 recovers the soft-deleted one before writing the new value.
 func exportToAzureKeyVault(ctx *pulumi.Context, vaultResourceGroupName, vaultName, domain, objectPath string, tags map[string]string, templateContext interface{},
 	values map[string]exportTemplateWithValue, imports *importOptions, opts ...pulumi.ResourceOption) error {
 

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/storage/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/storage/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	pulumiTime "github.com/pulumiverse/pulumi-time/sdk/go/time"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/resources/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/resources/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"totalsoft.ro/platform-controllers/internal/controllers/provisioning"
 	"totalsoft.ro/platform-controllers/internal/template"

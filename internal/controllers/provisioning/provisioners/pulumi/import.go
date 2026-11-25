@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
-	keyvault "github.com/pulumi/pulumi-azure-native-sdk/keyvault/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v3"
+	keyvault "github.com/pulumi/pulumi-azure-native-sdk/keyvault/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/pulumi/pulumi/sdk/v3/go/common/apitype"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"

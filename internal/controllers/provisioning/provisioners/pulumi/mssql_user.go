@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	mssql "github.com/pulumiverse/pulumi-mssql/sdk/go/mssql"
 	"k8s.io/apimachinery/pkg/util/validation"

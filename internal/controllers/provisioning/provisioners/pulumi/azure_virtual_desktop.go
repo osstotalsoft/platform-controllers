@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/compute/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/network/v2"
-	"github.com/pulumi/pulumi-azure-native-sdk/storage/v2"
+	"github.com/pulumi/pulumi-azure-native-sdk/authorization/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/compute/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/desktopvirtualization/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/network/v3"
+	"github.com/pulumi/pulumi-azure-native-sdk/storage/v3"
 	"github.com/pulumi/pulumi-azuread/sdk/v5/go/azuread"
 	"github.com/pulumi/pulumi-random/sdk/v4/go/random"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
@@ -393,6 +393,9 @@ func NewAzureVirtualDesktopVM(ctx *pulumi.Context, name string, args *AzureVirtu
 			},
 		},
 		TimeoutInSeconds: pulumi.Int(60),
+		// azure-native v2 defaulted this to false in the SDK, v3 no longer does. Set it explicitly so the
+		// inputs of the run commands deployed with v2 don't change.
+		TreatFailureAsDeploymentFailure: pulumi.Bool(false),
 	}, pulumi.Parent(avdVM.VirtualMachine))
 
 	if err != nil {
