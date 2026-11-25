@@ -10,6 +10,7 @@ import (
 const (
 	ProvisioningResourceKindEntraUser             = provisioningv1.ProvisioningResourceKind("EntraUser")
 	ProvisioningResourceKindMinioBucket           = provisioningv1.ProvisioningResourceKind("MinioBucket")
+	ProvisioningResourceKindAzureBlobContainer    = provisioningv1.ProvisioningResourceKind("AzureBlobContainer")
 	ProvisioningResourceKindAzureDatabase         = provisioningv1.ProvisioningResourceKind("AzureDatabase")
 	ProvisioningResourceKindAzureManagedDatabase  = provisioningv1.ProvisioningResourceKind("AzureManagedDatabase")
 	ProvisioningResourceKindAzurePowerShellScript = provisioningv1.ProvisioningResourceKind("AzurePowerShellScript")
@@ -25,6 +26,7 @@ const (
 type InfrastructureManifests struct {
 	EntraUsers             []*provisioningv1.EntraUser
 	MinioBuckets           []*provisioningv1.MinioBucket
+	AzureBlobContainers    []*provisioningv1.AzureBlobContainer
 	AzureDbs               []*provisioningv1.AzureDatabase
 	AzureManagedDbs        []*provisioningv1.AzureManagedDatabase
 	AzurePowerShellScripts []*provisioningv1.AzurePowerShellScript
@@ -60,6 +62,7 @@ type ProvisioningResource interface {
 func (infra *InfrastructureManifests) IsEmpty() bool {
 	return len(infra.EntraUsers) == 0 &&
 		len(infra.MinioBuckets) == 0 &&
+		len(infra.AzureBlobContainers) == 0 &&
 		len(infra.AzureDbs) == 0 &&
 		len(infra.AzureManagedDbs) == 0 &&
 		len(infra.AzurePowerShellScripts) == 0 &&
@@ -78,6 +81,8 @@ func (infra *InfrastructureManifests) Get(id provisioningv1.ProvisioningResource
 		return findByName(id.Name, infra.KeycloakClients)
 	case ProvisioningResourceKindMinioBucket:
 		return findByName(id.Name, infra.MinioBuckets)
+	case ProvisioningResourceKindAzureBlobContainer:
+		return findByName(id.Name, infra.AzureBlobContainers)
 	case ProvisioningResourceKindEntraUser:
 		return findByName(id.Name, infra.EntraUsers)
 	case ProvisioningResourceKindAzureDatabase:
