@@ -765,12 +765,16 @@ func deployAzureVirtualDesktop(target provisioning.ProvisioningTarget, resourceG
 	storageAccountName = storageAccountName[:int32(math.Min(float64(len(storageAccountName)), 16))] // extra 8 chars for UID, total max 24 chars
 
 	storageAccount, err := storage.NewStorageAccount(ctx, storageAccountName, &storage.StorageAccountArgs{
-		Kind:              pulumi.String(storage.KindStorage),
+		// General-purpose v1 ("Storage") accounts are retired and can no longer be created
+		Kind:              pulumi.String(storage.KindStorageV2),
 		ResourceGroupName: resourceGroupName,
 		Sku: &storage.SkuArgs{
 			Name: pulumi.String(storage.SkuName_Standard_LRS),
 		},
-	}, pulumi.Parent(avdComponent))
+	}, pulumi.Parent(avdComponent),
+		// Existing accounts were created as "Storage" (v1); ignore kind so switching to StorageV2
+		// only affects new accounts and never updates/replaces an existing one (and its FSLogix profiles)
+		pulumi.IgnoreChanges([]string{"kind"}))
 	if err != nil {
 		return nil, err
 	}
