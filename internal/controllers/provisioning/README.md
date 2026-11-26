@@ -242,7 +242,7 @@ The controller installs the following Pulumi plugins at startup:
 
 | Provider | Version | Used for |
 |----------|---------|---------|
-| `azure-native` | v2.92.2 | Azure Resource Manager provisioning |
+| `azure-native` | v3.32.0 | Azure Resource Manager provisioning |
 | `azuread` | v5.53.8 | Azure Entra ID (users, service principals) |
 | `kubernetes` | v4.30.0 | Helm releases, Kubernetes resources |
 | `vault` | v5.20.0 | HashiCorp Vault secret storage |
