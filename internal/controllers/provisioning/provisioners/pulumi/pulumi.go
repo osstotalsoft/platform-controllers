@@ -290,7 +290,7 @@ func createOrSelectStack(ctx context.Context, stackName, projectName string, sec
 		klog.Errorf("Failed to install minio plugin: %v", err)
 		return auto.Stack{}, err
 	}
-	err = w.InstallPlugin(ctx, "keycloak", "v6.10.1")
+	err = w.InstallPlugin(ctx, "keycloak", "v6.15.0")
 	if err != nil {
 		klog.Errorf("Failed to install keycloak plugin: %v", err)
 		return auto.Stack{}, err
