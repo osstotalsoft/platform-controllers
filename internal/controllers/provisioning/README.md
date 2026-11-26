@@ -247,7 +247,7 @@ The controller installs the following Pulumi plugins at startup:
 | `kubernetes` | v4.30.0 | Helm releases, Kubernetes resources |
 | `vault` | v5.20.0 | HashiCorp Vault secret storage |
 | `minio` | v0.16.9 | Minio / S3-compatible buckets |
-| `keycloak` | v6.10.1 | Keycloak OpenID Connect clients |
+| `keycloak` | v6.15.0 | Keycloak OpenID Connect clients |
 | `mssql` | v0.0.8 | Microsoft SQL Server databases |
 | `random` | v4.19.2 | Random value generation |
 | `command` | v1.2.1 | Local script execution |
