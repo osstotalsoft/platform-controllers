@@ -1132,10 +1132,14 @@ Definition can be found [here](./helm/crds/provisioning.totalsoft.ro_keycloakcli
 
 The `KeycloakClient` spec has the following fields:
 
-- `clientName`: The display name of the client in Keycloak.
-- `clientId`: The client identifier used by applications.
+- `clientName`: The display name of the client in Keycloak. For a `Tenant` target the tenant name is appended (`<clientName>-<tenant>`).
+- `clientId`: The client identifier used by applications. For a `Tenant` target the tenant name is appended (`<clientId>-<tenant>`).
 - `realm`: The Keycloak realm where the client will be created.
 - `organization`: Optional organization identifier/template used to associate the service account with a Keycloak organization.
+- `rootUrl`, `baseUrl`: Optional root and base URLs of the client.
+- `redirectUris`, `postLogoutRedirectUris`, `webOrigins`: Optional lists of valid redirect URIs, post-logout redirect URIs and allowed CORS origins.
+- `frontchannelLogout`, `frontchannelLogoutUrl`: Optional front-channel logout switch and URL.
+- `pkceCodeChallengeMethod`: Optional PKCE code challenge method, e.g. `S256`.
 - `enabled`: Indicates if the client is enabled.
 - `consentRequired`: Indicates if user consent is required.
 - `publicClient`: Indicates whether the client is public or confidential.
@@ -1152,6 +1156,20 @@ The `KeycloakClient` spec has the following fields:
 - `target`: The provisioning target. Can be `Tenant` or `Platform`.
 - `exports`: Exported values such as `clientId` and `clientSecret`.
 - `dependsOn`: Optional dependencies on other provisioning resources.
+
+The URL fields (`rootUrl`, `baseUrl`, `redirectUris`, `postLogoutRedirectUris`, `webOrigins`, `frontchannelLogoutUrl`) are Go templates rendered against the provisioning target, like `organization` and the export key templates. A `Tenant`-targeted client can therefore point each tenant's client at that tenant's application:
+
+```yaml
+spec:
+  clientId: backoffice # provisioned as backoffice-<tenant>
+  rootUrl: https://backoffice-{{ .Tenant.Code }}.example.com/
+  redirectUris:
+    - https://backoffice-{{ .Tenant.Code }}.example.com/*
+  webOrigins:
+    - https://backoffice-{{ .Tenant.Code }}.example.com
+  target:
+    category: Tenant
+```
 
 ## Example
 

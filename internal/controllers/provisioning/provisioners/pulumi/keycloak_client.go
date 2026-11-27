@@ -37,6 +37,13 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 		accessType = "PUBLIC"
 	}
 
+	// The URL fields may reference the target (e.g. https://app-{{ .Tenant.Code }}.example.com) so a
+	// single Tenant-targeted KeycloakClient can provision one client per tenant. Values without a
+	// template are left unchanged.
+	if err = renderKeycloakClientUrls(&spec, provisioning.GetTemplateContext(target)); err != nil {
+		return nil, err
+	}
+
 	clientName := provisioning.MatchTarget(target,
 		func(tenant *platformv1.Tenant) string {
 			return fmt.Sprintf("%s-%s", spec.ClientName, tenant.GetName())
@@ -221,6 +228,55 @@ func deployKeycloakClient(target provisioning.ProvisioningTarget,
 	}
 
 	return client, nil
+}
+
+// renderKeycloakClientUrls renders the URL fields of spec against the template context tc. spec is a
+// copy of the resource's spec, but its slices still share their backing arrays with the resource, so
+// the slices are replaced rather than rendered in place.
+func renderKeycloakClientUrls(spec *provisioningv1.KeycloakClientSpec, tc any) error {
+	var err error
+	if spec.RootUrl, err = renderKeycloakClientField("rootUrl", spec.RootUrl, tc); err != nil {
+		return err
+	}
+	if spec.BaseUrl, err = renderKeycloakClientField("baseUrl", spec.BaseUrl, tc); err != nil {
+		return err
+	}
+	if spec.FrontchannelLogoutUrl, err = renderKeycloakClientField("frontchannelLogoutUrl", spec.FrontchannelLogoutUrl, tc); err != nil {
+		return err
+	}
+	if spec.RedirectUris, err = renderKeycloakClientFields("redirectUris", spec.RedirectUris, tc); err != nil {
+		return err
+	}
+	if spec.PostLogoutRedirectUris, err = renderKeycloakClientFields("postLogoutRedirectUris", spec.PostLogoutRedirectUris, tc); err != nil {
+		return err
+	}
+	if spec.WebOrigins, err = renderKeycloakClientFields("webOrigins", spec.WebOrigins, tc); err != nil {
+		return err
+	}
+	return nil
+}
+
+func renderKeycloakClientField(field, value string, tc any) (string, error) {
+	rendered, err := template.ParseTemplate(value, tc)
+	if err != nil {
+		return "", fmt.Errorf("failed to render keycloak client %s %q: %w", field, value, err)
+	}
+	return rendered, nil
+}
+
+func renderKeycloakClientFields(field string, values []string, tc any) ([]string, error) {
+	if values == nil {
+		return nil, nil
+	}
+	rendered := make([]string, len(values))
+	for i, value := range values {
+		r, err := renderKeycloakClientField(field, value, tc)
+		if err != nil {
+			return nil, err
+		}
+		rendered[i] = r
+	}
+	return rendered, nil
 }
 
 func addToOrganization(target provisioning.ProvisioningTarget,
