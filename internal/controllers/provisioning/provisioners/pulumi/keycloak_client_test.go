@@ -8,6 +8,7 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	platformv1 "totalsoft.ro/platform-controllers/pkg/apis/platform/v1alpha1"
 	provisioningv1 "totalsoft.ro/platform-controllers/pkg/apis/provisioning/v1alpha1"
 )
 
@@ -160,6 +161,109 @@ func TestDeployKeycloakClient(t *testing.T) {
 
 		optionalScopeInputs := mocks.resourceInputs["keycloak:openid/clientOptionalScopes:ClientOptionalScopes"]
 		assert.NotNil(t, optionalScopeInputs)
+	})
+
+	t.Run("renders tenant templates in url fields", func(t *testing.T) {
+		tenant := newTenant("tenant1", "dev")
+		kc := &provisioningv1.KeycloakClient{
+			ObjectMeta: metav1.ObjectMeta{Name: "my-kc-client"},
+			Spec: provisioningv1.KeycloakClientSpec{
+				ClientName:             "test-client",
+				ClientId:               "test-client-id",
+				Realm:                  "test-realm",
+				Enabled:                true,
+				PublicClient:           true,
+				FrontchannelLogout:     true,
+				RootUrl:                "https://app-{{ .Tenant.Code }}.example.com/Root.aspx",
+				BaseUrl:                "https://app-{{ .Tenant.Code }}.example.com/Base.aspx",
+				FrontchannelLogoutUrl:  "https://app-{{ .Tenant.Code }}.example.com/Logout.aspx",
+				RedirectUris:           []string{"https://app-{{ .Tenant.Code }}.example.com/*"},
+				PostLogoutRedirectUris: []string{"https://app-{{ .Tenant.Code }}.example.com/*"},
+				WebOrigins:             []string{"https://app-{{ .Tenant.Code }}.example.com"},
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					DomainRef: "example-domain",
+				},
+			},
+		}
+		mocks := newKeycloakMocks()
+
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, nil, ctx)
+			assert.NoError(t, err)
+			return nil
+		}, pulumi.WithMocks("project", "stack", mocks))
+		assert.NoError(t, err)
+
+		clientInputs := mocks.resourceInputs["keycloak:openid/client:Client"]
+		assert.Equal(t, "https://app-tenant1.example.com/Root.aspx", clientInputs["rootUrl"].StringValue())
+		assert.Equal(t, "https://app-tenant1.example.com/Base.aspx", clientInputs["baseUrl"].StringValue())
+		assert.Equal(t, "https://app-tenant1.example.com/Logout.aspx", clientInputs["frontchannelLogoutUrl"].StringValue())
+		assert.Equal(t, "https://app-tenant1.example.com/*", clientInputs["validRedirectUris"].ArrayValue()[0].StringValue())
+		assert.Equal(t, "https://app-tenant1.example.com/*", clientInputs["validPostLogoutRedirectUris"].ArrayValue()[0].StringValue())
+		assert.Equal(t, "https://app-tenant1.example.com", clientInputs["webOrigins"].ArrayValue()[0].StringValue())
+
+		// The resource is shared by every tenant, so rendering must not modify it.
+		assert.Equal(t, "https://app-{{ .Tenant.Code }}.example.com/*", kc.Spec.RedirectUris[0])
+		assert.Equal(t, "https://app-{{ .Tenant.Code }}.example.com/*", kc.Spec.PostLogoutRedirectUris[0])
+		assert.Equal(t, "https://app-{{ .Tenant.Code }}.example.com", kc.Spec.WebOrigins[0])
+	})
+
+	t.Run("keeps url fields without templates unchanged for platform target", func(t *testing.T) {
+		platform := &platformv1.Platform{ObjectMeta: metav1.ObjectMeta{Name: "dev"}}
+		kc := &provisioningv1.KeycloakClient{
+			ObjectMeta: metav1.ObjectMeta{Name: "my-kc-client"},
+			Spec: provisioningv1.KeycloakClientSpec{
+				ClientName:   "test-client",
+				ClientId:     "test-client-id",
+				Realm:        "test-realm",
+				Enabled:      true,
+				RootUrl:      "https://app.example.com/",
+				RedirectUris: []string{"https://app.example.com/*"},
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					DomainRef: "example-domain",
+				},
+			},
+		}
+		mocks := newKeycloakMocks()
+
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployKeycloakClient(platform, kc, []pulumi.Resource{}, nil, ctx)
+			assert.NoError(t, err)
+			return nil
+		}, pulumi.WithMocks("project", "stack", mocks))
+		assert.NoError(t, err)
+
+		clientInputs := mocks.resourceInputs["keycloak:openid/client:Client"]
+		assert.Equal(t, "test-client-id", clientInputs["clientId"].StringValue())
+		assert.Equal(t, "https://app.example.com/", clientInputs["rootUrl"].StringValue())
+		assert.Equal(t, "https://app.example.com/*", clientInputs["validRedirectUris"].ArrayValue()[0].StringValue())
+	})
+
+	t.Run("fails on invalid url template", func(t *testing.T) {
+		tenant := newTenant("tenant1", "dev")
+		kc := &provisioningv1.KeycloakClient{
+			ObjectMeta: metav1.ObjectMeta{Name: "my-kc-client"},
+			Spec: provisioningv1.KeycloakClientSpec{
+				ClientName:   "test-client",
+				ClientId:     "test-client-id",
+				Realm:        "test-realm",
+				Enabled:      true,
+				RedirectUris: []string{"https://app-{{ .Tenant.Unknown }}.example.com/*"},
+				ProvisioningMeta: provisioningv1.ProvisioningMeta{
+					DomainRef: "example-domain",
+				},
+			},
+		}
+		mocks := newKeycloakMocks()
+
+		err := pulumi.RunErr(func(ctx *pulumi.Context) error {
+			_, err := deployKeycloakClient(tenant, kc, []pulumi.Resource{}, nil, ctx)
+			return err
+		}, pulumi.WithMocks("project", "stack", mocks))
+		assert.ErrorContains(t, err, "redirectUris")
+
+		_, hasClient := mocks.resourceInputs["keycloak:openid/client:Client"]
+		assert.False(t, hasClient)
 	})
 
 	t.Run("deploys without scopes when none specified", func(t *testing.T) {
